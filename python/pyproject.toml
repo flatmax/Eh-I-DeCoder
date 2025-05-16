@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eh-i-decoder"
+version = "0.1.0"
+description = "JSON-RPC server for Aider"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+dependencies = [
+    "aider-chat @ git+https://github.com/Aider-AI/aider.git",
+    "jrpc-oo @ git+https://github.com/flatmax/jrpc-oo.git",
+    "GitPython"
+]
+
+[project.scripts]
+aider-server = "python.aider_server:main_starter"
+
+[project.urls]
+Homepage = "https://github.com/your-username/Eh-I-DeCoder"
+Repository = "https://github.com/your-username/Eh-I-DeCoder.git"
+Issues = "https://github.com/your-username/Eh-I-DeCoder/issues"
+
+[tool.setuptools]
+py-modules = ["io_wrapper", "coder_wrapper", "base_wrapper", "simple_std_io", "repo_wrapper"]

@@ -1,68 +1,78 @@
-# Python Project with Aider
+# Eh-I-DeCoder Python Backend
 
-This project uses [Aider](https://github.com/Aider-AI/aider), an AI pair programming tool that helps you code in your terminal.
+This directory contains the Python backend for Eh-I-DeCoder, which provides a JSON-RPC server interface to the Aider AI pair programming tool.
 
-## Getting Started
+## Files
 
-### Installation
+- `aider_server.py` - Main server script that starts the JSON-RPC server and interfaces with Aider
+- `io_wrapper.py` - Wrapper class that intercepts Aider's input/output for web interface integration
+- `coder_wrapper.py` - Wrapper class that provides non-blocking execution of Aider commands
+- `base_wrapper.py` - Base class providing common functionality for wrapper classes
+- `simple_std_io.py` - Simple standard I/O classes for debugging and testing
 
-1. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Setup
 
-2. This will install Aider directly from the GitHub repository.
-
-### Using Aider
-
-You can start using Aider with your preferred LLM:
+Install the package in development mode:
 
 ```bash
-# For DeepSeek
-aider --model deepseek --api-key deepseek=<your-key-here>
-
-# For Claude 3.7 Sonnet
-aider --model sonnet --api-key anthropic=<your-key-here>
-
-# For OpenAI o3-mini
-aider --model o3-mini --api-key openai=<your-key-here>
+pip install -e .
 ```
 
-Replace `<your-key-here>` with your actual API key.
+This will install all required dependencies including Aider and the JSON-RPC library, and create the `aider-server` console script.
 
-### Working with Your Code
+## Usage
 
-1. Navigate to your project directory:
-   ```bash
-   cd path/to/your/project
-   ```
+### Using the Console Script (Recommended)
 
-2. Start Aider:
-   ```bash
-   aider
-   ```
-
-3. Ask Aider to help you with your code by typing your requests in the terminal.
-
-### Using the JSON-RPC Interface
-
-You can also use the JSON-RPC interface to interact with Aider programmatically:
+After installation, start the server using the `aider-server` command:
 
 ```bash
-# Start the JSON-RPC server
-python jrpc_oo_aider.py --port 9000 --aider-args "--model deepseek --api-key deepseek=<your-key-here>"
+# Start with default settings (port 9000)
+aider-server
+
+# Specify a different port for the JSON-RPC server
+aider-server --port 8080
+
+# Pass any Aider arguments directly
+aider-server --model gpt-4 --api-key openai=your-key-here
+aider-server --model claude-3-sonnet --api-key anthropic=your-key-here
+aider-server --model deepseek --api-key deepseek=your-key-here
+
+# Combine server configuration with Aider options
+aider-server --port 8080 --model gpt-4 --api-key openai=your-key-here --no-fancy-input
+
+# Use Aider's configuration file options
+aider-server --config /path/to/aider.conf.yml
+
+# Enable specific Aider features
+aider-server --auto-commits --dirty-commits --model gpt-4
 ```
 
-Options:
-- `--port`: Specify the port for the JSON-RPC server (default: 9000)
-- `--debug`: Enable debug mode
-- `--aider-args`: Pass arguments to Aider (space separated)
+### Running the Script Directly
 
-This allows you to interact with Aider through JSON-RPC calls to the specified port.
+Alternatively, you can run the script directly:
 
-## Features
+```bash
+python ./aider_server.py
+```
 
-- AI pair programming in your terminal
-- Works with over 100 programming languages
-- Git integration for tracking changes
-- Can be used with your preferred IDE
+The script accepts all command line arguments and passes them directly to Aider. This means you can use any Aider configuration options. All arguments except `--port` are passed through to Aider unchanged, giving you full access to Aider's configuration system.
+
+## JSON-RPC Interface
+
+The server exposes several classes via JSON-RPC:
+
+- `EditBlockCoder` - Direct access to Aider's coder instance
+- `Commands` - Access to Aider's command system
+- `CoderWrapper` - Non-blocking wrapper for running Aider prompts
+- `IOWrapper` - Intercepts and forwards Aider's I/O for web interface integration
+
+## Architecture
+
+The backend uses wrapper classes to intercept and modify Aider's behavior:
+
+1. **IOWrapper** - Intercepts all of Aider's output (assistant responses, tool output, etc.) and forwards it to the web interface via JSON-RPC
+2. **CoderWrapper** - Provides a non-blocking interface to run Aider prompts, allowing the web interface to remain responsive
+3. **BaseWrapper** - Provides common functionality like logging and async task management
+
+This architecture allows the web interface to receive real-time updates from Aider while maintaining full control over the interaction flow.

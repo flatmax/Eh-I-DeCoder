@@ -1,0 +1,313 @@
+import {html, css, LitElement} from 'lit';
+import {JRPCClient} from '@flatmax/jrpc-oo';
+import {EditorView} from '@codemirror/view';
+import {basicSetup} from 'codemirror';
+import {MergeView} from '@codemirror/merge';
+import {javascript} from '@codemirror/lang-javascript';
+import {python} from '@codemirror/lang-python';
+import {html as htmlLang} from '@codemirror/lang-html';
+import {css as cssLang} from '@codemirror/lang-css';
+import {json} from '@codemirror/lang-json';
+import {markdown} from '@codemirror/lang-markdown';
+
+export class MergeEditor extends JRPCClient {
+  static properties = {
+    filePath: { type: String },
+    headContent: { type: String, state: true },
+    workingContent: { type: String, state: true },
+    loading: { type: Boolean, state: true },
+    error: { type: String, state: true },
+    serverURI: { type: String }
+  };
+  
+  constructor() {
+    super();
+    this.filePath = '';
+    this.headContent = '';
+    this.workingContent = '';
+    this.loading = false;
+    this.error = null;
+    this.mergeView = null;
+  }
+  
+  connectedCallback() {
+    super.connectedCallback();
+    this.addClass?.(this);
+  }
+  
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.mergeView) {
+      this.mergeView.destroy();
+      this.mergeView = null;
+    }
+  }
+  
+  remoteIsUp() {
+    console.log('MergeEditor::remoteIsUp');
+  }
+  
+  async loadFileContent(filePath) {
+    if (!filePath) return;
+    
+    try {
+      this.loading = true;
+      this.error = null;
+      this.filePath = filePath;
+      
+      console.log(`Loading file content for: ${filePath}`);
+      
+      // Get HEAD version and working directory version
+      const headResponse = await this.call['Repo.get_file_content'](filePath, 'HEAD');
+      const workingResponse = await this.call['Repo.get_file_content'](filePath, 'working');
+      
+      // Extract content from responses (handle UUID wrapper)
+      this.headContent = this.extractContent(headResponse);
+      this.workingContent = this.extractContent(workingResponse);
+      
+      console.log('File content loaded:', {
+        filePath,
+        headLength: this.headContent.length,
+        workingLength: this.workingContent.length
+      });
+      
+      // Update the merge view
+      this.updateMergeView();
+      
+    } catch (error) {
+      console.error('Error loading file content:', error);
+      this.error = `Failed to load file content: ${error.message}`;
+    } finally {
+      this.loading = false;
+      this.requestUpdate();
+    }
+  }
+  
+  extractContent(response) {
+    if (typeof response === 'string') {
+      return response;
+    } else if (typeof response === 'object' && !Array.isArray(response)) {
+      // Handle UUID wrapper
+      const keys = Object.keys(response);
+      if (keys.length > 0) {
+        const content = response[keys[0]];
+        return typeof content === 'string' ? content : content?.content || '';
+      }
+    }
+    return '';
+  }
+  
+  getLanguageExtension(filePath) {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'js':
+      case 'jsx':
+      case 'ts':
+      case 'tsx':
+        return javascript();
+      case 'py':
+        return python();
+      case 'html':
+      case 'htm':
+        return htmlLang();
+      case 'css':
+        return cssLang();
+      case 'json':
+        return json();
+      case 'md':
+      case 'markdown':
+        return markdown();
+      default:
+        return [];
+    }
+  }
+  
+  updateMergeView() {
+    const container = this.shadowRoot.querySelector('.merge-container');
+    if (!container) return;
+    
+    // Destroy existing merge view
+    if (this.mergeView) {
+      this.mergeView.destroy();
+      this.mergeView = null;
+    }
+    
+    // Clear container
+    container.innerHTML = '';
+    
+    if (!this.headContent && !this.workingContent) return;
+    
+    try {
+      // Create new merge view
+      this.mergeView = new MergeView({
+        a: {
+          doc: this.headContent,
+          extensions: [
+            basicSetup,
+            this.getLanguageExtension(this.filePath),
+            EditorView.theme({
+              '&': { height: '100%' },
+              '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
+            })
+          ]
+        },
+        b: {
+          doc: this.workingContent,
+          extensions: [
+            basicSetup,
+            this.getLanguageExtension(this.filePath),
+            EditorView.theme({
+              '&': { height: '100%' },
+              '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
+            })
+          ]
+        },
+        parent: container
+      });
+      
+      console.log('MergeView created successfully');
+    } catch (error) {
+      console.error('Error creating MergeView:', error);
+      this.error = `Failed to create merge view: ${error.message}`;
+      this.requestUpdate();
+    }
+  }
+  
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    
+    // Update merge view when content changes
+    if (changedProperties.has('headContent') || changedProperties.has('workingContent')) {
+      if (this.headContent || this.workingContent) {
+        // Delay to ensure DOM is ready
+        setTimeout(() => this.updateMergeView(), 100);
+      }
+    }
+  }
+  
+  render() {
+    return html`
+      <div class="merge-editor-container">
+        <div class="merge-header">
+          <h3>File Comparison: ${this.filePath}</h3>
+          <div class="merge-labels">
+            <span class="label head-label">HEAD</span>
+            <span class="label working-label">Working Directory</span>
+          </div>
+        </div>
+        
+        ${this.loading ? 
+          html`<div class="loading">Loading file content...</div>` : 
+          this.error ? 
+            html`<div class="error">${this.error}</div>` :
+            this.filePath ?
+              html`<div class="merge-container"></div>` :
+              html`<div class="no-file">Select a file from the Repository tab to view changes</div>`
+        }
+      </div>
+    `;
+  }
+  
+  static styles = css`
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .merge-editor-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .merge-header {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      background: #f8f9fa;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .merge-header h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .merge-labels {
+      display: flex;
+      gap: 16px;
+    }
+    
+    .label {
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .head-label {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+    
+    .working-label {
+      background: #fff3e0;
+      color: #f57c00;
+    }
+    
+    .merge-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .loading, .error, .no-file {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #666;
+      font-style: italic;
+    }
+    
+    .error {
+      color: #d32f2f;
+    }
+    
+    /* CodeMirror merge view styling */
+    .merge-container :global(.cm-merge-view) {
+      height: 100%;
+    }
+    
+    .merge-container :global(.cm-merge-view .cm-editor) {
+      height: 100%;
+    }
+    
+    .merge-container :global(.cm-merge-view .cm-merge-gap) {
+      background: #f5f5f5;
+      border-left: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+    }
+    
+    .merge-container :global(.cm-merge-view .cm-merge-chunk) {
+      background: rgba(255, 0, 0, 0.1);
+    }
+    
+    .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-insert) {
+      background: rgba(0, 255, 0, 0.1);
+    }
+    
+    .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-delete) {
+      background: rgba(255, 0, 0, 0.1);
+    }
+  `;
+}

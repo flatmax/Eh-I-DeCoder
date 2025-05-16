@@ -1,0 +1,28 @@
+Monkey patch the Coder.create to detect when a new coder has been created.
+
+                                                                                                                                                                                                   
+import threading                                                                                                                                                                                     
+from aider.main import main                                                                                                                                                                          
+from aider.coders.base_coder import Coder                                                                                                                                                            
+                                                                                                                                                                                                     
+stored_coder = None                                                                                                                                                                                  
+original_create = Coder.create                                                                                                                                                                       
+                                                                                                                                                                                                     
+def patched_create(*args, **kwargs):                                                                                                                                                                 
+    global stored_coder                                                                                                                                                                              
+    coder = original_create(*args, **kwargs)                                                                                                                                                         
+    stored_coder = coder  # Store reference                                                                                                                                                          
+    return coder                                                                                                                                                                                     
+                                                                                                                                                                                                     
+# Patch the create method                                                                                                                                                                            
+Coder.create = patched_create                                                                                                                                                                        
+                                                                                                                                                                                                     
+# Run main in background                                                                                                                                                                             
+thread = threading.Thread(target=main)                                                                                                                                                               
+thread.daemon = True                                                                                                                                                                                 
+thread.start()                                                                                                                                                                                       
+                                                                                                                                                                                                     
+# Access the coder                                                                                                                                                                                   
+time.sleep(2)  # Give main time to create coder                                                                                                                                                      
+if stored_coder:                                                                                                                                                                                     
+    print(f"Edit format: {stored_coder.edit_format}")         
