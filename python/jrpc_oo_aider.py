@@ -43,43 +43,21 @@ def main_jrpc():
     aider_args = args.aider_args
     
     # Initialize the server
+    print('debug ', args.debug)
     server = JRPCServer(port=args.port, debug=args.debug)
     
     # Start aider in API mode and get the coder instance
     coder = main(aider_args, return_coder=True)
     
-    # Add a wrapper class with explicit methods
-    class AiderWrapper:
-        def __init__(self, coder):
-            self.coder = coder
-        
-        def chat(self, message):
-            """Send a chat message to Aider and get response"""
-            # The coder instance has methods to handle chat
-            try:
-                # Process the message and get a response
-                response = self.coder.run_chat_loop(message, return_response=True)
-                return response
-            except Exception as e:
-                return f"Error processing chat: {str(e)}"
-        
-        def add_files(self, file_paths):
-            """Add files to Aider's context"""
-            try:
-                added_files = []
-                for file_path in file_paths:
-                    self.coder.add_files([file_path])
-                    added_files.append(file_path)
-                return f"Successfully added files: {', '.join(added_files)}"
-            except Exception as e:
-                return f"Error adding files: {str(e)}"
-    
-    # Add the wrapper instance to the server
-    server.add_class(AiderWrapper(coder), 'Aider')
+    # Add the coder instance directly to the server
+    # server.add_class(coder, 'EditBlockCoder')
+    server.add_class(coder)
     
     print(f"JSON-RPC server running on port {args.port}")
-    print("Aider coder instance available through 'Aider' class")
+    print("Coder instance available through 'EditBlockCoder' class")
     
+    print(server.instances)
+
     # Start the server
     server.start()
 

@@ -159,8 +159,15 @@ export class PromptView extends JRPCClient {
     this.requestUpdate();
     
     try {
-      // Call Aider's chat method via RPC
-      const response = await this.server['Aider.chat'](message);
+      // Initialize before sending message
+      await this.call['EditBlockCoder.init_before_message']();
+      
+      // Preprocess the user input
+      const processedInput = await this.call['EditBlockCoder.preproc_user_input'](message);
+      console.log("Processed input:", processedInput);
+      
+      // Send the message
+      const response = await this.call['EditBlockCoder.send_message'](message);
       
       // Add assistant response to history
       this.addMessageToHistory('assistant', response);
@@ -191,6 +198,15 @@ export class PromptView extends JRPCClient {
    */
   clearHistory() {
     this.messageHistory = [];
+    
+    // Also reset the Aider chat context
+    try {
+      this.call['EditBlockCoder.move_back_cur_messages']();
+      this.call['EditBlockCoder.init_before_message']();
+    } catch (error) {
+      console.error('Error resetting Aider context:', error);
+    }
+    
     this.requestUpdate();
   }
 
@@ -199,28 +215,40 @@ export class PromptView extends JRPCClient {
    */
   async selectFiles() {
     try {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.multiple = true;
+      // Get all addable files from the repository
+      const availableFiles = await this.call['EditBlockCoder.get_addable_relative_files']();
       
-      input.onchange = async (event) => {
-        const files = Array.from(event.target.files);
-        if (files.length > 0) {
-          const fileNames = files.map(f => f.name);
-          try {
-            // Call Aider method to add files
-            const result = await this.server['Aider.add_files'](fileNames);
-            this.addMessageToHistory('assistant', `Added files: ${fileNames.join(', ')}`);
-          } catch (error) {
-            console.error('Error adding files:', error);
-            this.addMessageToHistory('assistant', `Error adding files: ${error.message}`);
-          }
+      // For now, we'll use a simple prompt
+      const fileList = availableFiles.join('\n');
+      
+      // Show list of available files and ask for selection
+      const selectedFile = prompt(
+        `Available files (enter file path to add):\n${fileList}`, 
+        availableFiles.length > 0 ? availableFiles[0] : ''
+      );
+      
+      if (selectedFile && selectedFile.trim()) {
+        try {
+          // Call Aider method to add file
+          await this.call['EditBlockCoder.add_rel_fname'](selectedFile);
+          
+          // Get chat files to confirm
+          const chatFiles = await this.call['EditBlockCoder.get_inchat_relative_files']();
+          
+          // Get file content to display
+          const fileContent = await this.call['EditBlockCoder.get_files_content']();
+          const filePreview = fileContent[selectedFile] ? 
+            `\nPreview: ${fileContent[selectedFile].substring(0, 100)}...` : '';
+          
+          this.addMessageToHistory('assistant', `Added file: ${selectedFile}\nFiles in chat: ${chatFiles.join(', ')}${filePreview}`);
+        } catch (error) {
+          console.error('Error adding file:', error);
+          this.addMessageToHistory('assistant', `Error adding file: ${error.message}`);
         }
-      };
-      
-      input.click();
+      }
     } catch (error) {
       console.error('Error selecting files:', error);
+      this.addMessageToHistory('assistant', `Error getting file list: ${error.message}`);
     }
   }
 }

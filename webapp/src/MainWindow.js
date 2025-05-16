@@ -106,6 +106,10 @@ export class MainWindow extends JRPCClient {
           <md-filled-button @click=${this.showServerInfo}>
             Show Server Info
           </md-filled-button>
+          
+          <md-filled-button @click=${this.openPromptView}>
+            Open Aider Chat
+          </md-filled-button>
         </div>
         
         ${this.showPromptView ? html`<prompt-view></prompt-view>` : ''}
@@ -113,17 +117,59 @@ export class MainWindow extends JRPCClient {
     `;
   }
   
-  testConnection() {
+  async testConnection() {
     console.log('Connection test clicked');
     
-    // Example API call when server endpoint is available
-    if (this.server && this.server.Aider) {
-      console.log('Aider is available');
+    try {
+      // Get platform info
+      const platformInfo = await this.call['EditBlockCoder.get_platform_info']();
+      console.log('Platform info:', platformInfo);
+      
+      // Get repository information
+      const repoMap = await this.call['EditBlockCoder.get_repo_map']();
+      console.log('Repository map:', repoMap);
+      
+      // Check for any pending announcements
+      const announcements = await this.call['EditBlockCoder.get_announcements']();
+      if (announcements && announcements.length > 0) {
+        console.log('Announcements:', announcements);
+      }
+      
+      alert('Connection successful! See console for details.');
+    } catch (error) {
+      console.error('Error connecting to Aider:', error);
+      alert('Connection error: ' + error.message);
     }
   }
   
-  showServerInfo() {
-    console.log('Server info:', this.server);
+  async showServerInfo() {
+    try {
+      // Get files currently in chat context
+      const chatFiles = await this.call['EditBlockCoder.get_inchat_relative_files']();
+      
+      // Get all repo files
+      const allFiles = await this.call['EditBlockCoder.get_all_relative_files']();
+      
+      // Get repo map
+      const repoMap = await this.call['EditBlockCoder.get_repo_map']();
+      
+      // Get platform info
+      const platformInfo = await this.call['EditBlockCoder.get_platform_info']();
+      
+      const info = {
+        'In-chat files': chatFiles,
+        'Repository files': `${allFiles.length} files available`,
+        'Repository root': repoMap.repo_root || 'Unknown',
+        'Platform': platformInfo.os || 'Unknown',
+        'User language': await this.call['EditBlockCoder.get_user_language']()
+      };
+      
+      alert(JSON.stringify(info, null, 2));
+      console.log('Server info:', info);
+    } catch (error) {
+      console.error('Error getting server info:', error);
+      alert('Error: ' + error.message);
+    }
   }
 
   /**
@@ -161,8 +207,39 @@ export class MainWindow extends JRPCClient {
     // Add initialization that requires the server to be up
     this.addClass(this);
     
-    // Show prompt view now that server is up
-    this.showPromptView = true;
-    // this.requestUpdate();
+    // Don't automatically show the prompt view anymore
+    this.requestUpdate();
+  }
+
+  setupDone() {
+    console.log('Available methods:', this.call);
+  }
+  
+  /**
+   * Open the Aider prompt view
+   */
+  async openPromptView() {
+    try {
+      // Check if we can communicate with Aider
+      const platformInfo = await this.call['EditBlockCoder.get_platform_info']();
+      console.log('Platform info:', platformInfo);
+      
+      // Initialize the Aider context
+      await this.call['EditBlockCoder.init_before_message']();
+      
+      // Warm the cache
+      await this.call['EditBlockCoder.warm_cache']();
+      
+      // Get repository map for context
+      const repoMap = await this.call['EditBlockCoder.get_repo_map']();
+      console.log('Repository map:', repoMap);
+      
+      // Show the prompt view
+      this.showPromptView = true;
+      this.requestUpdate();
+    } catch (error) {
+      console.error('Error initializing Aider:', error);
+      alert('Error connecting to Aider: ' + error.message);
+    }
   }
 }
