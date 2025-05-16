@@ -30,5 +30,3 @@ export class MyApp extends LitElement {
     `;
   }
 }
-
-customElements.define('my-app', MyApp);
