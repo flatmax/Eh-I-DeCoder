@@ -1,0 +1,2 @@
+git+https://github.com/Aider-AI/aider.git
+git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python
