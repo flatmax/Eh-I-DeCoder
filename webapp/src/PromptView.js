@@ -4,6 +4,7 @@
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import '@material/web/button/filled-button.js';
+import '@material/web/textfield/filled-text-field.js';
 
 export class PromptView extends JRPCClient {
   constructor() {
@@ -96,7 +97,7 @@ export class PromptView extends JRPCClient {
   remoteIsUp() {
     console.log('PromptView::remoteIsUp');
     this.addClass(this);
-    this.requestUpdate();
+    // this.requestUpdate();
   }
   
   /**
@@ -113,14 +114,15 @@ export class PromptView extends JRPCClient {
           `)}
         </div>
         <div class="input-area">
-          <textarea 
-            id="promptInput" 
-            placeholder="Enter your prompt" 
+          <md-filled-text-field
+            id="promptInput"
+            type="textarea" 
+            label="Enter your prompt"
             rows="3"
             .value=${this.inputValue}
             @input=${e => this.inputValue = e.target.value}
             @keydown=${this.handleKeyDown}
-          ></textarea>
+          ></md-filled-text-field>
           <md-filled-button id="sendButton" @click=${this.sendPrompt}>Send</md-filled-button>
         </div>
         <div class="controls">

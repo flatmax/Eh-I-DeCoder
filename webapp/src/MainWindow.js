@@ -4,6 +4,7 @@
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import '@material/web/button/filled-button.js';
+import '@material/web/textfield/filled-text-field.js';
 
 export class MainWindow extends JRPCClient {
   constructor() {
@@ -11,6 +12,8 @@ export class MainWindow extends JRPCClient {
     this.remoteTimeout = 300;
     this.debug = false;
     this.showPromptView = false;
+    this.serverURI = "ws://0.0.0.0:9000";
+    this.newServerURI = "ws://0.0.0.0:9000";
   }
   
   static styles = css`
@@ -27,6 +30,25 @@ export class MainWindow extends JRPCClient {
     .button-container {
       display: flex;
       gap: 10px;
+    }
+    .server-settings {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .server-input {
+      flex-grow: 1;
+      --md-filled-text-field-container-shape: 4px;
+    }
+    .current-server {
+      font-size: 14px;
+      color: #666;
+      margin-top: 5px;
     }
     button {
       padding: 8px 16px;
@@ -63,6 +85,19 @@ export class MainWindow extends JRPCClient {
       <div class="container">
         <h2>Aider AI Assistant</h2>
         
+        <div class="server-settings">
+          <md-filled-text-field
+            class="server-input"
+            .value=${this.newServerURI}
+            @input=${e => this.newServerURI = e.target.value}
+            label="Server URI"
+          ></md-filled-text-field>
+          <md-filled-button @click=${this.updateServerURI}>
+            Connect
+          </md-filled-button>
+          <div class="current-server">Current: ${this.serverURI}</div>
+        </div>
+        
         <div class="button-container">
           <md-filled-button @click=${this.testConnection}>
             Test Connection
@@ -92,6 +127,21 @@ export class MainWindow extends JRPCClient {
   }
 
   /**
+   * Update the server URI and reconnect
+   */
+  updateServerURI() {
+    if (this.newServerURI && this.newServerURI !== this.serverURI) {
+      this.serverURI = this.newServerURI;
+      console.log(`Connecting to server at: ${this.serverURI}`);
+      this.showPromptView = false;
+      this.requestUpdate();
+      
+      // Establish new connection
+      this.connect();
+    }
+  }
+
+  /**
    * Overloading JRPCCLient::serverChanged to print out the websocket address
    */
   serverChanged() {
@@ -113,6 +163,6 @@ export class MainWindow extends JRPCClient {
     
     // Show prompt view now that server is up
     this.showPromptView = true;
-    this.requestUpdate();
+    // this.requestUpdate();
   }
 }
