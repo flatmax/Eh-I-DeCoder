@@ -7,7 +7,9 @@
     "start": "web-dev-server --app-index index.html --node-resolve --open --watch"
   },
   "dependencies": {
-    "lit": "^2.7.0"
+    "lit": "^2.7.0",
+    "@flatmax/jrpc-oo": "^1.0.0",
+    "@material/web": "^2.0.0"
   },
   "devDependencies": {
     "@web/dev-server": "^0.1.35"
