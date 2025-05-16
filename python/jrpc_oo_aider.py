@@ -17,11 +17,9 @@ try:
             from jrpc_oo.jrpc_server import JRPCServer
 except ImportError:
     print("Error: jrpc_server module not found. Please install it from GitHub.")
-    print("Try: pip install git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python")
-    print("\nAlternatively, clone the repository and install from the python directory:")
-    print("git clone https://github.com/flatmax/jrpc-oo.git")
-    print("cd jrpc-oo/python")
-    print("pip install -e .")
+    print("Try: pip install -e .")
+    print("\nAlternatively, install the dependency directly:")
+    print("pip install git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python")
     sys.exit(1)
 
 from aider.main import main
