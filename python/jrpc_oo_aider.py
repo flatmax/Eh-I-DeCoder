@@ -1,29 +1,10 @@
 #!/usr/bin/env python
 
-import sys
 import argparse
-import importlib.util
-
-try:
-    # Try different import patterns that might work depending on how the package is installed
-    try:
-        from jrpc_server import JRPCServer
-    except ImportError:
-        try:
-            # If installed as package from subdirectory
-            from python.jrpc_server import JRPCServer
-        except ImportError:
-            # If installed via Git and module is at root level
-            from jrpc_oo.jrpc_server import JRPCServer
-except ImportError:
-    print("Error: jrpc_server module not found. Please install it from GitHub.")
-    print("Try: pip install -e .")
-    print("\nAlternatively, install the dependency directly:")
-    print("pip install git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python")
-    sys.exit(1)
+import asyncio
+from jrpc_oo import JRPCServer
 
 from aider.main import main
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
@@ -34,8 +15,7 @@ def parse_args():
     
     return parser.parse_args()
 
-
-def main_jrpc():
+async def main_starter():
     # Parse command line arguments for the server
     args = parse_args()
     
@@ -44,23 +24,28 @@ def main_jrpc():
     
     # Initialize the server
     print('debug ', args.debug)
-    server = JRPCServer(port=args.port, debug=args.debug)
+    jrpc_server = JRPCServer(port=args.port)
     
     # Start aider in API mode and get the coder instance
     coder = main(aider_args, return_coder=True)
     
-    # Add the coder instance directly to the server
-    # server.add_class(coder, 'EditBlockCoder')
-    server.add_class(coder)
+    # Add the coder instance directly to the server with explicit class name
+    jrpc_server.add_class(coder, 'EditBlockCoder')
     
     print(f"JSON-RPC server running on port {args.port}")
     print("Coder instance available through 'EditBlockCoder' class")
     
-    print(server.instances)
+    # Start server
+    await jrpc_server.start()
 
-    # Start the server
-    server.start()
+    try:
+        # Keep server running indefinitely
+        await asyncio.Future()
+    except KeyboardInterrupt:
+        print("Server stopped by user")
+    finally:
+        await jrpc_server.stop()
 
 
 if __name__ == "__main__":
-    main_jrpc()
+    asyncio.run(main_starter())
