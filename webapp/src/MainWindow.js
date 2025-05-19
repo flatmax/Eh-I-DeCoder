@@ -18,6 +18,7 @@ export class MainWindow extends JRPCClient {
     this.showConnectionDetails = false;
     this.reconnectTimeout = null; // Timeout for reconnection attempts
     this.reconnectDelay = 1000; // Reconnect after 1 second
+    this.scheduleReconnect();
   }
   
   static styles = css`
@@ -128,6 +129,7 @@ export class MainWindow extends JRPCClient {
     
     // Connect on startup
     console.log('MainWindow: First connection attempt on startup');
+    // Connection happens automatically through JRPCClient
   }
   
   /**
@@ -264,21 +266,46 @@ export class MainWindow extends JRPCClient {
    * Overloading JRPCCLient::serverChanged to print out the websocket address
    */
   serverChanged() {
-    console.log('Make sure ws url = ' + this.serverURI + ' has browser security clearance');
-    console.log('to do this, goto ' + this.serverURI.replace('wss', 'https') + 
-      ' in a new browser tab replacing the wss for https\n do this each time the local cert changes or times out');
-    
     this.connectionStatus = 'connecting';
     this.requestUpdate();
     super.serverChanged();
   }
 
+  
   /**
-   * Override connect to update connection status
+   * Called when connection is lost
    */
-  connect() {
-    this.connectionStatus = 'connecting';
+  /**
+   * Schedule reconnection attempts that continue until connection is established
+   */
+  scheduleReconnect() {
+    // Clear any existing timeout first
+    if (this.reconnectTimeout) {
+      console.log('Clearing existing reconnect timeout');
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    console.log(`Setting reconnect timeout for ${this.reconnectDelay}ms`);
+    this.reconnectTimeout = setTimeout(() => {
+      console.log('Attempting to reconnect...');
+      this.connectionStatus = 'connecting';
+      this.requestUpdate();
+      this.serverChanged();
+
+      // Schedule another reconnection attempt for later
+      // This ensures we keep trying until remoteIsUp is called
+      this.reconnectTimeout = null;
+      this.scheduleReconnect();
+    }, this.reconnectDelay);
+  }
+  
+  remoteIsDown() {
+    console.log('MainWindow::remoteIsDown');
+    this.connectionStatus = 'disconnected';
     this.requestUpdate();
+    
+    this.scheduleReconnect();
   }
 
   /**
@@ -312,16 +339,7 @@ export class MainWindow extends JRPCClient {
     this.connectionStatus = 'disconnected';
     this.requestUpdate();
     
-    // Use same reconnect logic as remoteIsDown
-    if (!this.reconnectTimeout) {
-      console.log(`Setting reconnect timeout for ${this.reconnectDelay}ms`);
-      this.reconnectTimeout = setTimeout(() => {
-        console.log('Attempting to reconnect...');
-        this.connectionStatus = 'connecting';
-        this.requestUpdate();
-        this.reconnectTimeout = null;
-      }, this.reconnectDelay);
-    }
+    this.scheduleReconnect();
   }
 
   /**
