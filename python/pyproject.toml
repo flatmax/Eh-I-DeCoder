@@ -11,5 +11,5 @@ requires-python = ">=3.8"
 license = {text = "MIT"}
 dependencies = [
     "aider-chat @ git+https://github.com/Aider-AI/aider.git",
-    "jrpc-python @ git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python",
+#    "jrpc-python @ git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python",
 ]

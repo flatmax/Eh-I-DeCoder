@@ -223,17 +223,7 @@ export class MainWindow extends JRPCClient {
       // Check if we can communicate with Aider
       const platformInfo = await this.call['EditBlockCoder.get_platform_info']();
       console.log('Platform info:', platformInfo);
-      
-      // Initialize the Aider context
-      await this.call['EditBlockCoder.init_before_message']();
-      
-      // Warm the cache
-      await this.call['EditBlockCoder.warm_cache']();
-      
-      // Get repository map for context
-      const repoMap = await this.call['EditBlockCoder.get_repo_map']();
-      console.log('Repository map:', repoMap);
-      
+
       // Show the prompt view
       this.showPromptView = true;
       this.requestUpdate();

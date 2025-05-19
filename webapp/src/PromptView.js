@@ -13,6 +13,7 @@ export class PromptView extends JRPCClient {
     this.debug = false;
     this.messageHistory = [];
     this.inputValue = '';
+    this.serverURI = "ws://0.0.0.0:9000";
   }
 
   static styles = css`
@@ -35,7 +36,17 @@ export class PromptView extends JRPCClient {
       margin-bottom: 10px;
       background-color: #f9f9f9;
       border-radius: 4px;
-      max-height: 400px;
+      max-height: 600px;
+      white-space: pre-wrap;
+    }
+    .assistant-message {
+      background-color: #f1f1f1;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      align-self: flex-start;
+      white-space: pre-wrap;
+      font-family: monospace;
     }
     .user-message {
       background-color: #e1f5fe;
@@ -159,18 +170,13 @@ export class PromptView extends JRPCClient {
     this.requestUpdate();
     
     try {
-      // Initialize before sending message
-      await this.call['EditBlockCoder.init_before_message']();
+      // Start streaming the response from Aider
+      console.log('Calling PromptStreamer.stream_prompt...');
+      const result = await this.call['PromptStreamer.stream_prompt'](message);
+      console.log('Stream started:', result);
       
-      // Preprocess the user input
-      const processedInput = await this.call['EditBlockCoder.preproc_user_input'](message);
-      console.log("Processed input:", processedInput);
-      
-      // Send the message
-      const response = await this.call['EditBlockCoder.send_message'](message);
-      
-      // Add assistant response to history
-      this.addMessageToHistory('assistant', response);
+      // Note: We don't need to add a placeholder or update the message here
+      // as the streamWrite method will handle that when it receives chunks
     } catch (error) {
       console.error('Error sending prompt to Aider:', error);
       this.addMessageToHistory('assistant', `Error: ${error.message || 'Failed to communicate with Aider'}`);
@@ -191,6 +197,59 @@ export class PromptView extends JRPCClient {
         historyContainer.scrollTop = historyContainer.scrollHeight;
       }
     });
+  }
+  
+  /**
+   * Handle streaming chunks from Aider
+   * Called by PromptStreamer.stream_prompt via RPC
+   */
+  streamWrite(chunk) {
+    console.log('Chunk received:', chunk);
+    // If there's no assistant message yet, create one
+    if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== 'assistant') {
+      this.addMessageToHistory('assistant', '');
+    }
+    
+    // Append the chunk to the last message
+    const lastIndex = this.messageHistory.length - 1;
+    this.messageHistory[lastIndex].content += chunk;
+    this.requestUpdate();
+    
+    // Scroll to bottom after update
+    this.updateComplete.then(() => {
+      const historyContainer = this.shadowRoot.getElementById('messageHistory');
+      if (historyContainer) {
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+      }
+    });
+    
+    return "chunk received"; // Return a response to confirm receipt
+  }
+  
+  /**
+   * Handle completion of streaming
+   * Called by PromptStreamer when streaming is complete
+   */
+  streamComplete() {
+    console.log('Streaming complete');
+    // Additional completion logic can be added here
+  }
+  
+  /**
+   * Handle errors during streaming
+   * Called by PromptStreamer when streaming encounters an error
+   */
+  streamError(errorMessage) {
+    console.error('Streaming error:', errorMessage);
+    this.addMessageToHistory('assistant', `Error: ${errorMessage}`);
+  }
+  
+  /**
+   * Simple method to test RPC callbacks
+   */
+  sayHello() {
+    console.log('Hello from PromptView!');
+    return 'Hello received';
   }
 
   /**
