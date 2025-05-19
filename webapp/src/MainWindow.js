@@ -11,9 +11,13 @@ export class MainWindow extends JRPCClient {
     super();
     this.remoteTimeout = 300;
     this.debug = false;
-    this.showPromptView = false;
+    this.showPromptView = true;
     this.serverURI = "ws://0.0.0.0:9000";
     this.newServerURI = "ws://0.0.0.0:9000";
+    this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
+    this.showConnectionDetails = false;
+    this.reconnectTimeout = null; // Timeout for reconnection attempts
+    this.reconnectDelay = 1000; // Reconnect after 1 second
   }
   
   static styles = css`
@@ -30,16 +34,51 @@ export class MainWindow extends JRPCClient {
     .button-container {
       display: flex;
       gap: 10px;
+      align-items: center;
     }
     .server-settings {
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      align-items: center;
       margin-bottom: 15px;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
       background-color: #f9f9f9;
+    }
+    .server-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      cursor: pointer;
+    }
+    .server-details {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+    .connection-led {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 5px;
+      display: inline-block;
+      transition: background-color 0.3s ease;
+    }
+    .led-disconnected {
+      background-color: #ff3b30;
+      box-shadow: 0 0 5px #ff3b30;
+    }
+    .led-connecting {
+      background-color: #ffcc00;
+      box-shadow: 0 0 5px #ffcc00;
+    }
+    .led-connected {
+      background-color: #34c759;
+      box-shadow: 0 0 5px #34c759;
     }
     .server-input {
       flex-grow: 1;
@@ -74,6 +113,28 @@ export class MainWindow extends JRPCClient {
    */
   setupDone() {
     console.log('MainWindow setupDone: UI created with prompt view');
+    this.connectionStatus = 'connected';
+    this.requestUpdate();
+  }
+  
+  /**
+   * LitElement lifecycle method - called when element is added to DOM
+   */
+  connectedCallback() {
+    super.connectedCallback();
+    
+    // Set initial connection status to connecting
+    this.connectionStatus = 'connecting';
+    
+    // Connect on startup
+    console.log('MainWindow: First connection attempt on startup');
+  }
+  
+  /**
+   * Toggle connection details visibility
+   */
+  toggleConnectionDetails() {
+    this.showConnectionDetails = !this.showConnectionDetails;
     this.requestUpdate();
   }
   
@@ -86,16 +147,30 @@ export class MainWindow extends JRPCClient {
         <h2>Aider AI Assistant</h2>
         
         <div class="server-settings">
-          <md-filled-text-field
-            class="server-input"
-            .value=${this.newServerURI}
-            @input=${e => this.newServerURI = e.target.value}
-            label="Server URI"
-          ></md-filled-text-field>
-          <md-filled-button @click=${this.updateServerURI}>
-            Connect
-          </md-filled-button>
-          <div class="current-server">Current: ${this.serverURI}</div>
+          <div class="server-header" @click=${this.toggleConnectionDetails}>
+            <div>
+              <span class="connection-led led-${this.connectionStatus}"></span>
+              Server: ${this.showConnectionDetails ? '' : this.serverURI}
+            </div>
+            <md-filled-button dense>
+              ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
+            </md-filled-button>
+          </div>
+          
+          ${this.showConnectionDetails ? html`
+            <div class="server-details">
+              <md-filled-text-field
+                class="server-input"
+                .value=${this.newServerURI}
+                @input=${e => this.newServerURI = e.target.value}
+                label="Server URI"
+              ></md-filled-text-field>
+              <md-filled-button @click=${this.updateServerURI}>
+                Connect
+              </md-filled-button>
+            </div>
+            <div class="current-server">Current: ${this.serverURI}</div>
+          ` : ''}
         </div>
         
         <div class="button-container">
@@ -180,10 +255,8 @@ export class MainWindow extends JRPCClient {
       this.serverURI = this.newServerURI;
       console.log(`Connecting to server at: ${this.serverURI}`);
       this.showPromptView = false;
+      this.connectionStatus = 'connecting';
       this.requestUpdate();
-      
-      // Establish new connection
-      this.connect();
     }
   }
 
@@ -195,7 +268,17 @@ export class MainWindow extends JRPCClient {
     console.log('to do this, goto ' + this.serverURI.replace('wss', 'https') + 
       ' in a new browser tab replacing the wss for https\n do this each time the local cert changes or times out');
     
+    this.connectionStatus = 'connecting';
+    this.requestUpdate();
     super.serverChanged();
+  }
+
+  /**
+   * Override connect to update connection status
+   */
+  connect() {
+    this.connectionStatus = 'connecting';
+    this.requestUpdate();
   }
 
   /**
@@ -207,14 +290,40 @@ export class MainWindow extends JRPCClient {
     // Add initialization that requires the server to be up
     this.addClass(this);
     
+    // Update connection status
+    this.connectionStatus = 'connected';
+    
     // Don't automatically show the prompt view anymore
     this.requestUpdate();
+    
+    // Clear any reconnection timeout when connection is successful
+    if (this.reconnectTimeout) {
+      console.log('Clearing reconnect timeout as connection is established');
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
   }
 
-  setupDone() {
-    console.log('Available methods:', this.call);
+  /**
+   * Called when remote server disconnects
+   */
+  remoteDisconnected() {
+    console.log('MainWindow::remoteDisconnected');
+    this.connectionStatus = 'disconnected';
+    this.requestUpdate();
+    
+    // Use same reconnect logic as remoteIsDown
+    if (!this.reconnectTimeout) {
+      console.log(`Setting reconnect timeout for ${this.reconnectDelay}ms`);
+      this.reconnectTimeout = setTimeout(() => {
+        console.log('Attempting to reconnect...');
+        this.connectionStatus = 'connecting';
+        this.requestUpdate();
+        this.reconnectTimeout = null;
+      }, this.reconnectDelay);
+    }
   }
-  
+
   /**
    * Open the Aider prompt view
    */
@@ -226,10 +335,13 @@ export class MainWindow extends JRPCClient {
 
       // Show the prompt view
       this.showPromptView = true;
+      this.connectionStatus = 'connected';
       this.requestUpdate();
     } catch (error) {
       console.error('Error initializing Aider:', error);
+      this.connectionStatus = 'disconnected';
       alert('Error connecting to Aider: ' + error.message);
+      this.requestUpdate();
     }
   }
 }

@@ -64,8 +64,8 @@ export class PromptView extends JRPCClient {
     }
     .input-area {
       display: flex;
-      flex-direction: row;
-      align-items: center;
+      flex-direction: column;
+      width: 100%;
       gap: 10px;
     }
     .controls {
@@ -133,8 +133,11 @@ export class PromptView extends JRPCClient {
             .value=${this.inputValue}
             @input=${e => this.inputValue = e.target.value}
             @keydown=${this.handleKeyDown}
+            style="width: 100%;"
           ></md-filled-text-field>
-          <md-filled-button id="sendButton" @click=${this.sendPrompt}>Send</md-filled-button>
+          <div style="display: flex; justify-content: flex-end;">
+            <md-filled-button id="sendButton" @click=${this.sendPrompt}>Send</md-filled-button>
+          </div>
         </div>
         <div class="controls">
           <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear History</md-filled-button>
