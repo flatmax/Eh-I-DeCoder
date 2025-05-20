@@ -173,13 +173,15 @@ export class PromptView extends JRPCClient {
     this.requestUpdate();
     
     try {
-      // Start streaming the response from Aider
-      console.log('Calling PromptStreamer.stream_prompt...');
-      const result = await this.call['PromptStreamer.stream_prompt'](message);
-      console.log('Stream started:', result);
+      // Add placeholder for assistant response
+      this.addMessageToHistory('assistant', '');
       
-      // Note: We don't need to add a placeholder or update the message here
-      // as the streamWrite method will handle that when it receives chunks
+      // Call CoderWrapper.run instead of PromptStreamer.stream_prompt
+      console.log('Calling CoderWrapper.run...');
+      await this.call['CoderWrapper.run'](message, true);
+      console.log('Run completed');
+      
+      // Note: The IOWrapper will handle streaming the response via streamWrite
     } catch (error) {
       console.error('Error sending prompt to Aider:', error);
       this.addMessageToHistory('assistant', `Error: ${error.message || 'Failed to communicate with Aider'}`);
@@ -204,10 +206,17 @@ export class PromptView extends JRPCClient {
   
   /**
    * Handle streaming chunks from Aider
-   * Called by PromptStreamer.stream_prompt via RPC
+   * Called by IOWrapper.send_stream_update and send_to_webapp via RPC
    */
   streamWrite(chunk) {
-    console.log('Chunk received:', chunk);
+    console.log('Chunk received:', typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk');
+    
+    // If chunk is null or undefined, handle gracefully
+    if (!chunk) {
+      console.warn('Received empty chunk');
+      return "empty chunk ignored";
+    }
+    
     // If there's no assistant message yet, create one
     if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== 'assistant') {
       this.addMessageToHistory('assistant', '');
@@ -240,11 +249,32 @@ export class PromptView extends JRPCClient {
   
   /**
    * Handle errors during streaming
-   * Called by PromptStreamer when streaming encounters an error
+   * Called by IOWrapper when streaming encounters an error
    */
   streamError(errorMessage) {
     console.error('Streaming error:', errorMessage);
-    this.addMessageToHistory('assistant', `Error: ${errorMessage}`);
+    
+    // Add error to message history or update last assistant message
+    if (this.messageHistory.length > 0 && this.messageHistory[this.messageHistory.length - 1].role === 'assistant') {
+      // Update the existing assistant message
+      const lastIndex = this.messageHistory.length - 1;
+      this.messageHistory[lastIndex].content += `\n\nError: ${errorMessage}`;
+    } else {
+      // Add a new error message
+      this.addMessageToHistory('assistant', `Error: ${errorMessage}`);
+    }
+    
+    this.requestUpdate();
+    
+    // Scroll to bottom after update
+    this.updateComplete.then(() => {
+      const historyContainer = this.shadowRoot.getElementById('messageHistory');
+      if (historyContainer) {
+        historyContainer.scrollTop = historyContainer.scrollHeight;
+      }
+    });
+    
+    return "error handled"; // Return a response to confirm receipt
   }
   
   /**
