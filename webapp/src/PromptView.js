@@ -7,13 +7,15 @@ import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import './card-markdown.js';
+import './SpeechToText.js';
 
 export class PromptView extends JRPCClient {
   static properties = {
     messageHistory: { type: Array, state: true },
     inputValue: { type: String, state: true },
     serverURI: { type: String },
-    isProcessing: { type: Boolean, state: true }
+    isProcessing: { type: Boolean, state: true },
+    showVoiceInput: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -24,6 +26,7 @@ export class PromptView extends JRPCClient {
     this.inputValue = '';
     this.serverURI = "ws://0.0.0.0:9000";
     this.isProcessing = false;
+    this.showVoiceInput = true;
   }
 
   static styles = css`
@@ -37,6 +40,9 @@ export class PromptView extends JRPCClient {
       flex-direction: column;
       width: 100%;
       height: 100%;
+    }
+    .voice-input-container {
+      margin-top: 8px;
     }
     .message-history {
       flex-grow: 1;
@@ -149,10 +155,22 @@ export class PromptView extends JRPCClient {
               ${this.isProcessing ? 'Processing...' : 'Send'}
             </md-filled-button>
           </div>
+          ${this.showVoiceInput ? html`
+            <div class="voice-input-container">
+              <speech-to-text
+                @transcript=${this._handleTranscript}
+                @recording-started=${this._handleRecordingStarted}
+                @recognition-error=${this._handleRecognitionError}
+              ></speech-to-text>
+            </div>
+          ` : ''}
         </div>
         <div class="controls">
           <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear History</md-filled-button>
           <md-filled-button id="fileButton" @click=${this.selectFiles}>Select Files</md-filled-button>
+          <md-filled-button id="voiceButton" @click=${this.toggleVoiceInput}>
+            ${this.showVoiceInput ? 'Hide Voice Input' : 'Show Voice Input'}
+          </md-filled-button>
         </div>
       </div>
     `;
@@ -320,6 +338,44 @@ export class PromptView extends JRPCClient {
     }
     
     this.requestUpdate();
+  }
+  
+  /**
+   * Handle transcript from speech recognition
+   */
+  _handleTranscript(event) {
+    const text = event.detail.text;
+    if (!text) return;
+    
+    // If input already has text, add a space before appending
+    if (this.inputValue && this.inputValue.trim() !== '') {
+      this.inputValue += ' ' + text;
+    } else {
+      this.inputValue = text;
+    }
+  }
+  
+  /**
+   * Handle recording started event
+   */
+  _handleRecordingStarted() {
+    // Could add any additional UI changes when recording starts
+    console.log('Voice recording started');
+  }
+  
+  /**
+   * Handle recognition errors
+   */
+  _handleRecognitionError(event) {
+    console.error('Speech recognition error:', event.detail.error);
+    // Could show an error toast or message to the user
+  }
+  
+  /**
+   * Toggle voice input visibility
+   */
+  toggleVoiceInput() {
+    this.showVoiceInput = !this.showVoiceInput;
   }
 
   /**
