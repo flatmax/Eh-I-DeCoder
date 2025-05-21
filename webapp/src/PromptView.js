@@ -5,6 +5,7 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
+import './card-markdown.js';
 
 export class PromptView extends JRPCClient {
   constructor() {
@@ -48,29 +49,7 @@ export class PromptView extends JRPCClient {
       white-space: pre-wrap;
       font-family: monospace;
     }
-    .user-message {
-      background-color: #e1f5fe;
-      margin-bottom: 12px;
-      align-self: flex-end;
-      width: 90%;
-      margin-left: 10%;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .assistant-message {
-      background-color: #f1f1f1;
-      margin-bottom: 12px;
-      align-self: flex-start;
-      width: 90%;
-      margin-right: 10%;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .message-content {
-      padding: 12px 16px;
-      white-space: pre-wrap;
-      font-family: monospace;
-    }
+    /* Message styling now handled by card-markdown component */
     .input-area {
       display: flex;
       flex-direction: column;
@@ -128,11 +107,10 @@ export class PromptView extends JRPCClient {
       <div class="prompt-container">
         <div class="message-history" id="messageHistory">
           ${this.messageHistory.map(message => html`
-            <div class="${message.role === 'user' ? 'user-message' : 'assistant-message'}">
-              <div class="message-content">
-                ${message.content}
-              </div>
-            </div>
+            <card-markdown 
+              .role=${message.role} 
+              .content=${message.content}
+            ></card-markdown>
           `)}
         </div>
         <div class="input-area">
@@ -219,8 +197,8 @@ export class PromptView extends JRPCClient {
    * Handle streaming chunks from Aider
    * Called by IOWrapper.send_stream_update and send_to_webapp via RPC
    */
-  streamWrite(chunk) {
-    console.log('Chunk received:', typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk');
+  streamWrite(chunk, final = false) {
+    console.log('Chunk received:', typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 'final:', final);
     
     // If chunk is null or undefined, handle gracefully
     if (!chunk) {
@@ -236,6 +214,13 @@ export class PromptView extends JRPCClient {
     // Append the chunk to the last message
     const lastIndex = this.messageHistory.length - 1;
     this.messageHistory[lastIndex].content += chunk;
+    
+    // If final is true, prepare for the next message
+    if (final) {
+      console.log('Final chunk received, preparing for next message');
+      // The streamComplete method will be called separately to finish this message
+    }
+    
     this.requestUpdate();
     
     // Scroll to bottom after update

@@ -108,8 +108,8 @@ class IOWrapper:
         self.log(f"send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
         try:
-            self.log("Calling PromptView.streamWrite with content")
-            response = await self.get_call()['PromptView.streamWrite'](content)
+            self.log("Calling PromptView.streamWrite with content and final param")
+            response = await self.get_call()['PromptView.streamWrite'](content, final)
             self.log(f"streamWrite response: {response}")
             
             if final:
