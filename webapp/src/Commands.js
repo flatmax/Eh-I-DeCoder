@@ -3,11 +3,22 @@
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
+import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/chips/chip-set.js';
 import '@material/web/chips/assist-chip.js';
 import '@material/web/icon/icon.js';
+import '@material/web/button/filled-button.js';
 
 export class Commands extends JRPCClient {
+  static properties = {
+    commands: { type: Array, state: true },
+    loading: { type: Boolean, state: true },
+    error: { type: String, state: true },
+    commandOutput: { type: Array, state: true },
+    showOutput: { type: Boolean, state: true },
+    serverURI: { type: String }
+  };
+  
   constructor() {
     super();
     this.commands = [];
@@ -17,14 +28,6 @@ export class Commands extends JRPCClient {
     this.showOutput = false;
     this.serverURI = "ws://0.0.0.0:9000";
   }
-
-  static properties = {
-    commands: { type: Array },
-    loading: { type: Boolean },
-    error: { type: String },
-    commandOutput: { type: Array },
-    showOutput: { type: Boolean },
-  };
 
   static styles = css`
     :host {
@@ -108,12 +111,16 @@ export class Commands extends JRPCClient {
     }
   `;
   
+  connectedCallback() {
+    super.connectedCallback();
+    this.addClass?.(this);
+  }
+  
   /**
    * Called when remote server is up
    */
   remoteIsUp() {
     console.log('Commands::remoteIsUp');
-    this.addClass(this);
     // Add a timeout before loading commands to ensure connection is fully established
     setTimeout(() => {
       this.loadCommands();
@@ -246,15 +253,18 @@ export class Commands extends JRPCClient {
   }
 
   render() {
+    const toggleOutput = () => this.showOutput = !this.showOutput;
+    const clearOutput = () => this.commandOutput = [];
+
     return html`
       <div class="commands-container">
         <div class="commands-header">
           <span>Available Commands</span>
           <div>
-            <md-filled-button dense @click=${() => { this.showOutput = !this.showOutput; this.requestUpdate(); }}>
+            <md-filled-button dense @click=${toggleOutput}>
               ${this.showOutput ? 'Hide Output' : 'Show Output'}
             </md-filled-button>
-            <md-filled-button dense @click=${() => this.loadCommands()}>
+            <md-filled-button dense @click=${this.loadCommands}>
               Refresh
             </md-filled-button>
           </div>
@@ -266,12 +276,16 @@ export class Commands extends JRPCClient {
           <div class="error">${this.error}</div>
         ` : html`
           <md-chip-set>
-            ${this.commands.map(command => html`
-              <md-assist-chip 
-                label="${command.name}"
-                @click=${() => this.handleCommandClick(command)}
-              ></md-assist-chip>
-            `)}
+            ${repeat(
+              this.commands, 
+              command => command.name, // key function for efficient updates
+              command => html`
+                <md-assist-chip 
+                  label="${command.name}"
+                  @click=${() => this.handleCommandClick(command)}
+                ></md-assist-chip>
+              `
+            )}
           </md-chip-set>
         `}
         
@@ -279,17 +293,18 @@ export class Commands extends JRPCClient {
           <div class="output-container">
             <div class="output-header">
               <span>Command Output</span>
-              <md-filled-button dense @click=${() => { this.commandOutput = []; this.requestUpdate(); }}>
+              <md-filled-button dense @click=${clearOutput}>
                 Clear
               </md-filled-button>
             </div>
-            ${this.commandOutput.length === 0 ? html`
-              <div class="output-message">No output yet. Run a command to see results here.</div>
-            ` : html`
-              ${this.commandOutput.map(item => html`
-                <div class="output-message output-type-${item.type}">${item.message}</div>
-              `)}
-            `}
+            ${this.commandOutput.length === 0 ? 
+              html`<div class="output-message">No output yet. Run a command to see results here.</div>` : 
+              html`${repeat(
+                this.commandOutput,
+                (item, i) => i, // using index as key since items may not be unique
+                item => html`<div class="output-message output-type-${item.type}">${item.message}</div>`
+              )}`
+            }
           </div>
         ` : ''}
       </div>

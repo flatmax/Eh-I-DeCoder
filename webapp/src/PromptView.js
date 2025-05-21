@@ -3,11 +3,19 @@
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
+import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import './card-markdown.js';
 
 export class PromptView extends JRPCClient {
+  static properties = {
+    messageHistory: { type: Array, state: true },
+    inputValue: { type: String, state: true },
+    serverURI: { type: String },
+    isProcessing: { type: Boolean, state: true }
+  };
+  
   constructor() {
     super();
     this.remoteTimeout = 300;
@@ -15,6 +23,7 @@ export class PromptView extends JRPCClient {
     this.messageHistory = [];
     this.inputValue = '';
     this.serverURI = "ws://0.0.0.0:9000";
+    this.isProcessing = false;
   }
 
   static styles = css`
@@ -82,12 +91,16 @@ export class PromptView extends JRPCClient {
     }
   `;
 
+  connectedCallback() {
+    super.connectedCallback();
+    this.addClass?.(this);
+  }
+  
   /**
    * Called when server is ready to use
    */
   setupDone() {
     console.log('PromptView setupDone: Ready to interact with Aider');
-    this.requestUpdate();
   }
 
   /**
@@ -95,8 +108,6 @@ export class PromptView extends JRPCClient {
    */
   remoteIsUp() {
     console.log('PromptView::remoteIsUp');
-    this.addClass(this);
-    // this.requestUpdate();
   }
   
   /**
@@ -106,12 +117,16 @@ export class PromptView extends JRPCClient {
     return html`
       <div class="prompt-container">
         <div class="message-history" id="messageHistory">
-          ${this.messageHistory.map(message => html`
-            <card-markdown 
-              .role=${message.role} 
-              .content=${message.content}
-            ></card-markdown>
-          `)}
+          ${repeat(
+            this.messageHistory,
+            (message, i) => i, // Using index as key since messages may not have unique IDs
+            message => html`
+              <card-markdown 
+                .role=${message.role} 
+                .content=${message.content}
+              ></card-markdown>
+            `
+          )}
         </div>
         <div class="input-area">
           <md-filled-text-field
@@ -122,10 +137,17 @@ export class PromptView extends JRPCClient {
             .value=${this.inputValue}
             @input=${e => this.inputValue = e.target.value}
             @keydown=${this.handleKeyDown}
+            ?disabled=${this.isProcessing}
             style="width: 100%;"
           ></md-filled-text-field>
           <div style="display: flex; justify-content: flex-end;">
-            <md-filled-button id="sendButton" @click=${this.sendPrompt}>Send</md-filled-button>
+            <md-filled-button 
+              id="sendButton" 
+              @click=${this.sendPrompt}
+              ?disabled=${this.isProcessing}
+            >
+              ${this.isProcessing ? 'Processing...' : 'Send'}
+            </md-filled-button>
           </div>
         </div>
         <div class="controls">
@@ -152,14 +174,14 @@ export class PromptView extends JRPCClient {
   async sendPrompt() {
     const message = this.inputValue.trim();
     
-    if (!message) return;
+    if (!message || this.isProcessing) return;
     
     // Add user message to history
     this.addMessageToHistory('user', message);
     
-    // Clear input
+    // Clear input and mark as processing
     this.inputValue = '';
-    this.requestUpdate();
+    this.isProcessing = true;
     
     try {
       // Add placeholder for assistant response
@@ -174,6 +196,8 @@ export class PromptView extends JRPCClient {
     } catch (error) {
       console.error('Error sending prompt to Aider:', error);
       this.addMessageToHistory('assistant', `Error: ${error.message || 'Failed to communicate with Aider'}`);
+    } finally {
+      this.isProcessing = false;
     }
   }
 

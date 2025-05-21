@@ -3,11 +3,21 @@
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
+import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import './Commands.js';
 
 export class MainWindow extends JRPCClient {
+  static properties = {
+    showPromptView: { type: Boolean, state: true },
+    showCommands: { type: Boolean, state: true },
+    serverURI: { type: String },
+    newServerURI: { type: String, state: true },
+    connectionStatus: { type: String, state: true },
+    showConnectionDetails: { type: Boolean, state: true }
+  };
+  
   constructor() {
     super();
     this.remoteTimeout = 300;
@@ -20,7 +30,6 @@ export class MainWindow extends JRPCClient {
     this.showConnectionDetails = false;
     this.reconnectTimeout = null; // Timeout for reconnection attempts
     this.reconnectDelay = 1000; // Reconnect after 1 second
-    this.scheduleReconnect();
   }
   
   static styles = css`
@@ -132,6 +141,9 @@ export class MainWindow extends JRPCClient {
     // Connect on startup
     console.log('MainWindow: First connection attempt on startup');
     // Connection happens automatically through JRPCClient
+    
+    // Schedule reconnect
+    this.scheduleReconnect();
   }
   
   /**
@@ -146,14 +158,22 @@ export class MainWindow extends JRPCClient {
    * LitElement render method
    */
   render() {
+    const toggleConnectionDetails = () => this.showConnectionDetails = !this.showConnectionDetails;
+    const toggleCommands = () => this.showCommands = !this.showCommands;
+    
+    const ledClasses = {
+      'connection-led': true,
+      [`led-${this.connectionStatus}`]: true
+    };
+    
     return html`
       <div class="container">
         <h2>Aider AI Assistant</h2>
         
         <div class="server-settings">
-          <div class="server-header" @click=${this.toggleConnectionDetails}>
+          <div class="server-header" @click=${toggleConnectionDetails}>
             <div>
-              <span class="connection-led led-${this.connectionStatus}"></span>
+              <span class=${classMap(ledClasses)}></span>
               Server: ${this.showConnectionDetails ? '' : this.serverURI}
             </div>
             <md-filled-button dense>
@@ -190,7 +210,7 @@ export class MainWindow extends JRPCClient {
             Open Aider Chat
           </md-filled-button>
           
-          <md-filled-button @click=${() => { this.showCommands = !this.showCommands; this.requestUpdate(); }}>
+          <md-filled-button @click=${toggleCommands}>
             ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
           </md-filled-button>
         </div>
