@@ -176,11 +176,43 @@ export class Commands extends JRPCClient {
       this.requestUpdate();
       
       console.log(`Executing command: ${command.name}`);
-      // Call CoderWrapper.run with the command name
-      await this.call['CoderWrapper.run'](command.name, true);
+      
+      // Find the prompt-view component through DOM traversal
+      // First get the host element (MainWindow) by going up through the shadow roots
+      const parentRoot = this.getRootNode().host?.shadowRoot;
+      if (!parentRoot) {
+        throw new Error("Could not find parent shadow root");
+      }
+      
+      // Now find the prompt-view element in the parent's shadow DOM
+      const promptView = parentRoot.querySelector('prompt-view');
+      if (!promptView) {
+        throw new Error("PromptView component not found in parent shadow DOM");
+      }
+      
+      // Log that we found the component
+      this.displayCommandOutput('output', `Running command: ${command.name} via PromptView`);
+      
+      // Set the input value to the command
+      promptView.inputValue = command.name;
+      
+      // Call the sendPrompt method
+      await promptView.sendPrompt();
+      
+      this.displayCommandOutput('output', `Sent command through PromptView`);
+      
     } catch (error) {
       console.error('Error executing command:', error);
       this.displayCommandOutput('error', `Error executing command: ${error.message}`);
+      
+      // Fall back to direct API call if we couldn't find the PromptView
+      try {
+        this.displayCommandOutput('output', `Falling back to direct API call...`);
+        await this.call['CoderWrapper.run'](command.name, true);
+        this.displayCommandOutput('output', `Command executed via direct API call`);
+      } catch (fallbackError) {
+        this.displayCommandOutput('error', `Fallback also failed: ${fallbackError.message}`);
+      }
     }
   }
   

@@ -6,8 +6,9 @@ from datetime import datetime
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
     
-    def __init__(self, io_instance):
+    def __init__(self, io_instance, commands_instance=None):
         self.io = io_instance
+        self.commands = commands_instance
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
         
@@ -24,6 +25,21 @@ class IOWrapper:
         # Storage for responses
         self.last_response = None
         self.stream_updates = []
+        
+        # Set up command output interception if commands_instance provided
+        # if commands_instance:
+            # self.log(f"Setting up command output interception for: {commands_instance}")
+        # Store the original methods
+        self.original_tool_output = io_instance.tool_output
+        self.original_tool_error = io_instance.tool_error
+        self.original_tool_warning = io_instance.tool_warning
+        self.original_print = io_instance.print
+        
+        # Replace with our wrapper methods
+        io_instance.tool_output = self.tool_output_wrapper
+        io_instance.tool_error = self.tool_error_wrapper
+        io_instance.tool_warning = self.tool_warning_wrapper
+        io_instance.print = self.print_wrapper
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
@@ -76,6 +92,51 @@ class IOWrapper:
         
         mdstream.update = update_wrapper
         return mdstream
+        
+    # Command output wrapper methods
+    def tool_output_wrapper(self, message = ''):
+        """Intercept standard informational output"""
+        self.log(f"tool_output_wrapper called with message: {message}")
+        
+        # Send to webapp
+        asyncio.create_task(self.send_to_webapp_command('output', message))
+        
+        # Call original method
+        return self.original_tool_output(message)
+    
+    def tool_error_wrapper(self, message = ''):
+        """Intercept error messages"""
+        self.log(f"tool_error_wrapper called with message: {message}")
+        
+        # Send to webapp
+        asyncio.create_task(self.send_to_webapp_command('error', message))
+        
+        # Call original method
+        return self.original_tool_error(message)
+    
+    def tool_warning_wrapper(self, message = ''):
+        """Intercept warning messages"""
+        self.log(f"tool_warning_wrapper called with message: {message}")
+        
+        # Send to webapp
+        asyncio.create_task(self.send_to_webapp_command('warning', message))
+        
+        # Call original method
+        return self.original_tool_warning(message)
+    
+    def print_wrapper(self, *args, **kwargs):
+        """Intercept print calls"""
+        # Convert args to string message
+        message = ' '.join(str(arg) for arg in args)
+        
+        # Log debug information
+        self.log(f"print_wrapper called with message: {message}")
+        
+        # Send to webapp
+        asyncio.create_task(self.send_to_webapp_command('print', message))
+        
+        # Call original method
+        return self.original_print(*args, **kwargs)
     
     async def send_to_webapp(self, message):
         """Send completed response to webapp"""
@@ -127,3 +188,16 @@ class IOWrapper:
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
+                
+    async def send_to_webapp_command(self, msg_type, message):
+        """Send command output to webapp"""
+        self.log(f"send_to_webapp_command called with type: {msg_type}, message: {message}")
+        
+        try:
+            # Call method in Commands.js to display the message
+            response = await self.get_call()['Commands.displayCommandOutput'](msg_type, message)
+            self.log(f"displayCommandOutput response: {response}")
+        except Exception as e:
+            err_msg = f"Error sending command output to webapp: {e}"
+            self.log(f"{err_msg}\n{type(e)}")
+            print(err_msg)
