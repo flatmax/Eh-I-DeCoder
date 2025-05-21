@@ -34,6 +34,8 @@ async def main_starter():
     coder = main(aider_args, return_coder=True)
     # Add the coder instance directly to the server with explicit class name
     jrpc_server.add_class(coder, 'EditBlockCoder')
+    # Add the coder's commands to the server
+    jrpc_server.add_class(coder.commands, 'Commands')
     
     # Create an IOWrapper to intercept coder IO and pass the server for RPC
     try:

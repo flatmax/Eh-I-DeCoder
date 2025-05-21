@@ -5,6 +5,7 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
+import './Commands.js';
 
 export class MainWindow extends JRPCClient {
   constructor() {
@@ -12,6 +13,7 @@ export class MainWindow extends JRPCClient {
     this.remoteTimeout = 300;
     this.debug = false;
     this.showPromptView = true;
+    this.showCommands = true; // Show commands by default
     this.serverURI = "ws://0.0.0.0:9000";
     this.newServerURI = "ws://0.0.0.0:9000";
     this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
@@ -187,9 +189,17 @@ export class MainWindow extends JRPCClient {
           <md-filled-button @click=${this.openPromptView}>
             Open Aider Chat
           </md-filled-button>
+          
+          <md-filled-button @click=${() => { this.showCommands = !this.showCommands; this.requestUpdate(); }}>
+            ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
+          </md-filled-button>
         </div>
         
-        ${this.showPromptView ? html`<prompt-view></prompt-view>` : ''}
+        ${this.showCommands && this.connectionStatus === 'connected' ? 
+          html`<aider-commands .serverURI=${this.serverURI}></aider-commands>` : ''}
+        
+        ${this.showPromptView ? 
+          html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
       </div>
     `;
   }
@@ -264,10 +274,29 @@ export class MainWindow extends JRPCClient {
 
   /**
    * Overloading JRPCCLient::serverChanged to print out the websocket address
+   * and update child components with the new server URI
    */
   serverChanged() {
     this.connectionStatus = 'connecting';
     this.requestUpdate();
+    
+    // Wait for the DOM update to complete before accessing child components
+    this.updateComplete.then(() => {
+      // Find child components and update their server URIs
+      const promptView = this.shadowRoot.querySelector('prompt-view');
+      const commandsView = this.shadowRoot.querySelector('aider-commands');
+      
+      if (promptView && promptView.serverURI !== this.serverURI) {
+        console.log('Updating PromptView server URI to:', this.serverURI);
+        promptView.serverURI = this.serverURI;
+      }
+      
+      if (commandsView && commandsView.serverURI !== this.serverURI) {
+        console.log('Updating Commands server URI to:', this.serverURI);
+        commandsView.serverURI = this.serverURI;
+      }
+    });
+    
     super.serverChanged();
   }
 
