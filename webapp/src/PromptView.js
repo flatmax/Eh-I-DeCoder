@@ -50,17 +50,26 @@ export class PromptView extends JRPCClient {
     }
     .user-message {
       background-color: #e1f5fe;
-      padding: 8px 12px;
-      border-radius: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       align-self: flex-end;
+      width: 90%;
+      margin-left: 10%;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     .assistant-message {
       background-color: #f1f1f1;
-      padding: 8px 12px;
-      border-radius: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       align-self: flex-start;
+      width: 90%;
+      margin-right: 10%;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .message-content {
+      padding: 12px 16px;
+      white-space: pre-wrap;
+      font-family: monospace;
     }
     .input-area {
       display: flex;
@@ -120,7 +129,9 @@ export class PromptView extends JRPCClient {
         <div class="message-history" id="messageHistory">
           ${this.messageHistory.map(message => html`
             <div class="${message.role === 'user' ? 'user-message' : 'assistant-message'}">
-              ${message.content}
+              <div class="message-content">
+                ${message.content}
+              </div>
             </div>
           `)}
         </div>
