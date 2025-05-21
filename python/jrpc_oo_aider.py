@@ -39,8 +39,7 @@ async def main_starter():
     
     # Create an IOWrapper to intercept coder IO and commands output
     try:
-        # Pass both io and commands instances to IOWrapper
-        io_wrapper = IOWrapper(coder.io, coder.commands)
+        io_wrapper = IOWrapper(coder.io)
         jrpc_server.add_class(io_wrapper, 'IOWrapper')
         print(f"IO wrapper created successfully: {io_wrapper}")
         # Log information about the server

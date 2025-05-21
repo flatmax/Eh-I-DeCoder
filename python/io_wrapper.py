@@ -6,9 +6,8 @@ from datetime import datetime
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
     
-    def __init__(self, io_instance, commands_instance=None):
+    def __init__(self, io_instance):
         self.io = io_instance
-        self.commands = commands_instance
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
         
@@ -26,9 +25,7 @@ class IOWrapper:
         self.last_response = None
         self.stream_updates = []
         
-        # Set up command output interception if commands_instance provided
-        # if commands_instance:
-            # self.log(f"Setting up command output interception for: {commands_instance}")
+        # Set up command output interception
         # Store the original methods
         self.original_tool_output = io_instance.tool_output
         self.original_tool_error = io_instance.tool_error
