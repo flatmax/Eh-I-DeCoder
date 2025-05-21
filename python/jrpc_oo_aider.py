@@ -6,6 +6,7 @@ from datetime import datetime
 from jrpc_oo import JRPCServer
 from io_wrapper import IOWrapper
 from coder_wrapper import CoderWrapper
+from commands_wrapper import CommandsWrapper
 
 from aider.main import main
 
@@ -62,10 +63,25 @@ async def main_starter():
     coder_wrapper = CoderWrapper(coder)
     jrpc_server.add_class(coder_wrapper, 'CoderWrapper')
     
+    # Create a CommandsWrapper to intercept command outputs
+    try:
+        commands_wrapper = CommandsWrapper(coder.commands)
+        jrpc_server.add_class(commands_wrapper, 'CommandsWrapper')
+        print(f"Commands wrapper created successfully: {commands_wrapper}")
+        # Make sure log file is created and accessible
+        with open('/tmp/commands_wrapper.log', 'w') as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}] Commands Wrapper log initialized\n")
+    except Exception as e:
+        print(f"Error creating Commands wrapper: {e}")
+        # Still create a log file with error information
+        with open('/tmp/commands_wrapper.log', 'w') as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}] Error initializing Commands Wrapper: {e}\n")
+    
     print(f"JSON-RPC server running on port {args.port}")
     print("Coder instance available through 'EditBlockCoder' class")
     print("CoderWrapper available for running prompts")
     print("IO wrapping enabled for LLM responses")
+    print("Command output wrapping enabled")
     
     # Start server
     await jrpc_server.start()

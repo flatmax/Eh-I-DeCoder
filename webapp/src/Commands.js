@@ -13,6 +13,8 @@ export class Commands extends JRPCClient {
     this.commands = [];
     this.loading = false;
     this.error = null;
+    this.commandOutput = [];
+    this.showOutput = false;
     this.serverURI = "ws://0.0.0.0:9000";
   }
 
@@ -20,6 +22,8 @@ export class Commands extends JRPCClient {
     commands: { type: Array },
     loading: { type: Boolean },
     error: { type: String },
+    commandOutput: { type: Array },
+    showOutput: { type: Boolean },
   };
 
   static styles = css`
@@ -46,6 +50,47 @@ export class Commands extends JRPCClient {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+    }
+
+    .output-container {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #000;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #f8f8f8;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+
+    .output-message {
+      margin: 5px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .output-type-output {
+      color: #f8f8f8;
+    }
+
+    .output-type-error {
+      color: #ff5555;
+    }
+
+    .output-type-warning {
+      color: #ffb86c;
+    }
+
+    .output-type-print {
+      color: #8be9fd;
     }
 
     .loading {
@@ -121,18 +166,51 @@ export class Commands extends JRPCClient {
 
   async handleCommandClick(command) {
     console.log(`Command clicked: ${command.name}`);
-    // Here you could implement functionality to:
-    // 1. Execute the command
-    // 2. Add the command to the prompt input
-    // 3. Show more info about the command
     
-    // For now, just log the action
     try {
-      // Show command description in an alert for demo purposes
-      alert(`Command: ${command.name}\n\nDescription: ${command.description || 'No description available'}`);
+      // Show the output view when running a command
+      this.showOutput = true;
+      
+      // Clear previous output
+      this.commandOutput = [];
+      this.requestUpdate();
+      
+      console.log(`Executing command: ${command.name}`);
+      // Call CoderWrapper.run with the command name
+      await this.call['CoderWrapper.run'](command.name, true);
     } catch (error) {
-      console.error('Error handling command click:', error);
+      console.error('Error executing command:', error);
+      this.displayCommandOutput('error', `Error executing command: ${error.message}`);
     }
+  }
+  
+  /**
+   * Method to display command output received from the CommandsWrapper
+   * Called by CommandsWrapper via JRPC
+   */
+  displayCommandOutput(type, message) {
+    console.log(`Command output: [${type}] ${message}`);
+    
+    // Add the message to our output array
+    this.commandOutput.push({ type, message });
+    
+    // Show the output container if not already visible
+    if (!this.showOutput) {
+      this.showOutput = true;
+    }
+    
+    // Update the view
+    this.requestUpdate();
+    
+    // Scroll to the bottom of the output after update
+    this.updateComplete.then(() => {
+      const outputContainer = this.shadowRoot.querySelector('.output-container');
+      if (outputContainer) {
+        outputContainer.scrollTop = outputContainer.scrollHeight;
+      }
+    });
+    
+    return "output displayed"; // Return a response to confirm receipt
   }
 
   render() {
@@ -140,9 +218,14 @@ export class Commands extends JRPCClient {
       <div class="commands-container">
         <div class="commands-header">
           <span>Available Commands</span>
-          <md-filled-button dense @click=${() => this.loadCommands()}>
-            Refresh
-          </md-filled-button>
+          <div>
+            <md-filled-button dense @click=${() => { this.showOutput = !this.showOutput; this.requestUpdate(); }}>
+              ${this.showOutput ? 'Hide Output' : 'Show Output'}
+            </md-filled-button>
+            <md-filled-button dense @click=${() => this.loadCommands()}>
+              Refresh
+            </md-filled-button>
+          </div>
         </div>
         
         ${this.loading ? html`
@@ -159,6 +242,24 @@ export class Commands extends JRPCClient {
             `)}
           </md-chip-set>
         `}
+        
+        ${this.showOutput ? html`
+          <div class="output-container">
+            <div class="output-header">
+              <span>Command Output</span>
+              <md-filled-button dense @click=${() => { this.commandOutput = []; this.requestUpdate(); }}>
+                Clear
+              </md-filled-button>
+            </div>
+            ${this.commandOutput.length === 0 ? html`
+              <div class="output-message">No output yet. Run a command to see results here.</div>
+            ` : html`
+              ${this.commandOutput.map(item => html`
+                <div class="output-message output-type-${item.type}">${item.message}</div>
+              `)}
+            `}
+          </div>
+        ` : ''}
       </div>
     `;
   }
