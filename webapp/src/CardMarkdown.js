@@ -3,6 +3,8 @@
  */
 import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { marked } from 'marked';
 
 export class CardMarkdown extends LitElement {
   static properties = {
@@ -42,9 +44,23 @@ export class CardMarkdown extends LitElement {
     
     .card-content {
       padding: 12px 16px;
-      white-space: pre-wrap;
-      font-family: monospace;
+      font-family: sans-serif;
       overflow-x: auto;
+    }
+
+    /* Markdown styling */
+    .card-content pre {
+      background-color: #f5f5f5;
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    
+    .card-content code {
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
     }
   `;
 
@@ -55,9 +71,12 @@ export class CardMarkdown extends LitElement {
       'assistant-card': this.role !== 'user'
     };
 
+    // Parse markdown content
+    const parsedContent = marked(this.content || '');
+
     return html`
       <div class=${classMap(classes)}>
-        <div class="card-content">${this.content}</div>
+        <div class="card-content">${unsafeHTML(parsedContent)}</div>
       </div>
     `;
   }
