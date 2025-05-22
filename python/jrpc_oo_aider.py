@@ -10,23 +10,21 @@ from aider.main import main
 
 
 def parse_args():
+    # Create a parser that will extract the port argument
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
     parser.add_argument("--port", type=int, default=9000, help="Port for JSON-RPC server")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--aider-args", nargs="*", default=[], 
-                        help="Arguments to pass to Aider (space separated)")
     
-    return parser.parse_args()
+    # Parse known args to get the port
+    args, unknown_args = parser.parse_known_args()
+    
+    # Return both the parsed args (containing port) and the remaining args for Aider
+    return args, unknown_args
 
 async def main_starter():
-    # Parse command line arguments for the server
-    args = parse_args()
-    
-    # Parse aider arguments
-    aider_args = args.aider_args
+    # Parse command line arguments for the server and get remaining args for Aider
+    args, aider_args = parse_args()
     
     # Initialize the server
-    print('debug ', args.debug)
     jrpc_server = JRPCServer(port=args.port)
     
     # Start aider in API mode and get the coder instance

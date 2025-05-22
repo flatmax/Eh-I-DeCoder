@@ -18,13 +18,12 @@ You can also use the JSON-RPC interface to interact with Aider programmatically:
 
 ```bash
 # Start the JSON-RPC server
-python jrpc_oo_aider.py --port 9000 --aider-args "--model deepseek --api-key deepseek=<your-key-here>"
+python jrpc_oo_aider.py --port 9000 --model deepseek --api-key deepseek=<your-key-here>
 ```
 
 Options:
 - `--port`: Specify the port for the JSON-RPC server (default: 9000)
-- `--debug`: Enable debug mode
-- `--aider-args`: Pass arguments to Aider (space separated)
+- All other arguments are passed directly to Aider
 
 This allows you to interact with Aider through JSON-RPC calls to the specified port.
 

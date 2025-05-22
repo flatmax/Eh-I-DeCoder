@@ -52,9 +52,11 @@ Advanced options:
 # Specify a different port
 python ./jrpc_oo_aider.py --port 9000
 
-# Pass arguments to Aider
-python ./jrpc_oo_aider.py --aider-args "--model deepseek --api-key deepseek=<your-key-here>"
+# Pass arguments directly to Aider
+python ./jrpc_oo_aider.py --port 9000 --model deepseek --api-key deepseek=<your-key-here>
 ```
+
+All arguments following `--port` (if specified) are passed directly to Aider.
 
 ### 2. Start the Frontend
 ```bash
