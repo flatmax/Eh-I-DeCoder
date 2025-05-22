@@ -7,6 +7,8 @@ import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
+import '@material/web/tabs/tabs.js';
+import '@material/web/tabs/primary-tab.js';
 import './Commands.js';
 import '../file-tree.js';
 
@@ -20,7 +22,8 @@ export class MainWindow extends JRPCClient {
     connectionStatus: { type: String, state: true },
     showConnectionDetails: { type: Boolean, state: true },
     headerExpanded: { type: Boolean, state: true },
-    sidebarExpanded: { type: Boolean, state: true }
+    sidebarExpanded: { type: Boolean, state: true },
+    activeTabIndex: { type: Number, state: true }
   };
   
   constructor() {
@@ -37,7 +40,8 @@ export class MainWindow extends JRPCClient {
     this.reconnectTimeout = null; // Timeout for reconnection attempts
     this.reconnectDelay = 1000; // Reconnect after 1 second
     this.headerExpanded = false; // Start with minimized header
-    this.sidebarExpanded = false; // Start with collapsed sidebar
+    this.sidebarExpanded = true; // Start with expanded sidebar
+    this.activeTabIndex = 0; // Default to files tab
   }
   
   static styles = css`
@@ -108,6 +112,28 @@ export class MainWindow extends JRPCClient {
       margin: 0;
       font-size: 14px;
     }
+    md-tabs {
+      width: 100%;
+    }
+    .tab-content {
+      padding: 8px;
+      overflow: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .tab-panel {
+      display: none;
+      height: 100%;
+      flex: 1;
+      overflow: auto;
+    }
+    .tab-panel.active {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 100px);
+      width: 100%;
+    }
     .sidebar-collapsed .sidebar-section-title span,
     .sidebar-collapsed .connection-status span {
       display: none;
@@ -124,6 +150,9 @@ export class MainWindow extends JRPCClient {
     .file-tree-container {
       flex: 1;
       overflow: auto;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
     }
     .main-content {
       display: grid;
@@ -314,83 +343,96 @@ export class MainWindow extends JRPCClient {
           
           <!-- Sidebar Content -->
           <div class="sidebar-content">
-            <!-- Server Status Section -->
-            <div class="connection-status">
-              <span class=${classMap(ledClasses)}></span>
-              <span>${this.connectionStatus}</span>
-            </div>
-            
-            <!-- Server Settings Section -->
-            <div class="sidebar-section">
-              <h4 class="sidebar-section-title">
-                ${this.sidebarExpanded ? 
-                  html`<span>Server Settings</span>` : 
-                  html`<md-icon>settings</md-icon>`
+            <!-- Tabs Navigation -->
+            <md-tabs
+              .activeIndex=${this.activeTabIndex || 0}
+              @click=${(e) => {
+                // Determine which tab was clicked based on the event target
+                if (e.target && e.target.tagName === 'MD-PRIMARY-TAB') {
+                  // Find the index of the clicked tab
+                  const tabs = Array.from(this.shadowRoot.querySelectorAll('md-primary-tab'));
+                  const clickedIndex = tabs.indexOf(e.target);
+                  if (clickedIndex !== -1) {
+                    console.log(`Tab clicked: ${clickedIndex}`);
+                    this.activeTabIndex = clickedIndex;
+                    this.requestUpdate();
+                  }
                 }
-              </h4>
-              <div class="sidebar-section-content">
-                <div class="server-settings">
-                  <div class="server-header" @click=${toggleConnectionDetails}>
-                    <div>
-                      <span>Server: ${this.showConnectionDetails ? '' : this.serverURI}</span>
+              }}
+            >
+              <md-primary-tab 
+                aria-label="Files Tab" 
+                title=${this.sidebarExpanded ? "Files" : ""}
+              >
+                ${this.sidebarExpanded ? "Files" : html`<md-icon>folder</md-icon>`}
+              </md-primary-tab>
+              <md-primary-tab 
+                aria-label="Settings Tab" 
+                title=${this.sidebarExpanded ? "Settings" : ""}
+              >
+                ${this.sidebarExpanded ? "Settings" : html`<md-icon>settings</md-icon>`}
+              </md-primary-tab>
+            </md-tabs>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+              <!-- Files Tab Panel -->
+              <div class=${classMap({
+                'tab-panel': true,
+                'active': this.activeTabIndex === 0
+              })} style="${this.activeTabIndex === 0 ? 'display: flex;' : 'display: none;'}">
+                <div class="file-tree-container">
+                  <file-tree .serverURI=${this.serverURI}></file-tree>
+                </div>
+              </div>
+              
+              <!-- Settings Tab Panel -->
+              <div class=${classMap({
+                'tab-panel': true,
+                'active': this.activeTabIndex === 1
+              })} style="${this.activeTabIndex === 1 ? 'display: flex;' : 'display: none;'}">
+                <!-- Server Status Section -->
+                <div class="connection-status">
+                  <span class=${classMap(ledClasses)}></span>
+                  <span>${this.connectionStatus}</span>
+                </div>
+                
+                <!-- Server Settings Section -->
+                <div class="sidebar-section">
+                  <div class="sidebar-section-content">
+                    <div class="server-settings">
+                      <div class="server-header" @click=${toggleConnectionDetails}>
+                        <div>
+                          <span>Server: ${this.showConnectionDetails ? '' : this.serverURI}</span>
+                        </div>
+                        <md-filled-button dense>
+                          ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
+                        </md-filled-button>
+                      </div>
+                      
+                      ${this.showConnectionDetails ? html`
+                        <div class="server-details">
+                          <md-filled-text-field
+                            class="server-input"
+                            .value=${this.newServerURI}
+                            @input=${e => this.newServerURI = e.target.value}
+                            label="Server URI"
+                          ></md-filled-text-field>
+                          <md-filled-button @click=${this.updateServerURI}>
+                            Connect
+                          </md-filled-button>
+                        </div>
+                        <div class="current-server">Current: ${this.serverURI}</div>
+                      ` : ''}
+                      
+                      <div class="button-container">
+                        <!-- Button section simplified -->
+                      </div>
                     </div>
-                    <md-filled-button dense>
-                      ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
-                    </md-filled-button>
-                  </div>
-                  
-                  ${this.showConnectionDetails ? html`
-                    <div class="server-details">
-                      <md-filled-text-field
-                        class="server-input"
-                        .value=${this.newServerURI}
-                        @input=${e => this.newServerURI = e.target.value}
-                        label="Server URI"
-                      ></md-filled-text-field>
-                      <md-filled-button @click=${this.updateServerURI}>
-                        Connect
-                      </md-filled-button>
-                    </div>
-                    <div class="current-server">Current: ${this.serverURI}</div>
-                  ` : ''}
-                  
-                  <div class="button-container">
-                    <md-filled-button @click=${this.testConnection} style="margin: 4px;">
-                      Test Connection
-                    </md-filled-button>
-                    
-                    <md-filled-button @click=${this.showServerInfo} style="margin: 4px;">
-                      Show Server Info
-                    </md-filled-button>
-                    
-                    <md-filled-button @click=${this.openPromptView} style="margin: 4px;">
-                      Open Aider Chat
-                    </md-filled-button>
-                    
-                    <md-filled-button @click=${() => this.showCommands = !this.showCommands} style="margin: 4px;">
-                      ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
-                    </md-filled-button>
                   </div>
                 </div>
               </div>
             </div>
-            
-            <!-- File Tree Section -->
-            ${this.connectionStatus === 'connected' ? 
-              html`
-                <div class="sidebar-section" style="flex-grow: 1;">
-                  <h4 class="sidebar-section-title">
-                    ${this.sidebarExpanded ? 
-                      html`<span>Files</span>` : 
-                      html`<md-icon>folder</md-icon>`
-                    }
-                  </h4>
-                  <div class="file-tree-container">
-                    <file-tree .serverURI=${this.serverURI}></file-tree>
-                  </div>
-                </div>
-              ` : ''
-            }
           </div>
         </div>
         
