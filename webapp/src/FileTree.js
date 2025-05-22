@@ -70,9 +70,6 @@ export class FileTree extends JRPCClient {
         added_files = addedFilesResponse;
       }
       
-      console.log('All files:', all_files);
-      console.log('Added files:', added_files);
-      
       // Store added files for highlighting
       this.addedFiles = added_files;
       
