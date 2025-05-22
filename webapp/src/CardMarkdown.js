@@ -62,5 +62,3 @@ export class CardMarkdown extends LitElement {
     `;
   }
 }
-
-customElements.define('card-markdown', CardMarkdown);

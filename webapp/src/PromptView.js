@@ -6,7 +6,7 @@ import {html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
-import './card-markdown.js';
+import '../card-markdown.js';
 import './SpeechToText.js';
 
 export class PromptView extends JRPCClient {
