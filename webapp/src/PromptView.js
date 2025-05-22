@@ -205,10 +205,15 @@ export class PromptView extends JRPCClient {
       // Add placeholder for assistant response
       this.addMessageToHistory('assistant', '');
       
-      // Call CoderWrapper.run instead of PromptStreamer.stream_prompt
-      console.log('Calling CoderWrapper.run...');
-      await this.call['CoderWrapper.run'](message, true);
-      console.log('Run completed');
+      // Call EditBlockCoder.run with named argument dictionary
+      console.log('Calling EditBlockCoder.run...');
+      this.call['EditBlockCoder.run'](message)
+        .then(() => {
+          console.log('Run completed');
+        })
+        .catch(error => {
+          console.error('Error from EditBlockCoder.run promise:', error);
+        });
       
       // Note: The IOWrapper will handle streaming the response via streamWrite
     } catch (error) {

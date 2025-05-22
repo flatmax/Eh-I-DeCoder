@@ -5,7 +5,6 @@ import asyncio
 from datetime import datetime
 from jrpc_oo import JRPCServer
 from io_wrapper import IOWrapper
-from coder_wrapper import CoderWrapper
 
 from aider.main import main
 
@@ -57,11 +56,7 @@ async def main_starter():
         # Still create a log file with error information
         with open('/tmp/io_wrapper.log', 'w') as f:
             f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}] Error initializing IO Wrapper: {e}\n")
-    
-    # Create a CoderWrapper and add it to the server
-    coder_wrapper = CoderWrapper(coder)
-    jrpc_server.add_class(coder_wrapper, 'CoderWrapper')
-    
+        
     print(f"JSON-RPC server running on port {args.port}")
     print("Coder instance available through 'EditBlockCoder' class")
     print("CoderWrapper available for running prompts")
