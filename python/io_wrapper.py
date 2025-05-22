@@ -89,9 +89,24 @@ class IOWrapper:
                 try:
                     # Run send_stream_update in this thread's event loop
                     loop.run_until_complete(self.send_stream_update(content, final))
+                    
+                    # If this is the final chunk, ensure we call streamComplete
+                    if final:
+                        self.log("Final chunk in thread - ensuring streamComplete is called")
+                        loop.run_until_complete(
+                            self.get_call()['PromptView.streamComplete']()
+                        )
                 except Exception as e:
                     self.log(f"Error in thread running send_stream_update: {e}")
                     print(f"Error in thread running send_stream_update: {e}")
+                    
+                    # Try to notify UI of error and reset processing state
+                    try:
+                        loop.run_until_complete(
+                            self.get_call()['PromptView.streamError'](str(e))
+                        )
+                    except Exception as e2:
+                        self.log(f"Failed to send error notification: {e2}")
                 finally:
                     loop.close()
             
@@ -193,6 +208,7 @@ class IOWrapper:
             
             if final:
                 self.log("Final chunk, calling streamComplete")
+                # Ensure streamComplete is called correctly to reset the UI state
                 complete_response = await self.get_call()['PromptView.streamComplete']()
                 self.log(f"streamComplete response: {complete_response}")
         except Exception as e:

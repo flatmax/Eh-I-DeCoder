@@ -210,7 +210,15 @@ export class PromptView extends JRPCClient {
       this.call['EditBlockCoder.run'](message)
         .then(() => {
           console.log('Run completed');
-          // Don't reset isProcessing here, let streamComplete do it
+          
+          // Add a fallback timeout to reset isProcessing if streamComplete is never called
+          setTimeout(() => {
+            if (this.isProcessing) {
+              console.log('Fallback timeout: resetting isProcessing flag');
+              this.isProcessing = false;
+              this.requestUpdate();
+            }
+          }, 500); // 0.5 second timeout
         })
         .catch(error => {
           console.error('Error from EditBlockCoder.run promise:', error);
@@ -294,10 +302,16 @@ export class PromptView extends JRPCClient {
    * Called by PromptStreamer when streaming is complete
    */
   streamComplete() {
-    console.log('Streaming complete');
+    console.log('Streaming complete - resetting isProcessing flag');
     // Mark processing as complete
     this.isProcessing = false;
     this.requestUpdate();
+    
+    // Force the update to be processed immediately
+    this.updateComplete.then(() => {
+      console.log('Update completed after streaming complete');
+    });
+    
     return "streaming complete";
   }
   
