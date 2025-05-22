@@ -25,7 +25,7 @@ export class Commands extends JRPCClient {
     this.loading = false;
     this.error = null;
     this.commandOutput = [];
-    this.showOutput = false;
+    this.showOutput = true; // Show output by default
     this.serverURI = "ws://0.0.0.0:9000";
   }
 
@@ -150,9 +150,13 @@ export class Commands extends JRPCClient {
           
           if (Array.isArray(commandsArray)) {
             // Convert array of strings to array of objects with name property
-            this.commands = commandsArray.map(cmdName => {
-              return { name: cmdName, description: `Aider command: ${cmdName}` };
-            }).sort((a, b) => a.name.localeCompare(b.name));
+            // and filter out /add, /drop, and /ls commands
+            this.commands = commandsArray
+              .filter(cmdName => !('/add' === cmdName || '/drop' === cmdName || '/ls' === cmdName))
+              .map(cmdName => {
+                return { name: cmdName, description: `Aider command: ${cmdName}` };
+              })
+              .sort((a, b) => a.name.localeCompare(b.name));
           } else {
             this.error = "Expected an array of commands";
           }
@@ -261,12 +265,6 @@ export class Commands extends JRPCClient {
         <div class="commands-header">
           <span>Available Commands</span>
           <div>
-            <md-filled-button dense @click=${toggleOutput}>
-              ${this.showOutput ? 'Hide Output' : 'Show Output'}
-            </md-filled-button>
-            <md-filled-button dense @click=${this.loadCommands}>
-              Refresh
-            </md-filled-button>
           </div>
         </div>
         
