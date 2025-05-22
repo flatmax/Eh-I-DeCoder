@@ -77,10 +77,17 @@ export class PromptView extends JRPCClient {
       gap: 10px;
       min-height: 120px;
     }
-    .controls {
+    .controls-row {
       margin-top: 10px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .voice-input-container {
+      flex: 1;
+      display: flex;
+      justify-content: center;
     }
     textarea {
       flex-grow: 1;
@@ -153,7 +160,19 @@ export class PromptView extends JRPCClient {
             ?disabled=${this.isProcessing}
             style="width: 100%;"
           ></md-filled-text-field>
-          <div style="display: flex; justify-content: flex-end;">
+          <div class="controls-row">
+            <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear History</md-filled-button>
+            
+            <div class="voice-input-container">
+              ${this.showVoiceInput ? html`
+                <speech-to-text
+                  @transcript=${this._handleTranscript}
+                  @recording-started=${this._handleRecordingStarted}
+                  @recognition-error=${this._handleRecognitionError}
+                ></speech-to-text>
+              ` : ''}
+            </div>
+            
             <md-filled-button 
               id="sendButton" 
               @click=${this.sendPrompt}
@@ -162,22 +181,6 @@ export class PromptView extends JRPCClient {
               ${this.isProcessing ? 'Processing...' : 'Send'}
             </md-filled-button>
           </div>
-          ${this.showVoiceInput ? html`
-            <div class="voice-input-container">
-              <speech-to-text
-                @transcript=${this._handleTranscript}
-                @recording-started=${this._handleRecordingStarted}
-                @recognition-error=${this._handleRecognitionError}
-              ></speech-to-text>
-            </div>
-          ` : ''}
-        </div>
-        <div class="controls">
-          <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear History</md-filled-button>
-          <md-filled-button id="fileButton" @click=${this.selectFiles}>Select Files</md-filled-button>
-          <md-filled-button id="voiceButton" @click=${this.toggleVoiceInput}>
-            ${this.showVoiceInput ? 'Hide Voice Input' : 'Show Voice Input'}
-          </md-filled-button>
         </div>
       </div>
     `;
@@ -412,52 +415,5 @@ export class PromptView extends JRPCClient {
     // Could show an error toast or message to the user
   }
   
-  /**
-   * Toggle voice input visibility
-   */
-  toggleVoiceInput() {
-    this.showVoiceInput = !this.showVoiceInput;
-  }
-
-  /**
-   * Method to select files to be added to Aider's context
-   */
-  async selectFiles() {
-    try {
-      // Get all addable files from the repository
-      const availableFiles = await this.call['EditBlockCoder.get_addable_relative_files']();
-      
-      // For now, we'll use a simple prompt
-      const fileList = availableFiles.join('\n');
-      
-      // Show list of available files and ask for selection
-      const selectedFile = prompt(
-        `Available files (enter file path to add):\n${fileList}`, 
-        availableFiles.length > 0 ? availableFiles[0] : ''
-      );
-      
-      if (selectedFile && selectedFile.trim()) {
-        try {
-          // Call Aider method to add file
-          await this.call['EditBlockCoder.add_rel_fname'](selectedFile);
-          
-          // Get chat files to confirm
-          const chatFiles = await this.call['EditBlockCoder.get_inchat_relative_files']();
-          
-          // Get file content to display
-          const fileContent = await this.call['EditBlockCoder.get_files_content']();
-          const filePreview = fileContent[selectedFile] ? 
-            `\nPreview: ${fileContent[selectedFile].substring(0, 100)}...` : '';
-          
-          this.addMessageToHistory('assistant', `Added file: ${selectedFile}\nFiles in chat: ${chatFiles.join(', ')}${filePreview}`);
-        } catch (error) {
-          console.error('Error adding file:', error);
-          this.addMessageToHistory('assistant', `Error adding file: ${error.message}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error selecting files:', error);
-      this.addMessageToHistory('assistant', `Error getting file list: ${error.message}`);
-    }
-  }
+  /* Controls reduced as requested */
 }
