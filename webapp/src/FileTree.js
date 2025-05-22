@@ -36,7 +36,7 @@ export class FileTree extends JRPCClient {
     }, 500);
   }
   
-  async loadFileTree() {
+  async loadFileTree(scrollPosition = 0) {
     try {
       this.loading = true;
       this.error = null;
@@ -84,6 +84,14 @@ export class FileTree extends JRPCClient {
     } finally {
       this.loading = false;
       this.requestUpdate();
+      
+      // Restore scroll position after update completes
+      this.updateComplete.then(() => {
+        const fileTreeContainer = this.shadowRoot.querySelector('.file-tree-container');
+        if (fileTreeContainer && scrollPosition > 0) {
+          fileTreeContainer.scrollTop = scrollPosition;
+        }
+      });
     }
   }
   
@@ -137,6 +145,10 @@ export class FileTree extends JRPCClient {
     if (!isFile) return; // Only handle file clicks, not directory clicks
     
     try {
+      // Save current scroll position
+      const fileTreeContainer = this.shadowRoot.querySelector('.file-tree-container');
+      const scrollTop = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
+      
       const isAdded = this.addedFiles.includes(path);
       
       if (isAdded) {
@@ -153,8 +165,8 @@ export class FileTree extends JRPCClient {
         this.addedFiles = [...this.addedFiles, path];
       }
       
-      // Refresh the tree to ensure consistency
-      setTimeout(() => this.loadFileTree(), 300);
+      // Refresh the tree to ensure consistency, but preserve scroll position
+      setTimeout(() => this.loadFileTree(scrollTop), 300);
       
       this.requestUpdate();
     } catch (error) {
