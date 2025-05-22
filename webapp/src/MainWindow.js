@@ -6,6 +6,7 @@ import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
+import '@material/web/icon/icon.js';
 import './Commands.js';
 import '../file-tree.js';
 
@@ -18,7 +19,8 @@ export class MainWindow extends JRPCClient {
     newServerURI: { type: String, state: true },
     connectionStatus: { type: String, state: true },
     showConnectionDetails: { type: Boolean, state: true },
-    headerExpanded: { type: Boolean, state: true }
+    headerExpanded: { type: Boolean, state: true },
+    sidebarExpanded: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -35,6 +37,7 @@ export class MainWindow extends JRPCClient {
     this.reconnectTimeout = null; // Timeout for reconnection attempts
     this.reconnectDelay = 1000; // Reconnect after 1 second
     this.headerExpanded = false; // Start with minimized header
+    this.sidebarExpanded = false; // Start with collapsed sidebar
   }
   
   static styles = css`
@@ -46,38 +49,86 @@ export class MainWindow extends JRPCClient {
     }
     .container {
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-columns: auto 1fr;
       height: 100vh;
+      overflow: hidden;
     }
-    .header {
-      padding: 8px;
-      border-bottom: 1px solid #ccc;
-    }
-    .header-minimal {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .header-expanded {
+    .sidebar {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      width: 100%;
+      height: 100vh;
+      border-right: 1px solid #ccc;
+      background: #f5f5f5;
+      transition: width 0.3s ease;
+      overflow: hidden;
     }
-    .header-controls {
+    .sidebar-collapsed {
+      width: 60px;
+    }
+    .sidebar-expanded {
+      width: 280px;
+    }
+    .sidebar-header {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      gap: 20px;
-      margin-top: 10px;
+    }
+    .sidebar-content {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      color: #333;
+      font-size: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sidebar-toggle:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    .sidebar-section {
+      margin-bottom: 15px;
+      overflow: hidden;
+    }
+    .sidebar-section-title {
+      padding: 8px 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      margin: 0;
+      font-size: 14px;
+    }
+    .sidebar-collapsed .sidebar-section-title span,
+    .sidebar-collapsed .connection-status span {
+      display: none;
+    }
+    .sidebar-collapsed .sidebar-section-content {
+      display: none;
+    }
+    .connection-status {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-tree-container {
+      flex: 1;
+      overflow: auto;
     }
     .main-content {
       display: grid;
-      grid-template-columns: 250px 1fr;
+      grid-template-rows: 1fr;
       overflow: hidden;
-    }
-    .file-tree-section {
-      overflow: auto;
-      border-right: 1px solid #ccc;
     }
     .right-panel {
       display: grid;
@@ -95,6 +146,18 @@ export class MainWindow extends JRPCClient {
       overflow: auto;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
+    }
+    .header-section {
+      padding: 8px 12px;
+      border-bottom: 1px solid #ddd;
+    }
+    .server-settings-compact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sidebar-collapsed .server-settings-compact span {
+      display: none;
     }
     .button-container {
       display: flex;
@@ -214,6 +277,7 @@ export class MainWindow extends JRPCClient {
    * LitElement render method
    */
   render() {
+    const toggleSidebar = () => this.sidebarExpanded = !this.sidebarExpanded;
     const toggleHeaderExpanded = () => this.headerExpanded = !this.headerExpanded;
     const toggleConnectionDetails = () => this.showConnectionDetails = !this.showConnectionDetails;
     
@@ -222,88 +286,116 @@ export class MainWindow extends JRPCClient {
       [`led-${this.connectionStatus}`]: true
     };
     
+    const sidebarClasses = {
+      'sidebar': true,
+      'sidebar-expanded': this.sidebarExpanded,
+      'sidebar-collapsed': !this.sidebarExpanded
+    };
+    
     return html`
       <div class="container">
-        <div class="header">
-          ${this.headerExpanded ? 
-            html`
-              <div class="header-expanded">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <h2>Aider AI Assistant UI</h2>
-                  <md-filled-button @click=${toggleHeaderExpanded}>
-                    Minimize
-                  </md-filled-button>
-                </div>
-                
-                <div class="header-controls">
-                  <div class="server-settings">
-                    <div class="server-header" @click=${toggleConnectionDetails}>
-                      <div>
-                        <span class=${classMap(ledClasses)}></span>
-                        Server: ${this.showConnectionDetails ? '' : this.serverURI}
-                      </div>
-                      <md-filled-button dense>
-                        ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
-                      </md-filled-button>
+        <div class=${classMap(sidebarClasses)}>
+          <!-- Sidebar Header -->
+          <div class="sidebar-header">
+            <span class=${classMap(ledClasses)}></span>
+            ${this.sidebarExpanded ? 
+              html`
+                <span>Aider UI</span>
+                <button class="sidebar-toggle" @click=${toggleSidebar}>
+                  <md-icon>chevron_left</md-icon>
+                </button>
+              ` : 
+              html`
+                <button class="sidebar-toggle" @click=${toggleSidebar}>
+                  <md-icon>chevron_right</md-icon>
+                </button>
+              `}
+          </div>
+          
+          <!-- Sidebar Content -->
+          <div class="sidebar-content">
+            <!-- Server Status Section -->
+            <div class="connection-status">
+              <span class=${classMap(ledClasses)}></span>
+              <span>${this.connectionStatus}</span>
+            </div>
+            
+            <!-- Server Settings Section -->
+            <div class="sidebar-section">
+              <h4 class="sidebar-section-title">
+                ${this.sidebarExpanded ? 
+                  html`<span>Server Settings</span>` : 
+                  html`<md-icon>settings</md-icon>`
+                }
+              </h4>
+              <div class="sidebar-section-content">
+                <div class="server-settings">
+                  <div class="server-header" @click=${toggleConnectionDetails}>
+                    <div>
+                      <span>Server: ${this.showConnectionDetails ? '' : this.serverURI}</span>
                     </div>
-                    
-                    ${this.showConnectionDetails ? html`
-                      <div class="server-details">
-                        <md-filled-text-field
-                          class="server-input"
-                          .value=${this.newServerURI}
-                          @input=${e => this.newServerURI = e.target.value}
-                          label="Server URI"
-                        ></md-filled-text-field>
-                        <md-filled-button @click=${this.updateServerURI}>
-                          Connect
-                        </md-filled-button>
-                      </div>
-                      <div class="current-server">Current: ${this.serverURI}</div>
-                    ` : ''}
+                    <md-filled-button dense>
+                      ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
+                    </md-filled-button>
                   </div>
                   
+                  ${this.showConnectionDetails ? html`
+                    <div class="server-details">
+                      <md-filled-text-field
+                        class="server-input"
+                        .value=${this.newServerURI}
+                        @input=${e => this.newServerURI = e.target.value}
+                        label="Server URI"
+                      ></md-filled-text-field>
+                      <md-filled-button @click=${this.updateServerURI}>
+                        Connect
+                      </md-filled-button>
+                    </div>
+                    <div class="current-server">Current: ${this.serverURI}</div>
+                  ` : ''}
+                  
                   <div class="button-container">
-                    <md-filled-button @click=${this.testConnection}>
+                    <md-filled-button @click=${this.testConnection} style="margin: 4px;">
                       Test Connection
                     </md-filled-button>
                     
-                    <md-filled-button @click=${this.showServerInfo}>
+                    <md-filled-button @click=${this.showServerInfo} style="margin: 4px;">
                       Show Server Info
                     </md-filled-button>
                     
-                    <md-filled-button @click=${this.openPromptView}>
+                    <md-filled-button @click=${this.openPromptView} style="margin: 4px;">
                       Open Aider Chat
                     </md-filled-button>
                     
-                    <md-filled-button @click=${() => this.showCommands = !this.showCommands}>
+                    <md-filled-button @click=${() => this.showCommands = !this.showCommands} style="margin: 4px;">
                       ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
-                    </md-filled-button>
-                    
-                    <md-filled-button @click=${() => this.showFileTree = !this.showFileTree}>
-                      ${this.showFileTree ? 'Hide Files' : 'Show Files'}
                     </md-filled-button>
                   </div>
                 </div>
               </div>
-            ` : 
-            html`
-              <div class="header-minimal">
-                <span class=${classMap(ledClasses)}></span>
-                <span>${this.connectionStatus}</span>
-                <md-filled-button dense @click=${toggleHeaderExpanded}>
-                  Expand
-                </md-filled-button>
-              </div>
-            `}
+            </div>
+            
+            <!-- File Tree Section -->
+            ${this.connectionStatus === 'connected' ? 
+              html`
+                <div class="sidebar-section" style="flex-grow: 1;">
+                  <h4 class="sidebar-section-title">
+                    ${this.sidebarExpanded ? 
+                      html`<span>Files</span>` : 
+                      html`<md-icon>folder</md-icon>`
+                    }
+                  </h4>
+                  <div class="file-tree-container">
+                    <file-tree .serverURI=${this.serverURI}></file-tree>
+                  </div>
+                </div>
+              ` : ''
+            }
+          </div>
         </div>
         
+        <!-- Main Content Area -->
         <div class="main-content">
-          ${this.showFileTree && this.connectionStatus === 'connected' ? 
-            html`<div class="file-tree-section">
-              <file-tree .serverURI=${this.serverURI}></file-tree>
-            </div>` : ''}
-          
           <div class="right-panel">
             ${this.showPromptView ? 
               html`<div class="prompt-view-container">
