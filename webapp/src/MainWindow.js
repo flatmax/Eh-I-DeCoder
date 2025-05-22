@@ -9,6 +9,7 @@ import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
 import '@material/web/tabs/tabs.js';
 import '@material/web/tabs/primary-tab.js';
+import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
 import '../file-tree.js';
 
@@ -135,7 +136,8 @@ export class MainWindow extends JRPCClient {
       width: 100%;
     }
     .sidebar-collapsed .sidebar-section-title span,
-    .sidebar-collapsed .connection-status span {
+    .sidebar-collapsed .connection-status span:not(.connection-led),
+    .sidebar-collapsed .sidebar-header span:not(.connection-led) {
       display: none;
     }
     .sidebar-collapsed .sidebar-section-content {
@@ -226,6 +228,9 @@ export class MainWindow extends JRPCClient {
       margin-right: 5px;
       display: inline-block;
       transition: background-color 0.3s ease;
+      position: relative;
+      left: 0;
+      top: 0;
     }
     .led-disconnected {
       background-color: #ff3b30;
@@ -327,18 +332,10 @@ export class MainWindow extends JRPCClient {
           <!-- Sidebar Header -->
           <div class="sidebar-header">
             <span class=${classMap(ledClasses)}></span>
-            ${this.sidebarExpanded ? 
-              html`
-                <span>Aider UI</span>
-                <button class="sidebar-toggle" @click=${toggleSidebar}>
-                  <md-icon>chevron_left</md-icon>
-                </button>
-              ` : 
-              html`
-                <button class="sidebar-toggle" @click=${toggleSidebar}>
-                  <md-icon>chevron_right</md-icon>
-                </button>
-              `}
+            <md-filled-icon-button 
+              icon="${this.sidebarExpanded ? 'chevron_left' : 'chevron_right'}" 
+              @click=${toggleSidebar}>
+            </md-filled-icon-button>
           </div>
           
           <!-- Sidebar Content -->
