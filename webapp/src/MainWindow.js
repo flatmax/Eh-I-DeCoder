@@ -50,6 +50,12 @@ export class MainWindow extends JRPCClient {
     .header {
       padding: 10px 20px;
     }
+    .header-controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 10px;
+    }
     .main-content {
       display: flex;
       flex: 1;
@@ -68,21 +74,24 @@ export class MainWindow extends JRPCClient {
       gap: 20px;
       padding: 20px;
       overflow: auto;
+      height: 100%;
     }
     .button-container {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       align-items: center;
+      flex-basis: 60%;
     }
     .server-settings {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      margin-bottom: 15px;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
       background-color: #f9f9f9;
+      flex-basis: 40%;
     }
     .server-header {
       display: flex;
@@ -196,36 +205,37 @@ export class MainWindow extends JRPCClient {
     return html`
       <div class="container">
         <div class="header">
-          <h2>Aider AI Assistant</h2>
+          <h2>Aider AI Assistant UI</h2>
           
-          <div class="server-settings">
-            <div class="server-header" @click=${toggleConnectionDetails}>
-              <div>
-                <span class=${classMap(ledClasses)}></span>
-                Server: ${this.showConnectionDetails ? '' : this.serverURI}
-              </div>
-              <md-filled-button dense>
-                ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
-              </md-filled-button>
-            </div>
-            
-            ${this.showConnectionDetails ? html`
-              <div class="server-details">
-                <md-filled-text-field
-                  class="server-input"
-                  .value=${this.newServerURI}
-                  @input=${e => this.newServerURI = e.target.value}
-                  label="Server URI"
-                ></md-filled-text-field>
-                <md-filled-button @click=${this.updateServerURI}>
-                  Connect
+          <div class="header-controls">
+            <div class="server-settings">
+              <div class="server-header" @click=${toggleConnectionDetails}>
+                <div>
+                  <span class=${classMap(ledClasses)}></span>
+                  Server: ${this.showConnectionDetails ? '' : this.serverURI}
+                </div>
+                <md-filled-button dense>
+                  ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
                 </md-filled-button>
               </div>
-              <div class="current-server">Current: ${this.serverURI}</div>
-            ` : ''}
-          </div>
-          
-          <div class="button-container">
+              
+              ${this.showConnectionDetails ? html`
+                <div class="server-details">
+                  <md-filled-text-field
+                    class="server-input"
+                    .value=${this.newServerURI}
+                    @input=${e => this.newServerURI = e.target.value}
+                    label="Server URI"
+                  ></md-filled-text-field>
+                  <md-filled-button @click=${this.updateServerURI}>
+                    Connect
+                  </md-filled-button>
+                </div>
+                <div class="current-server">Current: ${this.serverURI}</div>
+              ` : ''}
+            </div>
+            
+            <div class="button-container">
             <md-filled-button @click=${this.testConnection}>
               Test Connection
             </md-filled-button>

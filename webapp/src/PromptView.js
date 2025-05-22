@@ -40,6 +40,7 @@ export class PromptView extends JRPCClient {
       flex-direction: column;
       width: 100%;
       height: 100%;
+      max-height: calc(100vh - 180px);
     }
     .voice-input-container {
       margin-top: 8px;
@@ -52,7 +53,7 @@ export class PromptView extends JRPCClient {
       margin-bottom: 10px;
       background-color: #f9f9f9;
       border-radius: 4px;
-      max-height: 600px;
+      max-height: calc(100vh - 300px);
       white-space: pre-wrap;
     }
     .assistant-message {
@@ -70,6 +71,7 @@ export class PromptView extends JRPCClient {
       flex-direction: column;
       width: 100%;
       gap: 10px;
+      min-height: 120px;
     }
     .controls {
       margin-top: 10px;
