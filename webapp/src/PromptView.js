@@ -71,23 +71,24 @@ export class PromptView extends JRPCClient {
     }
     /* Message styling now handled by card-markdown component */
     .input-area {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-gap: 10px;
       width: 100%;
-      gap: 10px;
       min-height: 120px;
     }
-    .controls-row {
-      margin-top: 10px;
+    .controls-column {
       display: flex;
+      flex-direction: column;
       justify-content: space-between;
-      align-items: center;
-      width: 100%;
+      gap: 10px;
+      height: 100%;
+      min-width: 120px;
     }
     .voice-input-container {
-      flex: 1;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: stretch;
     }
     textarea {
       flex-grow: 1;
@@ -160,8 +161,14 @@ export class PromptView extends JRPCClient {
             ?disabled=${this.isProcessing}
             style="width: 100%;"
           ></md-filled-text-field>
-          <div class="controls-row">
-            <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear History</md-filled-button>
+          <div class="controls-column">
+            <md-filled-button 
+              id="sendButton" 
+              @click=${this.sendPrompt}
+              ?disabled=${this.isProcessing}
+            >
+              ${this.isProcessing ? 'Processing...' : 'Send'}
+            </md-filled-button>
             
             <div class="voice-input-container">
               ${this.showVoiceInput ? html`
@@ -173,13 +180,7 @@ export class PromptView extends JRPCClient {
               ` : ''}
             </div>
             
-            <md-filled-button 
-              id="sendButton" 
-              @click=${this.sendPrompt}
-              ?disabled=${this.isProcessing}
-            >
-              ${this.isProcessing ? 'Processing...' : 'Send'}
-            </md-filled-button>
+            <md-filled-button id="clearButton" @click=${this.clearHistory}>Clear</md-filled-button>
           </div>
         </div>
       </div>

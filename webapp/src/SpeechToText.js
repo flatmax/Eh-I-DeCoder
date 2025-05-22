@@ -258,12 +258,12 @@ export class SpeechToText extends LitElement {
           ?disabled=${!this.isSupported}
           @click=${this._toggleListening}
         >
-          ${this.isListening ? 'Stop' : 'Voice Input'}
+          ${this.isListening ? 'Stop' : ''}
         </md-filled-tonal-button>
       </div>
       
       <div class="auto-transcribe">
-        <span class="label">Auto Transcribe</span>
+        <span class="label">Speech</span>
         <md-switch
           ?disabled=${!this.isSupported}
           ?selected=${this.autoTranscribe}
