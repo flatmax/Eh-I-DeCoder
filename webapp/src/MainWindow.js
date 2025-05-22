@@ -24,7 +24,8 @@ export class MainWindow extends JRPCClient {
     showConnectionDetails: { type: Boolean, state: true },
     headerExpanded: { type: Boolean, state: true },
     sidebarExpanded: { type: Boolean, state: true },
-    activeTabIndex: { type: Number, state: true }
+    activeTabIndex: { type: Number, state: true },
+    sidebarWidth: { type: Number, state: true }
   };
   
   constructor() {
@@ -43,6 +44,7 @@ export class MainWindow extends JRPCClient {
     this.headerExpanded = false; // Start with minimized header
     this.sidebarExpanded = true; // Start with expanded sidebar
     this.activeTabIndex = 0; // Default to files tab
+    this.sidebarWidth = 280; // Default sidebar width in pixels
   }
   
   static styles = css`
@@ -53,10 +55,22 @@ export class MainWindow extends JRPCClient {
       overflow: hidden;
     }
     .container {
-      display: grid;
-      grid-template-columns: auto 1fr;
+      display: flex;
       height: 100vh;
       overflow: hidden;
+    }
+    
+    .resize-handle {
+      width: 5px;
+      background-color: #ddd;
+      cursor: col-resize;
+      transition: background-color 0.2s;
+      z-index: 10;
+    }
+    
+    .resize-handle:hover,
+    .resize-handle.active {
+      background-color: #2196F3;
     }
     .sidebar {
       display: flex;
@@ -71,7 +85,7 @@ export class MainWindow extends JRPCClient {
       width: 60px;
     }
     .sidebar-expanded {
-      width: 280px;
+      width: var(--sidebar-width, 280px);
     }
     .sidebar-header {
       padding: 12px;
@@ -327,8 +341,8 @@ export class MainWindow extends JRPCClient {
     };
     
     return html`
-      <div class="container">
-        <div class=${classMap(sidebarClasses)}>
+      <div class="container" @mousemove=${this._handleMouseMove} @mouseup=${this._handleMouseUp}>
+        <div class=${classMap(sidebarClasses)} style="width: ${this.sidebarExpanded ? this.sidebarWidth + 'px' : '60px'}">
           <!-- Sidebar Header -->
           <div class="sidebar-header">
             <span class=${classMap(ledClasses)}></span>
@@ -432,6 +446,9 @@ export class MainWindow extends JRPCClient {
             </div>
           </div>
         </div>
+        
+        <!-- Resize Handle -->
+        <div class="resize-handle" @mousedown=${this._handleMouseDown}></div>
         
         <!-- Main Content Area -->
         <div class="main-content">
@@ -642,6 +659,48 @@ export class MainWindow extends JRPCClient {
       this.connectionStatus = 'disconnected';
       alert('Error connecting to Aider: ' + error.message);
       this.requestUpdate();
+    }
+  }
+  
+  _handleMouseDown(e) {
+    // Only process left mouse button
+    if (e.button !== 0) return;
+    
+    // Mark as resizing
+    this.isResizing = true;
+    this.initialX = e.clientX;
+    this.initialWidth = this.sidebarWidth;
+    
+    // Add active class to handle
+    e.currentTarget.classList.add('active');
+    
+    // Prevent text selection during resize
+    e.preventDefault();
+  }
+  
+  _handleMouseMove(e) {
+    if (!this.isResizing) return;
+    
+    // Calculate new width
+    const delta = e.clientX - this.initialX;
+    // Get window width and limit to 1/3 of the window
+    const maxWidth = Math.floor(window.innerWidth / 3);
+    let newWidth = Math.max(180, Math.min(maxWidth, this.initialWidth + delta));
+    
+    // Update sidebar width
+    this.sidebarWidth = newWidth;
+    this.requestUpdate();
+  }
+  
+  _handleMouseUp(e) {
+    if (!this.isResizing) return;
+    
+    this.isResizing = false;
+    
+    // Remove active class from handle
+    const handle = this.shadowRoot.querySelector('.resize-handle');
+    if (handle) {
+      handle.classList.remove('active');
     }
   }
 }
