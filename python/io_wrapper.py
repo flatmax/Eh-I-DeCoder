@@ -23,7 +23,6 @@ class IOWrapper:
         
         # Storage for responses
         self.last_response = None
-        self.stream_updates = []
         
         # Set up command output interception
         # Store the original methods
@@ -69,6 +68,9 @@ class IOWrapper:
         self.log(f"get_mdstream_wrapper called")
         mdstream = self.original_get_assistant_mdstream()
         
+        # Import threading module
+        import threading
+        
         # Store the original update method
         original_update = mdstream.update
         
@@ -76,12 +78,27 @@ class IOWrapper:
         def update_wrapper(content, final=False):
             self.log(f"mdstream.update called with content (first 100 chars): {content[:100] if content else 'None'}, final: {final}")
             
-            if final:
-                # Store for webapp
-                self.stream_updates.append((content, final))
+            # Create a thread to run send_stream_update concurrently
+            def run_in_thread():
+                import asyncio
                 
-                # Send to webapp
-                asyncio.create_task(self.send_stream_update(content, final))
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    # Run send_stream_update in this thread's event loop
+                    loop.run_until_complete(self.send_stream_update(content, final))
+                except Exception as e:
+                    self.log(f"Error in thread running send_stream_update: {e}")
+                    print(f"Error in thread running send_stream_update: {e}")
+                finally:
+                    loop.close()
+            
+            # Start the thread
+            thread = threading.Thread(target=run_in_thread)
+            thread.daemon = True
+            thread.start()
             
             # Call original method
             self.log("Calling original mdstream.update")
@@ -163,10 +180,14 @@ class IOWrapper:
     
     async def send_stream_update(self, content, final):
         """Send streaming update to webapp"""
-        self.log(f"send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
+        current_time = time.time()
+        self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
         try:
-            self.log("Calling PromptView.streamWrite with content and final param")
+            # Small delay to help browser rendering, but not too much
+            await asyncio.sleep(0.01)  # 10ms delay
+            
+            self.log(f"[TIME: {current_time:.6f}] Calling PromptView.streamWrite with content and final param")
             response = await self.get_call()['PromptView.streamWrite'](content, final)
             self.log(f"streamWrite response: {response}")
             

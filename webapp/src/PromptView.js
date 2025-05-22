@@ -210,16 +210,17 @@ export class PromptView extends JRPCClient {
       this.call['EditBlockCoder.run'](message)
         .then(() => {
           console.log('Run completed');
+          // Don't reset isProcessing here, let streamComplete do it
         })
         .catch(error => {
           console.error('Error from EditBlockCoder.run promise:', error);
+          this.isProcessing = false;
         });
       
       // Note: The IOWrapper will handle streaming the response via streamWrite
     } catch (error) {
       console.error('Error sending prompt to Aider:', error);
       this.addMessageToHistory('assistant', `Error: ${error.message || 'Failed to communicate with Aider'}`);
-    } finally {
       this.isProcessing = false;
     }
   }
@@ -245,7 +246,10 @@ export class PromptView extends JRPCClient {
    * Called by IOWrapper.send_stream_update and send_to_webapp via RPC
    */
   streamWrite(chunk, final = false) {
-    console.log('Chunk received:', typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 'final:', final);
+    const timestamp = new Date();
+    console.log(`Chunk received at ${timestamp.toISOString()} (${timestamp.getTime()})`, 
+      typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 
+      'final:', final);
     
     // If chunk is null or undefined, handle gracefully
     if (!chunk) {
@@ -260,7 +264,10 @@ export class PromptView extends JRPCClient {
     
     // Append the chunk to the last message
     const lastIndex = this.messageHistory.length - 1;
-    this.messageHistory[lastIndex].content += chunk;
+    this.messageHistory[lastIndex].content = chunk;
+    
+    // Force a re-render by creating a new array
+    this.messageHistory = [...this.messageHistory];
     
     // If final is true, prepare for the next message
     if (final) {
@@ -268,6 +275,7 @@ export class PromptView extends JRPCClient {
       // The streamComplete method will be called separately to finish this message
     }
     
+    // Request an immediate update
     this.requestUpdate();
     
     // Scroll to bottom after update
@@ -287,7 +295,10 @@ export class PromptView extends JRPCClient {
    */
   streamComplete() {
     console.log('Streaming complete');
-    // Additional completion logic can be added here
+    // Mark processing as complete
+    this.isProcessing = false;
+    this.requestUpdate();
+    return "streaming complete";
   }
   
   /**
