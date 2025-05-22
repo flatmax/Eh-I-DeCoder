@@ -27,6 +27,10 @@ export class PromptView extends JRPCClient {
     this.serverURI = "ws://0.0.0.0:9000";
     this.isProcessing = false;
     this.showVoiceInput = true;
+    this.messageHistory = [
+      { role: 'user', content: '' },
+      { role: 'assistant', content: '' }
+    ];
   }
 
   static styles = css`
@@ -109,6 +113,7 @@ export class PromptView extends JRPCClient {
    */
   setupDone() {
     console.log('PromptView setupDone: Ready to interact with Aider');
+    this.requestUpdate();
   }
 
   /**
@@ -359,7 +364,11 @@ export class PromptView extends JRPCClient {
    * Clear chat history
    */
   clearHistory() {
-    this.messageHistory = [];
+    // Reset to initial example messages instead of empty array
+    this.messageHistory = [
+      { role: 'user', content: '' },
+      { role: 'assistant', content: '' }
+    ];
     
     // Also reset the Aider chat context
     try {
