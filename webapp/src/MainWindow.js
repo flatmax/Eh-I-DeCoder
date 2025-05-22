@@ -7,11 +7,13 @@ import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import './Commands.js';
+import '../file-tree.js';
 
 export class MainWindow extends JRPCClient {
   static properties = {
     showPromptView: { type: Boolean, state: true },
     showCommands: { type: Boolean, state: true },
+    showFileTree: { type: Boolean, state: true },
     serverURI: { type: String },
     newServerURI: { type: String, state: true },
     connectionStatus: { type: String, state: true },
@@ -24,6 +26,7 @@ export class MainWindow extends JRPCClient {
     this.debug = false;
     this.showPromptView = true;
     this.showCommands = true; // Show commands by default
+    this.showFileTree = true; // Show file tree by default
     this.serverURI = "ws://0.0.0.0:9000";
     this.newServerURI = "ws://0.0.0.0:9000";
     this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
@@ -36,12 +39,35 @@ export class MainWindow extends JRPCClient {
     :host {
       display: block;
       font-family: sans-serif;
+      height: 100vh;
+      overflow: hidden;
     }
     .container {
       display: flex;
       flex-direction: column;
+      height: 100%;
+    }
+    .header {
+      padding: 10px 20px;
+    }
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    .file-tree-section {
+      width: 250px;
+      overflow: auto;
+      border-right: 1px solid #ccc;
+      flex-shrink: 0;
+    }
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       gap: 20px;
       padding: 20px;
+      overflow: auto;
     }
     .button-container {
       display: flex;
@@ -127,6 +153,7 @@ export class MainWindow extends JRPCClient {
     console.log('MainWindow setupDone: UI created with prompt view');
     this.connectionStatus = 'connected';
     this.requestUpdate();
+    console.log(this.call)
   }
   
   /**
@@ -168,58 +195,73 @@ export class MainWindow extends JRPCClient {
     
     return html`
       <div class="container">
-        <h2>Aider AI Assistant</h2>
-        
-        <div class="server-settings">
-          <div class="server-header" @click=${toggleConnectionDetails}>
-            <div>
-              <span class=${classMap(ledClasses)}></span>
-              Server: ${this.showConnectionDetails ? '' : this.serverURI}
-            </div>
-            <md-filled-button dense>
-              ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
-            </md-filled-button>
-          </div>
+        <div class="header">
+          <h2>Aider AI Assistant</h2>
           
-          ${this.showConnectionDetails ? html`
-            <div class="server-details">
-              <md-filled-text-field
-                class="server-input"
-                .value=${this.newServerURI}
-                @input=${e => this.newServerURI = e.target.value}
-                label="Server URI"
-              ></md-filled-text-field>
-              <md-filled-button @click=${this.updateServerURI}>
-                Connect
+          <div class="server-settings">
+            <div class="server-header" @click=${toggleConnectionDetails}>
+              <div>
+                <span class=${classMap(ledClasses)}></span>
+                Server: ${this.showConnectionDetails ? '' : this.serverURI}
+              </div>
+              <md-filled-button dense>
+                ${this.showConnectionDetails ? 'Hide Details' : 'Show Details'}
               </md-filled-button>
             </div>
-            <div class="current-server">Current: ${this.serverURI}</div>
-          ` : ''}
+            
+            ${this.showConnectionDetails ? html`
+              <div class="server-details">
+                <md-filled-text-field
+                  class="server-input"
+                  .value=${this.newServerURI}
+                  @input=${e => this.newServerURI = e.target.value}
+                  label="Server URI"
+                ></md-filled-text-field>
+                <md-filled-button @click=${this.updateServerURI}>
+                  Connect
+                </md-filled-button>
+              </div>
+              <div class="current-server">Current: ${this.serverURI}</div>
+            ` : ''}
+          </div>
+          
+          <div class="button-container">
+            <md-filled-button @click=${this.testConnection}>
+              Test Connection
+            </md-filled-button>
+            
+            <md-filled-button @click=${this.showServerInfo}>
+              Show Server Info
+            </md-filled-button>
+            
+            <md-filled-button @click=${this.openPromptView}>
+              Open Aider Chat
+            </md-filled-button>
+            
+            <md-filled-button @click=${toggleCommands}>
+              ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
+            </md-filled-button>
+            
+            <md-filled-button @click=${() => this.showFileTree = !this.showFileTree}>
+              ${this.showFileTree ? 'Hide Files' : 'Show Files'}
+            </md-filled-button>
+          </div>
         </div>
         
-        <div class="button-container">
-          <md-filled-button @click=${this.testConnection}>
-            Test Connection
-          </md-filled-button>
+        <div class="main-content">
+          ${this.showFileTree && this.connectionStatus === 'connected' ? 
+            html`<div class="file-tree-section">
+              <file-tree .serverURI=${this.serverURI}></file-tree>
+            </div>` : ''}
           
-          <md-filled-button @click=${this.showServerInfo}>
-            Show Server Info
-          </md-filled-button>
-          
-          <md-filled-button @click=${this.openPromptView}>
-            Open Aider Chat
-          </md-filled-button>
-          
-          <md-filled-button @click=${toggleCommands}>
-            ${this.showCommands ? 'Hide Commands' : 'Show Commands'}
-          </md-filled-button>
+          <div class="right-panel">
+            ${this.showCommands && this.connectionStatus === 'connected' ? 
+              html`<aider-commands .serverURI=${this.serverURI}></aider-commands>` : ''}
+            
+            ${this.showPromptView ? 
+              html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
+          </div>
         </div>
-        
-        ${this.showCommands && this.connectionStatus === 'connected' ? 
-          html`<aider-commands .serverURI=${this.serverURI}></aider-commands>` : ''}
-        
-        ${this.showPromptView ? 
-          html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
       </div>
     `;
   }
@@ -314,6 +356,12 @@ export class MainWindow extends JRPCClient {
       if (commandsView && commandsView.serverURI !== this.serverURI) {
         console.log('Updating Commands server URI to:', this.serverURI);
         commandsView.serverURI = this.serverURI;
+      }
+      
+      const fileTree = this.shadowRoot.querySelector('file-tree');
+      if (fileTree && fileTree.serverURI !== this.serverURI) {
+        console.log('Updating FileTree server URI to:', this.serverURI);
+        fileTree.serverURI = this.serverURI;
       }
     });
     
