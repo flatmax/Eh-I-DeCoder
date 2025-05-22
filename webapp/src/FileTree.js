@@ -188,7 +188,7 @@ export class FileTree extends JRPCClient {
       'added-file': isAdded
     };
     
-    const iconName = node.isFile ? 'description' : (hasChildren ? 'folder' : 'folder_open');
+    const iconName = node.isFile ? 'description' : 'folder';
     
     if (node.name === 'root') {
       // Root node - just render its children
@@ -241,7 +241,7 @@ export class FileTree extends JRPCClient {
         <div class="file-tree-header">
           <h3>Repository Files</h3>
           <md-icon-button @click=${() => this.loadFileTree()}>
-            <md-icon>refresh</md-icon>
+            <md-icon class="material-symbols-outlined">refresh</md-icon>
           </md-icon-button>
         </div>
         
@@ -295,6 +295,8 @@ export class FileTree extends JRPCClient {
     .file-node md-icon {
       margin-right: 8px;
       font-size: 18px;
+      font-family: 'Material Symbols Outlined';
+      display: inline-flex;
     }
     
     .directory-details {
