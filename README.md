@@ -23,6 +23,21 @@ cd python
 
 # Install dependencies
 pip install -e .
+
+# Configure Aider
+aider-install
+```
+
+#### Troubleshooting
+
+If you see this error:
+```
+ModuleNotFoundError: No module named 'boto3'
+```
+
+Install the missing dependency:
+```bash
+pip install boto3
 ```
 
 ### Frontend Setup

@@ -11,10 +11,14 @@ This project uses [Aider](https://github.com/Aider-AI/aider), an AI pair program
    pip install -e .
    ```
 
+2. Run aider-install to set up the necessary models and configurations:
+   ```bash
+   aider-install
+   ```
 
 ### Using the JSON-RPC Interface
 
-You can also use the JSON-RPC interface to interact with Aider programmatically:
+You can use the JSON-RPC interface to interact with Aider programmatically:
 
 ```bash
 # Start the JSON-RPC server

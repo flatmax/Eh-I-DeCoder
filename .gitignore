@@ -41,3 +41,4 @@ htmlcov/
 *.sublime-workspace
 .spyderproject
 .spyproject
+.aider*

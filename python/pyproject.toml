@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=77.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,8 +8,10 @@ version = "0.1.0"
 description = "JSON-RPC server for Aider"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 dependencies = [
     "aider-chat @ git+https://github.com/Aider-AI/aider.git",
-#    "jrpc-python @ git+https://github.com/flatmax/jrpc-oo.git#subdirectory=python",
+    "jrpc-oo @ git+https://github.com/flatmax/jrpc-oo.git"
 ]
+[tool.setuptools]
+py-modules = ["io_wrapper", "jrpc_oo_aider"]
