@@ -55,7 +55,7 @@ class IOWrapper:
         # Store the message for webapp
         self.last_response = message
         
-        # Send to webapp
+        # Send to webapp - fire and forget
         self.log(f"Sending message to webapp")
         asyncio.create_task(self.send_to_webapp(message))
         
@@ -68,9 +68,6 @@ class IOWrapper:
         self.log(f"get_mdstream_wrapper called")
         mdstream = self.original_get_assistant_mdstream()
         
-        # Import threading module
-        import threading
-        
         # Store the original update method
         original_update = mdstream.update
         
@@ -78,44 +75,10 @@ class IOWrapper:
         def update_wrapper(content, final=False):
             self.log(f"mdstream.update called with content (first 100 chars): {content[:100] if content else 'None'}, final: {final}")
             
-            # Create a thread to run send_stream_update concurrently
-            def run_in_thread():
-                import asyncio
-                
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                try:
-                    # Run send_stream_update in this thread's event loop
-                    loop.run_until_complete(self.send_stream_update(content, final))
-                    
-                    # If this is the final chunk, ensure we call streamComplete
-                    if final:
-                        self.log("Final chunk in thread - ensuring streamComplete is called")
-                        loop.run_until_complete(
-                            self.get_call()['PromptView.streamComplete']()
-                        )
-                except Exception as e:
-                    self.log(f"Error in thread running send_stream_update: {e}")
-                    print(f"Error in thread running send_stream_update: {e}")
-                    
-                    # Try to notify UI of error and reset processing state
-                    try:
-                        loop.run_until_complete(
-                            self.get_call()['PromptView.streamError'](str(e))
-                        )
-                    except Exception as e2:
-                        self.log(f"Failed to send error notification: {e2}")
-                finally:
-                    loop.close()
+            # Send to webapp asynchronously - fire and forget
+            asyncio.create_task(self.send_stream_update(content, final))
             
-            # Start the thread
-            thread = threading.Thread(target=run_in_thread)
-            thread.daemon = True
-            thread.start()
-            
-            # Call original method
+            # Call original method immediately
             self.log("Calling original mdstream.update")
             return original_update(content, final)
         
@@ -127,7 +90,7 @@ class IOWrapper:
         """Intercept standard informational output"""
         self.log(f"tool_output_wrapper called with message: {message}")
         
-        # Send to webapp
+        # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('output', message))
         
         # Call original method
@@ -137,7 +100,7 @@ class IOWrapper:
         """Intercept error messages"""
         self.log(f"tool_error_wrapper called with message: {message}")
         
-        # Send to webapp
+        # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('error', message))
         
         # Call original method
@@ -147,7 +110,7 @@ class IOWrapper:
         """Intercept warning messages"""
         self.log(f"tool_warning_wrapper called with message: {message}")
         
-        # Send to webapp
+        # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('warning', message))
         
         # Call original method
@@ -161,76 +124,74 @@ class IOWrapper:
         # Log debug information
         self.log(f"print_wrapper called with message: {message}")
         
-        # Send to webapp
+        # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('print', message))
         
         # Call original method
         return self.original_print(*args, **kwargs)
     
     async def send_to_webapp(self, message):
-        """Send completed response to webapp"""
+        """Send completed response to webapp - OPTIMIZED VERSION"""
         self.log(f"send_to_webapp called with message length: {len(str(message))}")
         print(f"IOWrapper: send_to_webapp called with message length: {len(str(message))}")
         
         try:
-            # Call directly through the server to all connected clients
+            # Fire and forget - don't wait for response
             self.log("About to call PromptView.streamWrite")
-            response = await self.get_call()['PromptView.streamWrite'](message)
-            self.log(f"streamWrite completed with response: {response}, calling streamComplete")
+            asyncio.create_task(self.get_call()['PromptView.streamWrite'](message))
+            self.log("streamWrite call initiated, calling streamComplete")
             
-            complete_response = await self.get_call()['PromptView.streamComplete']()
-            self.log(f"streamComplete completed with response: {complete_response}")
+            asyncio.create_task(self.get_call()['PromptView.streamComplete']())
+            self.log("streamComplete call initiated")
             
         except Exception as e:
             err_msg = f"Error sending to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}\n{e.__traceback__}")
             print(err_msg)
             
-            # Try to notify the webapp about the error
+            # Try to notify the webapp about the error - fire and forget
             try:
-                await self.get_call()['PromptView.streamError'](str(e))
+                asyncio.create_task(self.get_call()['PromptView.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
     
     async def send_stream_update(self, content, final):
-        """Send streaming update to webapp"""
+        """Send streaming update to webapp - OPTIMIZED VERSION"""
         current_time = time.time()
         self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
         try:
-            # Small delay to help browser rendering, but not too much
-            await asyncio.sleep(0.01)  # 10ms delay
-            
             self.log(f"[TIME: {current_time:.6f}] Calling PromptView.streamWrite with content and final param")
-            response = await self.get_call()['PromptView.streamWrite'](content, final)
-            self.log(f"streamWrite response: {response}")
+            # Fire and forget - don't wait for response
+            asyncio.create_task(self.get_call()['PromptView.streamWrite'](content, final))
+            self.log("streamWrite call initiated")
             
             if final:
                 self.log("Final chunk, calling streamComplete")
-                # Ensure streamComplete is called correctly to reset the UI state
-                complete_response = await self.get_call()['PromptView.streamComplete']()
-                self.log(f"streamComplete response: {complete_response}")
+                # Fire and forget - don't wait for response
+                asyncio.create_task(self.get_call()['PromptView.streamComplete']())
+                self.log("streamComplete call initiated")
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
             print(err_msg)
             
-            # Try to notify the webapp about the error
+            # Try to notify the webapp about the error - fire and forget
             try:
-                await self.get_call()['PromptView.streamError'](str(e))
+                asyncio.create_task(self.get_call()['PromptView.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
                 
     async def send_to_webapp_command(self, msg_type, message):
-        """Send command output to webapp"""
+        """Send command output to webapp - OPTIMIZED VERSION"""
         self.log(f"send_to_webapp_command called with type: {msg_type}, message: {message}")
         
         try:
-            # Call method in Commands.js to display the message
-            response = await self.get_call()['Commands.displayCommandOutput'](msg_type, message)
-            self.log(f"displayCommandOutput response: {response}")
+            # Fire and forget - don't wait for response
+            asyncio.create_task(self.get_call()['Commands.displayCommandOutput'](msg_type, message))
+            self.log("displayCommandOutput call initiated")
         except Exception as e:
             err_msg = f"Error sending command output to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
