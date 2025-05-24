@@ -172,24 +172,34 @@ export class MainWindow extends JRPCClient {
       flex-direction: column;
     }
     .main-content {
-      display: grid;
-      grid-template-rows: 1fr;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
       overflow: hidden;
     }
     .right-panel {
-      display: grid;
-      grid-template-rows: 2fr 1fr;
-      gap: 10px;
-      padding: 10px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
       overflow: hidden;
+      padding: 10px;
+      gap: 10px;
     }
     .prompt-view-container {
-      overflow: auto;
+      flex: 2;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
     }
     .commands-container {
-      overflow: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
     }

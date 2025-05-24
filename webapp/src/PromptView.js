@@ -35,30 +35,33 @@ export class PromptView extends JRPCClient {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
       font-family: sans-serif;
       width: 100%;
+      height: 100%;
+      overflow: hidden;
     }
     .prompt-container {
       display: flex;
       flex-direction: column;
       width: 100%;
       height: 100%;
-      max-height: calc(100vh - 180px);
+      overflow: hidden;
     }
     .voice-input-container {
       margin-top: 8px;
     }
     .message-history {
-      flex-grow: 1;
+      flex: 1;
       overflow-y: auto;
       border: 1px solid #ccc;
       padding: 10px;
       margin-bottom: 10px;
       background-color: #f9f9f9;
       border-radius: 4px;
-      max-height: calc(100vh - 300px);
       white-space: pre-wrap;
+      min-height: 200px;
     }
     .assistant-message {
       background-color: #f1f1f1;
@@ -76,6 +79,7 @@ export class PromptView extends JRPCClient {
       grid-gap: 10px;
       width: 100%;
       min-height: 120px;
+      flex-shrink: 0;
     }
     .controls-column {
       display: flex;
