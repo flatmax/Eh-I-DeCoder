@@ -11,6 +11,7 @@ import '@material/web/tabs/tabs.js';
 import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
+import './FilesAndSettings.js';
 import '../file-tree.js';
 
 export class MainWindow extends JRPCClient {
@@ -378,6 +379,12 @@ export class MainWindow extends JRPCClient {
                 ${this.sidebarExpanded ? "Files" : html`<md-icon>folder</md-icon>`}
               </md-primary-tab>
               <md-primary-tab 
+                aria-label="Files & Settings Tab" 
+                title=${this.sidebarExpanded ? "Files & Settings" : ""}
+              >
+                ${this.sidebarExpanded ? "Files & Settings" : html`<md-icon>tune</md-icon>`}
+              </md-primary-tab>
+              <md-primary-tab 
                 aria-label="Settings Tab" 
                 title=${this.sidebarExpanded ? "Settings" : ""}
               >
@@ -397,11 +404,19 @@ export class MainWindow extends JRPCClient {
                 </div>
               </div>
               
-              <!-- Settings Tab Panel -->
+              <!-- Files & Settings Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
                 'active': this.activeTabIndex === 1
               })} style="${this.activeTabIndex === 1 ? 'display: flex;' : 'display: none;'}">
+                <files-and-settings .serverURI=${this.serverURI}></files-and-settings>
+              </div>
+              
+              <!-- Settings Tab Panel -->
+              <div class=${classMap({
+                'tab-panel': true,
+                'active': this.activeTabIndex === 2
+              })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
                 <!-- Server Status Section -->
                 <div class="connection-status">
                   <span class=${classMap(ledClasses)}></span>
@@ -564,6 +579,12 @@ export class MainWindow extends JRPCClient {
       if (fileTree && fileTree.serverURI !== this.serverURI) {
         console.log('Updating FileTree server URI to:', this.serverURI);
         fileTree.serverURI = this.serverURI;
+      }
+      
+      const filesAndSettings = this.shadowRoot.querySelector('files-and-settings');
+      if (filesAndSettings && filesAndSettings.serverURI !== this.serverURI) {
+        console.log('Updating FilesAndSettings server URI to:', this.serverURI);
+        filesAndSettings.serverURI = this.serverURI;
       }
     });
     
