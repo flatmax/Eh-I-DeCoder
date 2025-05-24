@@ -36,12 +36,62 @@ class IOWrapper:
         io_instance.tool_error = self.tool_error_wrapper
         io_instance.tool_warning = self.tool_warning_wrapper
         io_instance.print = self.print_wrapper
+        
+        # Set up confirmation interception
+        if hasattr(io_instance, 'confirm_ask'):
+            self.original_confirm_ask = io_instance.confirm_ask
+            io_instance.confirm_ask = self.confirm_ask_wrapper
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
         with open(self.log_file, 'a') as f:
             f.write(f"[{timestamp}] {message}\n")
+    
+    def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
+        """Intercept confirm_ask calls and send to webapp"""
+        self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
+        
+        try:
+            confirmation_data = {
+                'question': question,
+                'default': default,
+                'subject': subject,
+                'explicit_yes_required': explicit_yes_required,
+                'group': str(group) if group else None,
+                'allow_never': allow_never
+            }
+            
+            self.log(f"Sending confirmation request to webapp: {confirmation_data}")
+            
+            # Make synchronous RPC call to webapp - this will block until response
+            # We need to run the async call in a synchronous context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're already in an async context, we need to use run_until_complete
+                    # But that won't work if the loop is already running, so we'll use a different approach
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, self._async_confirmation_request(confirmation_data))
+                        response = future.result()
+                else:
+                    response = loop.run_until_complete(self._async_confirmation_request(confirmation_data))
+            except RuntimeError:
+                # No event loop, create one
+                response = asyncio.run(self._async_confirmation_request(confirmation_data))
+            
+            self.log(f"Received response from webapp: {response}")
+            return response
+            
+        except Exception as e:
+            self.log(f"Error in confirm_ask_wrapper: {e}")
+            # Fall back to original method on error
+            return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+    
+    async def _async_confirmation_request(self, confirmation_data):
+        """Make the async RPC call to the webapp"""
+        return await self.get_call()['PromptView.confirmation_request'](confirmation_data)
     
     def assistant_output_wrapper(self, message, pretty=None):
         # Log debug information

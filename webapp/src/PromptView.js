@@ -15,7 +15,9 @@ export class PromptView extends JRPCClient {
     inputValue: { type: String, state: true },
     serverURI: { type: String },
     isProcessing: { type: Boolean, state: true },
-    showVoiceInput: { type: Boolean, state: true }
+    showVoiceInput: { type: Boolean, state: true },
+    showConfirmationDialog: { type: Boolean, state: true },
+    confirmationData: { type: Object, state: true }
   };
   
   constructor() {
@@ -27,6 +29,9 @@ export class PromptView extends JRPCClient {
     this.serverURI = "ws://0.0.0.0:9000";
     this.isProcessing = false;
     this.showVoiceInput = true;
+    this.showConfirmationDialog = false;
+    this.confirmationData = null;
+    this.confirmationResolve = null;
     this.messageHistory = [
       { role: 'user', content: '' },
       { role: 'assistant', content: '' }
@@ -113,6 +118,60 @@ export class PromptView extends JRPCClient {
     button:hover {
       background-color: #1565c0;
     }
+    .confirmation-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    .confirmation-dialog {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      min-width: 300px;
+      margin: 20px;
+    }
+    .confirmation-subject {
+      font-weight: bold;
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+    .confirmation-question {
+      font-size: 16px;
+      line-height: 1.5;
+      color: #555;
+      margin-bottom: 24px;
+      white-space: pre-wrap;
+    }
+    .confirmation-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .confirmation-buttons md-filled-button {
+      min-width: 80px;
+    }
+    .confirmation-buttons md-filled-button:first-child {
+      --md-filled-button-container-color: #666;
+    }
+    .confirmation-buttons md-filled-button:nth-child(2) {
+      --md-filled-button-container-color: #ff6b35;
+    }
+    .confirmation-buttons md-filled-button:last-child {
+      --md-filled-button-container-color: #1976d2;
+    }
   `;
 
   connectedCallback() {
@@ -133,6 +192,53 @@ export class PromptView extends JRPCClient {
    */
   remoteIsUp() {
     console.log('PromptView::remoteIsUp');
+  }
+
+  /**
+   * Handle confirmation request from IOWrapper
+   * This method is called via JRPC and returns the user's response
+   */
+  async confirmation_request(data) {
+    console.log('Confirmation request received:', data);
+    
+    // Show the confirmation dialog
+    this.confirmationData = data;
+    this.showConfirmationDialog = true;
+    this.requestUpdate();
+    
+    // Return a promise that resolves when user responds
+    return new Promise((resolve) => {
+      this.confirmationResolve = resolve;
+    });
+  }
+
+  /**
+   * Handle confirmation response
+   */
+  handleConfirmationResponse(response) {
+    console.log('Confirmation response:', response);
+    this.showConfirmationDialog = false;
+    this.confirmationData = null;
+    
+    // Resolve the promise with the user's response
+    if (this.confirmationResolve) {
+      this.confirmationResolve(response);
+      this.confirmationResolve = null;
+    }
+    
+    this.requestUpdate();
+  }
+
+  /**
+   * Handle escape key to close confirmation dialog
+   */
+  handleConfirmationKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      // Use default value or false if no default
+      const defaultResponse = this.confirmationData?.default !== null ? this.confirmationData.default : false;
+      this.handleConfirmationResponse(defaultResponse);
+    }
   }
   
   /**
@@ -188,6 +294,33 @@ export class PromptView extends JRPCClient {
           </div>
         </div>
       </div>
+
+      ${this.showConfirmationDialog ? html`
+        <div class="confirmation-overlay" 
+             @click=${(e) => e.target === e.currentTarget && this.handleConfirmationResponse(this.confirmationData?.default !== null ? this.confirmationData.default : false)}
+             @keydown=${this.handleConfirmationKeydown}
+             tabindex="0">
+          <div class="confirmation-dialog">
+            ${this.confirmationData?.subject ? html`
+              <div class="confirmation-subject">${this.confirmationData.subject}</div>
+            ` : ''}
+            <div class="confirmation-question">${this.confirmationData?.question || 'Confirm action?'}</div>
+            <div class="confirmation-buttons">
+              <md-filled-button @click=${() => this.handleConfirmationResponse(false)}>
+                ${this.confirmationData?.explicit_yes_required ? 'No' : (this.confirmationData?.default === false ? 'No (default)' : 'No')}
+              </md-filled-button>
+              ${this.confirmationData?.allow_never ? html`
+                <md-filled-button @click=${() => this.handleConfirmationResponse('never')}>
+                  Never
+                </md-filled-button>
+              ` : ''}
+              <md-filled-button @click=${() => this.handleConfirmationResponse(true)}>
+                ${this.confirmationData?.default === true ? 'Yes (default)' : 'Yes'}
+              </md-filled-button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
     `;
   }
   
@@ -443,3 +576,4 @@ export class PromptView extends JRPCClient {
   
   /* Controls reduced as requested */
 }
+
