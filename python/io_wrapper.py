@@ -2,6 +2,7 @@ import asyncio
 import os
 import time
 from datetime import datetime
+from .simple_std_io import SimpleStdIO
 
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
@@ -10,6 +11,20 @@ class IOWrapper:
         self.io = io_instance
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
+        
+        # Replace PromptSession input/output with simple stdio versions
+        if hasattr(io_instance, 'prompt_session'):
+            self.original_input = getattr(io_instance.prompt_session, 'input', None)
+            self.original_output = getattr(io_instance.prompt_session, 'output', None)
+            
+            # Create simple stdio wrapper
+            self.simple_stdio = SimpleStdIO()
+            
+            # Replace the input and output
+            io_instance.prompt_session.input = self.simple_stdio.input
+            io_instance.prompt_session.output = self.simple_stdio.output
+            
+            self.log("Replaced PromptSession input/output with SimpleStdIO")
         
         # Store the original method
         self.original_assistant_output = io_instance.assistant_output
