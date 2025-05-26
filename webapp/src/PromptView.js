@@ -240,6 +240,27 @@ export class PromptView extends JRPCClient {
       this.handleConfirmationResponse(defaultResponse);
     }
   }
+
+  /**
+   * Populate input with /run echo command
+   */
+  populateEchoCommand() {
+    this.inputValue = "/run echo ''";
+    this.requestUpdate();
+    
+    // Focus the input field and position cursor between the quotes
+    this.updateComplete.then(() => {
+      const input = this.shadowRoot.getElementById('promptInput');
+      if (input) {
+        input.focus();
+        // Position cursor between the quotes
+        const cursorPos = this.inputValue.length - 1;
+        if (input.setSelectionRange) {
+          input.setSelectionRange(cursorPos, cursorPos);
+        }
+      }
+    });
+  }
   
   /**
    * LitElement render method
@@ -278,6 +299,14 @@ export class PromptView extends JRPCClient {
               ?disabled=${this.isProcessing}
             >
               ${this.isProcessing ? 'Processing...' : 'Send'}
+            </md-filled-button>
+            
+            <md-filled-button 
+              id="echoButton" 
+              @click=${this.populateEchoCommand}
+              ?disabled=${this.isProcessing}
+            >
+              Echo
             </md-filled-button>
             
             <div class="voice-input-container">
@@ -576,4 +605,3 @@ export class PromptView extends JRPCClient {
   
   /* Controls reduced as requested */
 }
-
