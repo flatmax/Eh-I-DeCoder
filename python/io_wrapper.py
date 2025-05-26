@@ -2,7 +2,6 @@ import asyncio
 import os
 import time
 from datetime import datetime
-from simple_std_io import SimpleStdIO
 
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
@@ -12,32 +11,42 @@ class IOWrapper:
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
         
-        # Replace PromptSession input/output with simple stdio versions
-        # Create simple stdio wrapper with the same log file
-        self.simple_stdio = SimpleStdIO()
-        self.simple_stdio.log('hi')
+        # # Replace PromptSession input/output with simple stdio versions
+        # # Create simple stdio wrapper with the same log file
+        # self.simple_stdio = SimpleStdIO()
+        # # self.simple_stdio.log(f"Current io input: {io_instance.input}")                                                                                                                    
+        # # self.simple_stdio.log(f"Current io output: {io_instance.output}")                                                                                                                    
+        # # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
+        # # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
+        # # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
+        # # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
+        # # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
+        # # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
+        # # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current prompt_session.input.stdin: {io_instance.prompt_session.input.stdin}")                                                                                                                    
+        # self.simple_stdio.log(f"Current prompt_session.output.stdout: {io_instance.prompt_session.output.stdout}")                                                                                                                  
+        # self.original_stdin = io_instance.prompt_session.input.stdin
+        # self.original_stdout = io_instance.prompt_session.output.stdout
+        # # self.original_input = io_instance.prompt_session.input
+        # # self.original_output = io_instance.prompt_session.output
+        # # self.original_app_input = io_instance.prompt_session.input
+        # # self.original_app_output = io_instance.prompt_session.output
+        
+        # # Replace the input and output
+        # # io_instance.prompt_session.app.input = self.simple_stdio.input
+        # # io_instance.prompt_session.app.output = self.simple_stdio.output
+        # io_instance.prompt_session.input.stdin = self.simple_stdio.input
+        # io_instance.prompt_session.output.stdout = self.simple_stdio.output
+        
+        # self.log("Replaced PromptSession input/output with SimpleStdIO")
         # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
         # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
         # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
         # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
         # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
         # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
-        self.original_input = io_instance.prompt_session.input
-        self.original_output = io_instance.prompt_session.output
-        self.original_app_input = io_instance.prompt_session.input
-        self.original_app_output = io_instance.prompt_session.output
-        
-        # Replace the input and output
-        io_instance.prompt_session.app.input = self.simple_stdio.input
-        io_instance.prompt_session.app.output = self.simple_stdio.output
-        
-        self.log("Replaced PromptSession input/output with SimpleStdIO")
-        # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current prompt_session.input.stdin: {io_instance.prompt_session.input.stdin}")                                                                                                                    
+        # self.simple_stdio.log(f"Current prompt_session.output.stdout: {io_instance.prompt_session.output.stdout}")                                                                                                                  
         
         # Store the original method
         self.original_assistant_output = io_instance.assistant_output
@@ -164,35 +173,35 @@ class IOWrapper:
         return mdstream
         
     # Command output wrapper methods
-    def tool_output_wrapper(self, message = ''):
+    def tool_output_wrapper(self, message='', **kwargs):
         """Intercept standard informational output"""
-        self.log(f"tool_output_wrapper called with message: {message}")
+        self.log(f"tool_output_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('output', message))
         
-        # Call original method
-        return self.original_tool_output(message)
+        # Call original method with all arguments
+        return self.original_tool_output(message, **kwargs)
     
-    def tool_error_wrapper(self, message = ''):
+    def tool_error_wrapper(self, message='', **kwargs):
         """Intercept error messages"""
-        self.log(f"tool_error_wrapper called with message: {message}")
+        self.log(f"tool_error_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('error', message))
         
-        # Call original method
-        return self.original_tool_error(message)
+        # Call original method with all arguments
+        return self.original_tool_error(message, **kwargs)
     
-    def tool_warning_wrapper(self, message = ''):
+    def tool_warning_wrapper(self, message='', **kwargs):
         """Intercept warning messages"""
-        self.log(f"tool_warning_wrapper called with message: {message}")
+        self.log(f"tool_warning_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('warning', message))
         
-        # Call original method
-        return self.original_tool_warning(message)
+        # Call original method with all arguments
+        return self.original_tool_warning(message, **kwargs)
     
     def print_wrapper(self, *args, **kwargs):
         """Intercept print calls"""
@@ -200,7 +209,7 @@ class IOWrapper:
         message = ' '.join(str(arg) for arg in args)
         
         # Log debug information
-        self.log(f"print_wrapper called with message: {message}")
+        self.log(f"print_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
         asyncio.create_task(self.send_to_webapp_command('print', message))

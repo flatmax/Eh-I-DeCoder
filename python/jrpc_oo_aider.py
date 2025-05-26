@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime
 from jrpc_oo import JRPCServer
 from io_wrapper import IOWrapper
+from simple_std_io import SimpleStdIO
 
 from aider.main import main
 
@@ -12,6 +13,7 @@ from aider.main import main
 def parse_args():
     # Create a parser that will extract the port argument
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
+    # parser.add_argument("--port", '--no-fancy-input', type=int, default=9000, help="Port for JSON-RPC server")
     parser.add_argument("--port", type=int, default=9000, help="Port for JSON-RPC server")
     
     # Parse known args to get the port
@@ -27,7 +29,11 @@ async def main_starter():
     # Initialize the server
     jrpc_server = JRPCServer(port=args.port)
     
+    simple_stdio = SimpleStdIO()
+
     # Start aider in API mode and get the coder instance
+    # coder = main(aider_args, return_coder=True, input = simple_stdio.input, output = simple_stdio.output)
+    # coder = main(aider_args, return_coder=True, input = simple_stdio.input)
     coder = main(aider_args, return_coder=True)
     # Add the coder instance directly to the server with explicit class name
     jrpc_server.add_class(coder, 'EditBlockCoder')
