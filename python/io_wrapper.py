@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 from datetime import datetime
-from .simple_std_io import SimpleStdIO
+from simple_std_io import SimpleStdIO
 
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
@@ -13,18 +13,31 @@ class IOWrapper:
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
         
         # Replace PromptSession input/output with simple stdio versions
-        if hasattr(io_instance, 'prompt_session'):
-            self.original_input = getattr(io_instance.prompt_session, 'input', None)
-            self.original_output = getattr(io_instance.prompt_session, 'output', None)
-            
-            # Create simple stdio wrapper
-            self.simple_stdio = SimpleStdIO()
-            
-            # Replace the input and output
-            io_instance.prompt_session.input = self.simple_stdio.input
-            io_instance.prompt_session.output = self.simple_stdio.output
-            
-            self.log("Replaced PromptSession input/output with SimpleStdIO")
+        # Create simple stdio wrapper with the same log file
+        self.simple_stdio = SimpleStdIO()
+        self.simple_stdio.log('hi')
+        # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
+        self.original_input = io_instance.prompt_session.input
+        self.original_output = io_instance.prompt_session.output
+        self.original_app_input = io_instance.prompt_session.input
+        self.original_app_output = io_instance.prompt_session.output
+        
+        # Replace the input and output
+        io_instance.prompt_session.app.input = self.simple_stdio.input
+        io_instance.prompt_session.app.output = self.simple_stdio.output
+        
+        self.log("Replaced PromptSession input/output with SimpleStdIO")
+        # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
+        # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
+        # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
         
         # Store the original method
         self.original_assistant_output = io_instance.assistant_output
@@ -52,10 +65,10 @@ class IOWrapper:
         io_instance.tool_warning = self.tool_warning_wrapper
         io_instance.print = self.print_wrapper
         
-        # Set up confirmation interception
-        if hasattr(io_instance, 'confirm_ask'):
-            self.original_confirm_ask = io_instance.confirm_ask
-            io_instance.confirm_ask = self.confirm_ask_wrapper
+        # # Set up confirmation interception
+        # if hasattr(io_instance, 'confirm_ask'):
+        #     self.original_confirm_ask = io_instance.confirm_ask
+        #     io_instance.confirm_ask = self.confirm_ask_wrapper
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
