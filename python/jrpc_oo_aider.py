@@ -25,7 +25,6 @@ def parse_args():
 async def main_starter():
     # Parse command line arguments for the server and get remaining args for Aider
     args, aider_args = parse_args()
-    
     # Initialize the server
     jrpc_server = JRPCServer(port=args.port)
     
@@ -35,6 +34,8 @@ async def main_starter():
     # coder = main(aider_args, return_coder=True, input = simple_stdio.input, output = simple_stdio.output)
     # coder = main(aider_args, return_coder=True, input = simple_stdio.input)
     coder = main(aider_args, return_coder=True)
+    coder.io.yes = None  # Now confirm_ask will actually prompt the user
+
     # Add the coder instance directly to the server with explicit class name
     jrpc_server.add_class(coder, 'EditBlockCoder')
     # Add the coder's commands to the server
