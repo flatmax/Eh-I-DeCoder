@@ -1,7 +1,14 @@
 import asyncio
 import os
 import time
+import tracemalloc
+import traceback
 from datetime import datetime
+import concurrent.futures
+import threading
+
+# Enable tracemalloc for debugging
+tracemalloc.start()
 
 class IOWrapper:
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
@@ -76,8 +83,8 @@ class IOWrapper:
         
         # # Set up confirmation interception
         # if hasattr(io_instance, 'confirm_ask'):
-        #     self.original_confirm_ask = io_instance.confirm_ask
-        #     io_instance.confirm_ask = self.confirm_ask_wrapper
+        self.original_confirm_ask = io_instance.confirm_ask
+        io_instance.confirm_ask = self.confirm_ask_wrapper
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
@@ -86,49 +93,84 @@ class IOWrapper:
             f.write(f"[{timestamp}] {message}\n")
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
-        """Intercept confirm_ask calls and send to webapp"""
+        """Intercept confirm_ask calls and send to webapp - handles both sync and async contexts"""
         self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
         
         try:
+            # Check if we're in an async context
+            try:
+                loop = asyncio.get_running_loop()
+                self.log("Running in async context, using thread-based approach")
+                # We're in an async context, but this method needs to be synchronous
+                # Run the async function in a separate thread with its own event loop
+                def run_in_thread():
+                    # Create a new event loop for this thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(
+                            self._async_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+                        )
+                    finally:
+                        new_loop.close()
+                
+                # Run in a thread and wait for the result
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_in_thread)
+                    return future.result()
+                    
+            except RuntimeError:
+                # No event loop running, we can use asyncio.run safely
+                self.log("No async context, using asyncio.run")
+                return asyncio.run(self._async_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never))
+                
+        except Exception as e:
+            self.log(f"Error in confirm_ask_wrapper: {e}")
+            self.log(f"Exception type: {type(e)}")
+            self.log(f"Exception traceback: {traceback.format_exc()}")
+            # Fall back to original method on error
+            return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+    
+    async def _async_confirm_ask(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
+        """Async version of confirm_ask"""
+        try:
+            # Debug the inputs to find the None value
+            self.log(f"Debug - question type: {type(question)}, value: {repr(question)}")
+            self.log(f"Debug - default type: {type(default)}, value: {repr(default)}")
+            self.log(f"Debug - subject type: {type(subject)}, value: {repr(subject)}")
+            self.log(f"Debug - group type: {type(group)}, value: {repr(group)}")
+            
             confirmation_data = {
-                'question': question,
+                'question': str(question) if question is not None else '',
                 'default': default,
-                'subject': subject,
+                'subject': str(subject) if subject is not None else None,
                 'explicit_yes_required': explicit_yes_required,
-                'group': str(group) if group else None,
+                'group': str(group) if group is not None else None,
                 'allow_never': allow_never
             }
             
             self.log(f"Sending confirmation request to webapp: {confirmation_data}")
             
-            # Make synchronous RPC call to webapp - this will block until response
-            # We need to run the async call in a synchronous context
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # If we're already in an async context, we need to use run_until_complete
-                    # But that won't work if the loop is already running, so we'll use a different approach
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, self._async_confirmation_request(confirmation_data))
-                        response = future.result()
-                else:
-                    response = loop.run_until_complete(self._async_confirmation_request(confirmation_data))
-            except RuntimeError:
-                # No event loop, create one
-                response = asyncio.run(self._async_confirmation_request(confirmation_data))
-            
+            response = await self._async_confirmation_request(confirmation_data)
             self.log(f"Received response from webapp: {response}")
             return response
             
         except Exception as e:
-            self.log(f"Error in confirm_ask_wrapper: {e}")
-            # Fall back to original method on error
-            return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+            self.log(f"Error in _async_confirm_ask: {e}")
+            self.log(f"Exception type: {type(e)}")
+            raise
     
     async def _async_confirmation_request(self, confirmation_data):
         """Make the async RPC call to the webapp"""
-        return await self.get_call()['PromptView.confirmation_request'](confirmation_data)
+        self.log('Making RPC call to webapp')
+        try:
+            response = await self.get_call()['PromptView.confirmation_request'](confirmation_data)
+            self.log(f'RPC call completed with response: {response}')
+            return response
+        except Exception as e:
+            self.log(f'Error in _async_confirmation_request: {e}')
+            self.log(f'Exception type: {type(e)}')
+            raise
     
     def assistant_output_wrapper(self, message, pretty=None):
         # Log debug information

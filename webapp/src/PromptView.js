@@ -206,8 +206,10 @@ export class PromptView extends JRPCClient {
     this.showConfirmationDialog = true;
     this.requestUpdate();
     
+    console.log('returning')
     // Return a promise that resolves when user responds
     return new Promise((resolve) => {
+      console.log('resolving')
       this.confirmationResolve = resolve;
     });
   }
