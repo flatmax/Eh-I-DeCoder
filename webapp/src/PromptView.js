@@ -181,23 +181,28 @@ export class PromptView extends JRPCClient {
     const response = userInput.toLowerCase().trim();
     
     if (data.allow_never && (response === 'never' || response === 'n')) {
+      console.log('returning never');
       return 'never';
     }
     
     // Check for yes/true responses
     if (response === 'yes' || response === 'y' || response === 'true' || response === '1') {
+      console.log('returning true');
       return true;
     }
     
     // Check for no/false responses
     if (response === 'no' || response === 'false' || response === '0') {
+      console.log('returning false');
       return false;
     }
     
     // If empty response, use default
     if (response === '') {
+      console.log('returning ""');
       return data.default !== null ? data.default : false;
     }
+    console.log('returning final');
     
     // For any other response, treat as false unless default is true
     return data.default === true ? true : false;
