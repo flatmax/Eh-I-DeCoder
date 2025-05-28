@@ -15,9 +15,7 @@ export class PromptView extends JRPCClient {
     inputValue: { type: String, state: true },
     serverURI: { type: String },
     isProcessing: { type: Boolean, state: true },
-    showVoiceInput: { type: Boolean, state: true },
-    showConfirmationDialog: { type: Boolean, state: true },
-    confirmationData: { type: Object, state: true }
+    showVoiceInput: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -29,9 +27,6 @@ export class PromptView extends JRPCClient {
     this.serverURI = "ws://0.0.0.0:9000";
     this.isProcessing = false;
     this.showVoiceInput = true;
-    this.showConfirmationDialog = false;
-    this.confirmationData = null;
-    this.confirmationResolve = null;
     this.messageHistory = [
       { role: 'user', content: '' },
       { role: 'assistant', content: '' }
@@ -118,60 +113,6 @@ export class PromptView extends JRPCClient {
     button:hover {
       background-color: #1565c0;
     }
-    .confirmation-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      backdrop-filter: blur(2px);
-    }
-    .confirmation-dialog {
-      background: white;
-      padding: 24px;
-      border-radius: 8px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      max-width: 500px;
-      min-width: 300px;
-      margin: 20px;
-    }
-    .confirmation-subject {
-      font-weight: bold;
-      font-size: 18px;
-      color: #333;
-      margin-bottom: 12px;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 8px;
-    }
-    .confirmation-question {
-      font-size: 16px;
-      line-height: 1.5;
-      color: #555;
-      margin-bottom: 24px;
-      white-space: pre-wrap;
-    }
-    .confirmation-buttons {
-      display: flex;
-      gap: 12px;
-      justify-content: flex-end;
-    }
-    .confirmation-buttons md-filled-button {
-      min-width: 80px;
-    }
-    .confirmation-buttons md-filled-button:first-child {
-      --md-filled-button-container-color: #666;
-    }
-    .confirmation-buttons md-filled-button:nth-child(2) {
-      --md-filled-button-container-color: #ff6b35;
-    }
-    .confirmation-buttons md-filled-button:last-child {
-      --md-filled-button-container-color: #1976d2;
-    }
   `;
 
   connectedCallback() {
@@ -198,49 +139,68 @@ export class PromptView extends JRPCClient {
    * Handle confirmation request from IOWrapper
    * This method is called via JRPC and returns the user's response
    */
-  async confirmation_request(data) {
+  confirmation_request(data) {
     console.log('Confirmation request received:', data);
     
-    // Show the confirmation dialog
-    this.confirmationData = data;
-    this.showConfirmationDialog = true;
-    this.requestUpdate();
+    // Build the prompt message
+    let promptMessage = '';
+    if (data.subject) {
+      promptMessage += `${data.subject}\n\n`;
+    }
+    promptMessage += data.question || 'Confirm action?';
     
-    console.log('returning')
-    // Return a promise that resolves when user responds
-    return new Promise((resolve) => {
-      console.log('resolving')
-      this.confirmationResolve = resolve;
-    });
-  }
-
-  /**
-   * Handle confirmation response
-   */
-  handleConfirmationResponse(response) {
-    console.log('Confirmation response:', response);
-    this.showConfirmationDialog = false;
-    this.confirmationData = null;
-    
-    // Resolve the promise with the user's response
-    if (this.confirmationResolve) {
-      this.confirmationResolve(response);
-      this.confirmationResolve = null;
+    // Add default information to the prompt
+    let defaultText = '';
+    let defaultValue = '';
+    if (data.default !== null) {
+      if (data.default === true) {
+        defaultText = ' (default: Yes)';
+        defaultValue = 'yes';
+      } else if (data.default === false) {
+        defaultText = ' (default: No)';
+        defaultValue = 'no';
+      } else {
+        defaultText = ` (default: ${data.default})`;
+        defaultValue = String(data.default);
+      }
     }
     
-    this.requestUpdate();
-  }
-
-  /**
-   * Handle escape key to close confirmation dialog
-   */
-  handleConfirmationKeydown(e) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      // Use default value or false if no default
-      const defaultResponse = this.confirmationData?.default !== null ? this.confirmationData.default : false;
-      this.handleConfirmationResponse(defaultResponse);
+    promptMessage += defaultText;
+    
+    // Show window.prompt with the message and default value
+    const userInput = window.prompt(promptMessage, defaultValue);
+    console.log('userInput', userInput);
+    
+    // Handle the response
+    if (userInput === null) {
+      // User cancelled - use default or false
+      return data.default !== null ? data.default : false;
     }
+    
+    // Parse the user's response
+    const response = userInput.toLowerCase().trim();
+    
+    if (data.allow_never && (response === 'never' || response === 'n')) {
+      return 'never';
+    }
+    
+    // Check for yes/true responses
+    if (response === 'yes' || response === 'y' || response === 'true' || response === '1') {
+      return true;
+    }
+    
+    // Check for no/false responses
+    if (response === 'no' || response === 'false' || response === '0') {
+      return false;
+    }
+    
+    // If empty response, use default
+    if (response === '') {
+      return data.default !== null ? data.default : false;
+    }
+    
+    // For any other response, treat as false unless default is true
+    return data.default === true ? true : false;
   }
 
   /**
@@ -325,33 +285,6 @@ export class PromptView extends JRPCClient {
           </div>
         </div>
       </div>
-
-      ${this.showConfirmationDialog ? html`
-        <div class="confirmation-overlay" 
-             @click=${(e) => e.target === e.currentTarget && this.handleConfirmationResponse(this.confirmationData?.default !== null ? this.confirmationData.default : false)}
-             @keydown=${this.handleConfirmationKeydown}
-             tabindex="0">
-          <div class="confirmation-dialog">
-            ${this.confirmationData?.subject ? html`
-              <div class="confirmation-subject">${this.confirmationData.subject}</div>
-            ` : ''}
-            <div class="confirmation-question">${this.confirmationData?.question || 'Confirm action?'}</div>
-            <div class="confirmation-buttons">
-              <md-filled-button @click=${() => this.handleConfirmationResponse(false)}>
-                ${this.confirmationData?.explicit_yes_required ? 'No' : (this.confirmationData?.default === false ? 'No (default)' : 'No')}
-              </md-filled-button>
-              ${this.confirmationData?.allow_never ? html`
-                <md-filled-button @click=${() => this.handleConfirmationResponse('never')}>
-                  Never
-                </md-filled-button>
-              ` : ''}
-              <md-filled-button @click=${() => this.handleConfirmationResponse(true)}>
-                ${this.confirmationData?.default === true ? 'Yes (default)' : 'Yes'}
-              </md-filled-button>
-            </div>
-          </div>
-        </div>
-      ` : ''}
     `;
   }
   
@@ -390,14 +323,14 @@ export class PromptView extends JRPCClient {
         .then(() => {
           console.log('Run completed');
           
-          // Add a fallback timeout to reset isProcessing if streamComplete is never called
-          setTimeout(() => {
-            if (this.isProcessing) {
-              console.log('Fallback timeout: resetting isProcessing flag');
-              this.isProcessing = false;
-              this.requestUpdate();
-            }
-          }, 500); // 0.5 second timeout
+          // // Add a fallback timeout to reset isProcessing if streamComplete is never called
+          // setTimeout(() => {
+          //   if (this.isProcessing) {
+          //     console.log('Fallback timeout: resetting isProcessing flag');
+          //     this.isProcessing = false;
+          //     this.requestUpdate();
+          //   }
+          // }, 500); // 0.5 second timeout
         })
         .catch(error => {
           console.error('Error from EditBlockCoder.run promise:', error);
