@@ -97,17 +97,12 @@ class IOWrapper:
             f.write(f"[{timestamp}] {message}\n")
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
-        """Intercept confirm_ask calls and send to webapp - simplified version"""
+        """Intercept confirm_ask calls and send to webapp - synchronous wrapper for async call"""
         self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
         
         try:
-            # Create a unique ID for this confirmation
-            confirmation_id = self.confirmation_counter
-            self.confirmation_counter += 1
-            
             # Prepare confirmation data
             confirmation_data = {
-                'id': confirmation_id,
                 'question': str(question) if question is not None else '',
                 'default': default,
                 'subject': str(subject) if subject is not None else None,
@@ -118,16 +113,58 @@ class IOWrapper:
             
             self.log(f"Sending confirmation request to webapp: {confirmation_data}")
             
-            # Schedule the async call using asyncio.create_task
-            response = asyncio.create_task(self._async_confirmation_request(confirmation_data))
-            self.log(f"Received response from webapp: {response}")
-            
-            # For now, return the default or False while we wait for the async response
-            # In a real implementation, you'd want to block here until the response comes back
-            # But for testing, let's see if the async call works first
-            result = default if default is not None else False
-            self.log(f"Returning immediate result: {result}")
-            return result
+            # Check if we're in an async context
+            try:
+                loop = asyncio.get_running_loop()
+                self.log("Running in async context, need to handle carefully")
+                
+                # We're in an async context but need to call async function synchronously
+                # Create a new event loop in a thread
+                def run_in_thread():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        result = new_loop.run_until_complete(
+                            self._async_confirmation_request(confirmation_data)
+                        )
+                        return result
+                    finally:
+                        new_loop.close()
+                
+                # Run in thread and wait for result
+                import threading
+                result_container = []
+                exception_container = []
+                
+                def thread_target():
+                    try:
+                        result = run_in_thread()
+                        result_container.append(result)
+                    except Exception as e:
+                        exception_container.append(e)
+                
+                thread = threading.Thread(target=thread_target)
+                print('starting thread')
+                thread.start()
+                print('joining thread')
+                thread.join()
+                
+                if exception_container:
+                    raise exception_container[0]
+                
+                if result_container:
+                    response = result_container[0]
+                    self.log(f"Received response from webapp: {response}")
+                    return response
+                else:
+                    raise Exception("No result from thread execution")
+                    
+            except RuntimeError:
+                # No event loop running, we can use asyncio.run safely
+                self.log("No async context, using asyncio.run")
+                response = asyncio.run(self._async_confirmation_request(confirmation_data))
+                self.log(f"Received response from webapp: {response}")
+                return response
                 
         except Exception as e:
             self.log(f"Error in confirm_ask_wrapper: {e}")
@@ -141,9 +178,6 @@ class IOWrapper:
         """Make the async RPC call to the webapp"""
         self.log('Making RPC call to webapp')
         try:
-            self.log('About to call get_server()')
-            
-            # Use get_server() instead of get_call() like in your working example
             self.log('About to call confirmation method with await')
             response = await self.get_call()['PromptView.confirmation_request'](confirmation_data)
             self.log(f'RPC call completed with response: {response}')
