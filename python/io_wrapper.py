@@ -55,6 +55,9 @@ class IOWrapper:
             self.log(f"Captured main event loop: {self.main_loop}")
         except RuntimeError:
             self.log("No running event loop found during initialization")
+        
+        # Track if we've seen any command output for this request
+        self.has_command_output = False
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
@@ -187,6 +190,9 @@ class IOWrapper:
         """Intercept standard informational output"""
         self.log(f"tool_output_wrapper called with message: {message}, kwargs: {kwargs}")
         
+        # Mark that we've seen command output
+        self.has_command_output = True
+        
         # Send to webapp - fire and forget
         self._safe_create_task(self.send_to_webapp_command('output', message))
         
@@ -197,6 +203,9 @@ class IOWrapper:
         """Intercept error messages"""
         self.log(f"tool_error_wrapper called with message: {message}, kwargs: {kwargs}")
         
+        # Mark that we've seen command output
+        self.has_command_output = True
+        
         # Send to webapp - fire and forget
         self._safe_create_task(self.send_to_webapp_command('error', message))
         
@@ -206,6 +215,9 @@ class IOWrapper:
     def tool_warning_wrapper(self, message='', **kwargs):
         """Intercept warning messages"""
         self.log(f"tool_warning_wrapper called with message: {message}, kwargs: {kwargs}")
+        
+        # Mark that we've seen command output
+        self.has_command_output = True
         
         # Send to webapp - fire and forget
         self._safe_create_task(self.send_to_webapp_command('warning', message))
@@ -221,11 +233,23 @@ class IOWrapper:
         # Log debug information
         self.log(f"print_wrapper called with message: {message}, kwargs: {kwargs}")
         
+        # Mark that we've seen command output
+        self.has_command_output = True
+        
         # Send to webapp - fire and forget
         self._safe_create_task(self.send_to_webapp_command('print', message))
         
         # Call original method
         return self.original_print(*args, **kwargs)
+    
+    def signal_command_complete(self):
+        """Signal that command processing is complete"""
+        self.log("Signaling command completion to webapp")
+        if self.has_command_output:
+            # Reset the flag
+            self.has_command_output = False
+            # Send completion signal
+            self._safe_create_task(self.get_call()['PromptView.streamComplete']())
     
     async def send_to_webapp(self, message):
         """Send completed response to webapp - OPTIMIZED VERSION"""
