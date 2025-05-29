@@ -1,10 +1,10 @@
 /**
- * FilesAndSettings component for the new tab containing command buttons and settings
+ * CommandsTab component for the new tab containing command buttons and settings
  */
 import {LitElement, html, css} from 'lit';
 import './CommandsButtons.js';
 
-export class FilesAndSettings extends LitElement {
+export class CommandsTab extends LitElement {
   static properties = {
     serverURI: { type: String }
   };
@@ -69,4 +69,4 @@ export class FilesAndSettings extends LitElement {
   }
 }
 
-customElements.define('files-and-settings', FilesAndSettings);
+customElements.define('files-and-settings', CommandsTab);

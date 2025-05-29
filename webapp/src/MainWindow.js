@@ -11,7 +11,7 @@ import '@material/web/tabs/tabs.js';
 import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
-import './FilesAndSettings.js';
+import './CommandsTab.js';
 import '../file-tree.js';
 
 export class MainWindow extends JRPCClient {
@@ -389,10 +389,10 @@ export class MainWindow extends JRPCClient {
                 ${this.sidebarExpanded ? "Files" : html`<md-icon>folder</md-icon>`}
               </md-primary-tab>
               <md-primary-tab 
-                aria-label="Files & Settings Tab" 
-                title=${this.sidebarExpanded ? "Files & Settings" : ""}
+                aria-label="Commands Tab Tab" 
+                title=${this.sidebarExpanded ? "Commands Tab" : ""}
               >
-                ${this.sidebarExpanded ? "Files & Settings" : html`<md-icon>tune</md-icon>`}
+                ${this.sidebarExpanded ? "Commands Tab" : html`<md-icon>tune</md-icon>`}
               </md-primary-tab>
               <md-primary-tab 
                 aria-label="Settings Tab" 
@@ -414,7 +414,7 @@ export class MainWindow extends JRPCClient {
                 </div>
               </div>
               
-              <!-- Files & Settings Tab Panel -->
+              <!-- Commands Tab Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
                 'active': this.activeTabIndex === 1
@@ -591,10 +591,10 @@ export class MainWindow extends JRPCClient {
         fileTree.serverURI = this.serverURI;
       }
       
-      const filesAndSettings = this.shadowRoot.querySelector('files-and-settings');
-      if (filesAndSettings && filesAndSettings.serverURI !== this.serverURI) {
-        console.log('Updating FilesAndSettings server URI to:', this.serverURI);
-        filesAndSettings.serverURI = this.serverURI;
+      const CommandsTab = this.shadowRoot.querySelector('files-and-settings');
+      if (CommandsTab && CommandsTab.serverURI !== this.serverURI) {
+        console.log('Updating CommandsTab server URI to:', this.serverURI);
+        CommandsTab.serverURI = this.serverURI;
       }
     });
     

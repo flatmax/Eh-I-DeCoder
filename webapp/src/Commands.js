@@ -136,7 +136,7 @@ export class Commands extends JRPCClient {
               </md-filled-button>
             </div>
             ${this.commandOutput.length === 0 ? 
-              html`<div class="output-message">No output yet. Use commands from the Files & Settings tab to see results here.</div>` : 
+              html`<div class="output-message">No output yet. Use commands from the Commands Tab tab to see results here.</div>` : 
               html`${repeat(
                 this.commandOutput,
                 (item, i) => i, // using index as key since items may not be unique
@@ -146,7 +146,7 @@ export class Commands extends JRPCClient {
           </div>
         ` : html`
           <div class="no-output-message">
-            Command output will appear here when you run commands from the Files & Settings tab.
+            Command output will appear here when you run commands from the Commands Tab tab.
           </div>
         `}
       </div>
