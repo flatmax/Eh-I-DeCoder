@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime
 from jrpc_oo import JRPCServer
 from io_wrapper import IOWrapper
+from coder_wrapper import CoderWrapper
 from simple_std_io import SimpleStdIO
 
 from aider.main import main
@@ -40,6 +41,17 @@ async def main_starter():
     jrpc_server.add_class(coder, 'EditBlockCoder')
     # Add the coder's commands to the server
     jrpc_server.add_class(coder.commands, 'Commands')
+    
+    # Create a CoderWrapper to handle non-blocking run method
+    try:
+        coder_wrapper = CoderWrapper(coder)
+        jrpc_server.add_class(coder_wrapper, 'CoderWrapper')
+        print(f"Coder wrapper created successfully: {coder_wrapper}")
+    except Exception as e:
+        print(f"Error creating coder wrapper: {e}")
+        # Still create a log file with error information
+        with open('/tmp/coder_wrapper.log', 'w') as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}] Error initializing Coder Wrapper: {e}\n")
     
     # Create an IOWrapper to intercept coder IO and commands output
     try:
