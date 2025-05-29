@@ -130,14 +130,59 @@ export class CommandsButtons extends JRPCClient {
     }
   }
 
+  findPromptView() {
+    // Try multiple approaches to find the PromptView component
+    
+    // First, try to find it in the main window's shadow DOM
+    let mainWindow = document.querySelector('main-window');
+    if (mainWindow && mainWindow.shadowRoot) {
+      let promptView = mainWindow.shadowRoot.querySelector('prompt-view');
+      if (promptView) {
+        return promptView;
+      }
+    }
+    
+    // Second, try to traverse up the DOM tree to find the main window
+    let current = this;
+    while (current) {
+      if (current.tagName === 'MAIN-WINDOW') {
+        let promptView = current.shadowRoot?.querySelector('prompt-view');
+        if (promptView) {
+          return promptView;
+        }
+        break;
+      }
+      
+      // Move up to the host of the shadow root
+      if (current.getRootNode && current.getRootNode().host) {
+        current = current.getRootNode().host;
+      } else {
+        break;
+      }
+    }
+    
+    // Third, try to find it through the document
+    const allMainWindows = document.querySelectorAll('main-window');
+    for (const mw of allMainWindows) {
+      if (mw.shadowRoot) {
+        const pv = mw.shadowRoot.querySelector('prompt-view');
+        if (pv) {
+          return pv;
+        }
+      }
+    }
+    
+    return null;
+  }
+
   async handleCommandClick(command) {
     console.log(`Command clicked: ${command.name}`);
     
     try {
       // Find the Commands component to show output
-      const mainWindow = this.getRootNode().host?.shadowRoot;
-      if (mainWindow) {
-        const commandsComponent = mainWindow.querySelector('aider-commands');
+      const mainWindow = document.querySelector('main-window');
+      if (mainWindow && mainWindow.shadowRoot) {
+        const commandsComponent = mainWindow.shadowRoot.querySelector('aider-commands');
         if (commandsComponent) {
           commandsComponent.showOutput = true;
           commandsComponent.commandOutput = [];
@@ -147,16 +192,10 @@ export class CommandsButtons extends JRPCClient {
       
       console.log(`Executing command: ${command.name}`);
       
-      // Find the prompt-view component through DOM traversal
-      const parentRoot = this.getRootNode().host?.shadowRoot;
-      if (!parentRoot) {
-        throw new Error("Could not find parent shadow root");
-      }
-      
-      // Now find the prompt-view element in the parent's shadow DOM
-      const promptView = parentRoot.querySelector('prompt-view');
+      // Find the prompt-view component
+      const promptView = this.findPromptView();
       if (!promptView) {
-        throw new Error("PromptView component not found in parent shadow DOM");
+        throw new Error("PromptView component not found");
       }
       
       // Set the input value to the command
@@ -169,17 +208,17 @@ export class CommandsButtons extends JRPCClient {
       console.error('Error executing command:', error);
       
       // Try to display error in Commands component
-      const mainWindow = this.getRootNode().host?.shadowRoot;
-      if (mainWindow) {
-        const commandsComponent = mainWindow.querySelector('aider-commands');
+      const mainWindow = document.querySelector('main-window');
+      if (mainWindow && mainWindow.shadowRoot) {
+        const commandsComponent = mainWindow.shadowRoot.querySelector('aider-commands');
         if (commandsComponent && commandsComponent.displayCommandOutput) {
           commandsComponent.displayCommandOutput('error', `Error executing command: ${error.message}`);
         }
       }
       
-      // Fall back to direct API call if we couldn't find the PromptView
+      // Fall back to direct API call using the correct method name
       try {
-        await this.call['CoderWrapper.run'](command.name, true);
+        await this.call['EditBlockCoder.run'](command.name);
       } catch (fallbackError) {
         console.error('Fallback also failed:', fallbackError);
       }
