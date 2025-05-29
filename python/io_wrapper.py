@@ -92,11 +92,10 @@ class IOWrapper:
                 return None
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
-        """Intercept confirm_ask calls and send to webapp - using proper event loop bridging"""
-        self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
+        """Intercept confirm_ask calls and send to webapp"""
+        self.log(f"confirm_ask_wrapper called with question: {question}")
         
         try:
-            # Prepare confirmation data
             confirmation_data = {
                 'question': str(question) if question is not None else '',
                 'default': default,
@@ -106,98 +105,37 @@ class IOWrapper:
                 'allow_never': allow_never
             }
             
-            self.log(f"Sending confirmation request to webapp: {confirmation_data}")
-            
-            # Try to find the main event loop
-            main_loop = None
-            try:
-                main_loop = asyncio.get_running_loop()
-                self.log(f"Found running event loop: {main_loop}")
-            except RuntimeError:
-                # Try to use the stored main loop
-                if self.main_loop and not self.main_loop.is_closed():
-                    main_loop = self.main_loop
-                    self.log(f"Using stored main loop: {main_loop}")
-                else:
-                    self.log("No main event loop available")
-            
-            if main_loop:
-                # Use run_coroutine_threadsafe to bridge to the main event loop
-                self.log("Using run_coroutine_threadsafe to bridge event loops")
+            # Use main_loop if available, otherwise fall back to original method
+            if self.main_loop and not self.main_loop.is_closed():
                 future = asyncio.run_coroutine_threadsafe(
                     self._async_confirmation_request(confirmation_data),
-                    main_loop
+                    self.main_loop
                 )
-                try:
-                    response = future.result(timeout=30.0)  # 30 second timeout
-                    self.log(f"Received response from webapp: {response}")
-                    return response
-                except concurrent.futures.TimeoutError:
-                    self.log("Confirmation request timed out after 30 seconds")
-                    # Fall back to original method on timeout
-                    return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+                response = future.result(timeout=30.0)
+                self.log(f"Received response from webapp: {response}")
+                return response
             else:
-                # Fall back to thread pool executor method
-                self.log("Falling back to thread pool executor method")
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(self._run_async_confirmation, confirmation_data)
-                    try:
-                        response = future.result(timeout=30.0)  # 30 second timeout
-                        self.log(f"Received response from webapp: {response}")
-                        return response
-                    except concurrent.futures.TimeoutError:
-                        self.log("Confirmation request timed out after 30 seconds")
-                        # Fall back to original method on timeout
-                        return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+                self.log("No main loop available, falling back to original method")
+                return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
                 
         except Exception as e:
             self.log(f"Error in confirm_ask_wrapper: {e}")
-            self.log(f"Exception type: {type(e)}")
-            self.log(f"Exception traceback: {traceback.format_exc()}")
-            # Fall back to original method on error
-            self.log("Falling back to original confirm_ask method")
             return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
-    
-    def _run_async_confirmation(self, confirmation_data):
-        """Run the async confirmation request in a new event loop"""
-        self.log("Running async confirmation in new event loop")
-        try:
-            return asyncio.run(self._async_confirmation_request(confirmation_data))
-        except Exception as e:
-            self.log(f"Error in _run_async_confirmation: {e}")
-            raise
     
     async def _async_confirmation_request(self, confirmation_data):
         """Make the async RPC call to the webapp"""
         self.log('Making RPC call to webapp')
         try:
-            self.log('About to call confirmation method with await')
-            # Get the call function and make the RPC call
             call_func = self.get_call()['PromptView.confirmation_request']
-            self.log(f'Got call function: {call_func}')
+            response = await asyncio.wait_for(call_func(confirmation_data), timeout=30.0)
             
-            # Add a timeout to the await call
-            response = await asyncio.wait_for(
-                call_func(confirmation_data),
-                timeout=30.0  # 30 seconds timeout
-            )
-            self.log(f'RPC call completed with response: {response}')
-            
-            # The response might be a dict with UUID keys, extract the actual response
+            # Extract response from dict if needed
             if isinstance(response, dict) and len(response) == 1:
-                # Get the first (and likely only) value from the response dict
                 response = next(iter(response.values()))
-                self.log(f'Extracted response from dict: {response}')
             
             return response
-        except asyncio.TimeoutError:
-            self.log('Error in _async_confirmation_request: RPC call timed out after 30 seconds.')
-            # Re-raise as a standard TimeoutError or a custom exception if preferred
-            raise TimeoutError("Confirmation request to webapp timed out.")
         except Exception as e:
             self.log(f'Error in _async_confirmation_request: {e}')
-            self.log(f'Exception type: {type(e)}')
-            self.log(f'Exception traceback: {traceback.format_exc()}')
             raise
 
     def assistant_output_wrapper(self, message, pretty=None):
