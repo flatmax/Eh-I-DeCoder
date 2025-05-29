@@ -3,13 +3,17 @@
 import argparse
 import asyncio
 from datetime import datetime
-from jrpc_oo import JRPCServer
+# from jrpc_oo import JRPCServer
 from io_wrapper import IOWrapper
 from coder_wrapper import CoderWrapper
-from simple_std_io import SimpleStdIO
+# from simple_std_io import SimpleStdIO
 
 from aider.main import main
 
+import sys                                                                                                                                                                                           
+import os                                                                                                                                                                                            
+sys.path.insert(0, os.path.abspath('./jrpc-oo'))                                                                                                                                                     
+from jrpc_oo import JRPCServer
 
 def parse_args():
     # Create a parser that will extract the port argument
@@ -29,7 +33,7 @@ async def main_starter():
     # Initialize the server
     jrpc_server = JRPCServer(port=args.port)
     
-    simple_stdio = SimpleStdIO()
+    # simple_stdio = SimpleStdIO()
 
     # Start aider in API mode and get the coder instance
     # coder = main(aider_args, return_coder=True, input = simple_stdio.input, output = simple_stdio.output)

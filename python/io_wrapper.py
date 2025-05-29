@@ -51,6 +51,14 @@ class IOWrapper:
         # Store for pending confirmations
         self.pending_confirmations = {}
         self.confirmation_counter = 0
+        
+        # Try to get the main event loop reference
+        self.main_loop = None
+        try:
+            self.main_loop = asyncio.get_running_loop()
+            self.log(f"Captured main event loop: {self.main_loop}")
+        except RuntimeError:
+            self.log("No running event loop found during initialization")
     
     def log(self, message):
         """Write a log message to the log file with timestamp"""
@@ -58,8 +66,33 @@ class IOWrapper:
         with open(self.log_file, 'a') as f:
             f.write(f"[{timestamp}] {message}\n")
     
+    def _safe_create_task(self, coro):
+        """Safely create an async task, handling cases where no event loop is running"""
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_running_loop()
+            # If we have a loop, create the task
+            return asyncio.create_task(coro)
+        except RuntimeError:
+            # No event loop running, schedule it to run later
+            self.log("No event loop running, scheduling coroutine for later execution")
+            try:
+                # Try to run in a new event loop in a thread
+                def run_in_thread():
+                    try:
+                        asyncio.run(coro)
+                    except Exception as e:
+                        self.log(f"Error running coroutine in thread: {e}")
+                
+                thread = threading.Thread(target=run_in_thread, daemon=True)
+                thread.start()
+                return None
+            except Exception as e:
+                self.log(f"Error creating thread for coroutine: {e}")
+                return None
+    
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
-        """Intercept confirm_ask calls and send to webapp - simplified synchronous approach"""
+        """Intercept confirm_ask calls and send to webapp - using proper event loop bridging"""
         self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
         
         try:
@@ -75,16 +108,47 @@ class IOWrapper:
             
             self.log(f"Sending confirmation request to webapp: {confirmation_data}")
             
-            # Create a new event loop for this synchronous call
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
+            # Try to find the main event loop
+            main_loop = None
             try:
-                response = loop.run_until_complete(self._async_confirmation_request(confirmation_data))
-                self.log(f"Received response from webapp: {response}")
-                return response
-            finally:
-                loop.close()
+                main_loop = asyncio.get_running_loop()
+                self.log(f"Found running event loop: {main_loop}")
+            except RuntimeError:
+                # Try to use the stored main loop
+                if self.main_loop and not self.main_loop.is_closed():
+                    main_loop = self.main_loop
+                    self.log(f"Using stored main loop: {main_loop}")
+                else:
+                    self.log("No main event loop available")
+            
+            if main_loop:
+                # Use run_coroutine_threadsafe to bridge to the main event loop
+                self.log("Using run_coroutine_threadsafe to bridge event loops")
+                future = asyncio.run_coroutine_threadsafe(
+                    self._async_confirmation_request(confirmation_data),
+                    main_loop
+                )
+                try:
+                    response = future.result(timeout=30.0)  # 30 second timeout
+                    self.log(f"Received response from webapp: {response}")
+                    return response
+                except concurrent.futures.TimeoutError:
+                    self.log("Confirmation request timed out after 30 seconds")
+                    # Fall back to original method on timeout
+                    return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+            else:
+                # Fall back to thread pool executor method
+                self.log("Falling back to thread pool executor method")
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(self._run_async_confirmation, confirmation_data)
+                    try:
+                        response = future.result(timeout=30.0)  # 30 second timeout
+                        self.log(f"Received response from webapp: {response}")
+                        return response
+                    except concurrent.futures.TimeoutError:
+                        self.log("Confirmation request timed out after 30 seconds")
+                        # Fall back to original method on timeout
+                        return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
                 
         except Exception as e:
             self.log(f"Error in confirm_ask_wrapper: {e}")
@@ -93,6 +157,15 @@ class IOWrapper:
             # Fall back to original method on error
             self.log("Falling back to original confirm_ask method")
             return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+    
+    def _run_async_confirmation(self, confirmation_data):
+        """Run the async confirmation request in a new event loop"""
+        self.log("Running async confirmation in new event loop")
+        try:
+            return asyncio.run(self._async_confirmation_request(confirmation_data))
+        except Exception as e:
+            self.log(f"Error in _run_async_confirmation: {e}")
+            raise
     
     async def _async_confirmation_request(self, confirmation_data):
         """Make the async RPC call to the webapp"""
@@ -141,7 +214,7 @@ class IOWrapper:
         
         # Send to webapp - fire and forget
         self.log(f"Sending message to webapp")
-        asyncio.create_task(self.send_to_webapp(message))
+        self._safe_create_task(self.send_to_webapp(message))
         
         # Call original method to maintain console output
         self.log(f"Calling original assistant_output method")
@@ -160,7 +233,7 @@ class IOWrapper:
             self.log(f"mdstream.update called with content (first 100 chars): {content[:100] if content else 'None'}, final: {final}")
             
             # Send to webapp asynchronously - fire and forget
-            asyncio.create_task(self.send_stream_update(content, final))
+            self._safe_create_task(self.send_stream_update(content, final))
             
             # Call original method immediately
             self.log("Calling original mdstream.update")
@@ -175,7 +248,7 @@ class IOWrapper:
         self.log(f"tool_output_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
-        asyncio.create_task(self.send_to_webapp_command('output', message))
+        self._safe_create_task(self.send_to_webapp_command('output', message))
         
         # Call original method with all arguments
         return self.original_tool_output(message, **kwargs)
@@ -185,7 +258,7 @@ class IOWrapper:
         self.log(f"tool_error_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
-        asyncio.create_task(self.send_to_webapp_command('error', message))
+        self._safe_create_task(self.send_to_webapp_command('error', message))
         
         # Call original method with all arguments
         return self.original_tool_error(message, **kwargs)
@@ -195,7 +268,7 @@ class IOWrapper:
         self.log(f"tool_warning_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
-        asyncio.create_task(self.send_to_webapp_command('warning', message))
+        self._safe_create_task(self.send_to_webapp_command('warning', message))
         
         # Call original method with all arguments
         return self.original_tool_warning(message, **kwargs)
@@ -209,7 +282,7 @@ class IOWrapper:
         self.log(f"print_wrapper called with message: {message}, kwargs: {kwargs}")
         
         # Send to webapp - fire and forget
-        asyncio.create_task(self.send_to_webapp_command('print', message))
+        self._safe_create_task(self.send_to_webapp_command('print', message))
         
         # Call original method
         return self.original_print(*args, **kwargs)
@@ -222,10 +295,10 @@ class IOWrapper:
         try:
             # Fire and forget - don't wait for response
             self.log("About to call PromptView.streamWrite")
-            asyncio.create_task(self.get_call()['PromptView.streamWrite'](message))
+            self._safe_create_task(self.get_call()['PromptView.streamWrite'](message))
             self.log("streamWrite call initiated, calling streamComplete")
             
-            asyncio.create_task(self.get_call()['PromptView.streamComplete']())
+            self._safe_create_task(self.get_call()['PromptView.streamComplete']())
             self.log("streamComplete call initiated")
             
         except Exception as e:
@@ -235,7 +308,7 @@ class IOWrapper:
             
             # Try to notify the webapp about the error - fire and forget
             try:
-                asyncio.create_task(self.get_call()['PromptView.streamError'](str(e)))
+                self._safe_create_task(self.get_call()['PromptView.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
@@ -248,13 +321,13 @@ class IOWrapper:
         try:
             self.log(f"[TIME: {current_time:.6f}] Calling PromptView.streamWrite with content and final param")
             # Fire and forget - don't wait for response
-            asyncio.create_task(self.get_call()['PromptView.streamWrite'](content, final))
+            self._safe_create_task(self.get_call()['PromptView.streamWrite'](content, final))
             self.log("streamWrite call initiated")
             
             if final:
                 self.log("Final chunk, calling streamComplete")
                 # Fire and forget - don't wait for response
-                asyncio.create_task(self.get_call()['PromptView.streamComplete']())
+                self._safe_create_task(self.get_call()['PromptView.streamComplete']())
                 self.log("streamComplete call initiated")
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
@@ -263,7 +336,7 @@ class IOWrapper:
             
             # Try to notify the webapp about the error - fire and forget
             try:
-                asyncio.create_task(self.get_call()['PromptView.streamError'](str(e)))
+                self._safe_create_task(self.get_call()['PromptView.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
@@ -274,7 +347,7 @@ class IOWrapper:
         
         try:
             # Fire and forget - don't wait for response
-            asyncio.create_task(self.get_call()['Commands.displayCommandOutput'](msg_type, message))
+            self._safe_create_task(self.get_call()['Commands.displayCommandOutput'](msg_type, message))
             self.log("displayCommandOutput call initiated")
         except Exception as e:
             err_msg = f"Error sending command output to webapp: {e}"
