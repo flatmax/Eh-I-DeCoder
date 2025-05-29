@@ -48,10 +48,6 @@ class IOWrapper:
         self.original_confirm_ask = io_instance.confirm_ask
         io_instance.confirm_ask = self.confirm_ask_wrapper
 
-        # Store for pending confirmations
-        self.pending_confirmations = {}
-        self.confirmation_counter = 0
-        
         # Try to get the main event loop reference
         self.main_loop = None
         try:
@@ -67,12 +63,18 @@ class IOWrapper:
             f.write(f"[{timestamp}] {message}\n")
     
     def _safe_create_task(self, coro):
-        """Safely create an async task, handling cases where no event loop is running"""
+        """Safely create an async task using main_loop if available"""
         try:
-            # Try to get the current event loop
-            loop = asyncio.get_running_loop()
-            # If we have a loop, create the task
-            return asyncio.create_task(coro)
+            # Use main_loop if available and not closed
+            if self.main_loop and not self.main_loop.is_closed():
+                self.log("Using main_loop to schedule coroutine")
+                future = asyncio.run_coroutine_threadsafe(coro, self.main_loop)
+                return future
+            else:
+                # Try to get the current event loop
+                loop = asyncio.get_running_loop()
+                # If we have a loop, create the task
+                return asyncio.create_task(coro)
         except RuntimeError:
             # No event loop running, schedule it to run later
             self.log("No event loop running, scheduling coroutine for later execution")
