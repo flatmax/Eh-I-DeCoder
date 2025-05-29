@@ -18,43 +18,6 @@ class IOWrapper:
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
         
-        # # Replace PromptSession input/output with simple stdio versions
-        # # Create simple stdio wrapper with the same log file
-        # self.simple_stdio = SimpleStdIO()
-        # # self.simple_stdio.log(f"Current io input: {io_instance.input}")                                                                                                                    
-        # # self.simple_stdio.log(f"Current io output: {io_instance.output}")                                                                                                                    
-        # # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
-        # # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
-        # # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
-        # # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
-        # # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
-        # # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
-        # # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current prompt_session.input.stdin: {io_instance.prompt_session.input.stdin}")                                                                                                                    
-        # self.simple_stdio.log(f"Current prompt_session.output.stdout: {io_instance.prompt_session.output.stdout}")                                                                                                                  
-        # self.original_stdin = io_instance.prompt_session.input.stdin
-        # self.original_stdout = io_instance.prompt_session.output.stdout
-        # # self.original_input = io_instance.prompt_session.input
-        # # self.original_output = io_instance.prompt_session.output
-        # # self.original_app_input = io_instance.prompt_session.input
-        # # self.original_app_output = io_instance.prompt_session.output
-        
-        # # Replace the input and output
-        # # io_instance.prompt_session.app.input = self.simple_stdio.input
-        # # io_instance.prompt_session.app.output = self.simple_stdio.output
-        # io_instance.prompt_session.input.stdin = self.simple_stdio.input
-        # io_instance.prompt_session.output.stdout = self.simple_stdio.output
-        
-        # self.log("Replaced PromptSession input/output with SimpleStdIO")
-        # self.simple_stdio.log(f"Current pompt_session _input: {io_instance.prompt_session._input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session _output: {io_instance.prompt_session._output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current pompt_session input: {io_instance.prompt_session.input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session output: {io_instance.prompt_session.output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current pompt_session app.input: {io_instance.prompt_session.app.input}")                                                                                                                    
-        # self.simple_stdio.log(f"Current pompt_session app.output: {io_instance.prompt_session.app.output}")                                                                                                                  
-        # self.simple_stdio.log(f"Current prompt_session.input.stdin: {io_instance.prompt_session.input.stdin}")                                                                                                                    
-        # self.simple_stdio.log(f"Current prompt_session.output.stdout: {io_instance.prompt_session.output.stdout}")                                                                                                                  
-        
         # Store the original method
         self.original_assistant_output = io_instance.assistant_output
         # Replace with our wrapper method
@@ -81,11 +44,10 @@ class IOWrapper:
         io_instance.tool_warning = self.tool_warning_wrapper
         io_instance.print = self.print_wrapper
         
-        # # Set up confirmation interception
-        # if hasattr(io_instance, 'confirm_ask'):
+        # Set up confirmation interception
         self.original_confirm_ask = io_instance.confirm_ask
         io_instance.confirm_ask = self.confirm_ask_wrapper
-        
+
         # Store for pending confirmations
         self.pending_confirmations = {}
         self.confirmation_counter = 0
@@ -97,7 +59,7 @@ class IOWrapper:
             f.write(f"[{timestamp}] {message}\n")
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
-        """Intercept confirm_ask calls and send to webapp - synchronous wrapper for async call"""
+        """Intercept confirm_ask calls and send to webapp - simplified synchronous approach"""
         self.log(f"confirm_ask_wrapper called with question: {question}, default: {default}, subject: {subject}, group: {group}, allow_never: {allow_never}")
         
         try:
@@ -113,58 +75,16 @@ class IOWrapper:
             
             self.log(f"Sending confirmation request to webapp: {confirmation_data}")
             
-            # Check if we're in an async context
+            # Create a new event loop for this synchronous call
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
             try:
-                loop = asyncio.get_running_loop()
-                self.log("Running in async context, need to handle carefully")
-                
-                # We're in an async context but need to call async function synchronously
-                # Create a new event loop in a thread
-                def run_in_thread():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    try:
-                        result = new_loop.run_until_complete(
-                            self._async_confirmation_request(confirmation_data)
-                        )
-                        return result
-                    finally:
-                        new_loop.close()
-                
-                # Run in thread and wait for result
-                import threading
-                result_container = []
-                exception_container = []
-                
-                def thread_target():
-                    try:
-                        result = run_in_thread()
-                        result_container.append(result)
-                    except Exception as e:
-                        exception_container.append(e)
-                
-                thread = threading.Thread(target=thread_target)
-                print('starting thread')
-                thread.start()
-                print('joining thread')
-                thread.join()
-                
-                if exception_container:
-                    raise exception_container[0]
-                
-                if result_container:
-                    response = result_container[0]
-                    self.log(f"Received response from webapp: {response}")
-                    return response
-                else:
-                    raise Exception("No result from thread execution")
-                    
-            except RuntimeError:
-                # No event loop running, we can use asyncio.run safely
-                self.log("No async context, using asyncio.run")
-                response = asyncio.run(self._async_confirmation_request(confirmation_data))
+                response = loop.run_until_complete(self._async_confirmation_request(confirmation_data))
                 self.log(f"Received response from webapp: {response}")
                 return response
+            finally:
+                loop.close()
                 
         except Exception as e:
             self.log(f"Error in confirm_ask_wrapper: {e}")
@@ -179,16 +99,34 @@ class IOWrapper:
         self.log('Making RPC call to webapp')
         try:
             self.log('About to call confirmation method with await')
-            response = await self.get_call()['PromptView.confirmation_request'](confirmation_data)
+            # Get the call function and make the RPC call
+            call_func = self.get_call()['PromptView.confirmation_request']
+            self.log(f'Got call function: {call_func}')
+            
+            # Add a timeout to the await call
+            response = await asyncio.wait_for(
+                call_func(confirmation_data),
+                timeout=30.0  # 30 seconds timeout
+            )
             self.log(f'RPC call completed with response: {response}')
+            
+            # The response might be a dict with UUID keys, extract the actual response
+            if isinstance(response, dict) and len(response) == 1:
+                # Get the first (and likely only) value from the response dict
+                response = next(iter(response.values()))
+                self.log(f'Extracted response from dict: {response}')
+            
             return response
-                
+        except asyncio.TimeoutError:
+            self.log('Error in _async_confirmation_request: RPC call timed out after 30 seconds.')
+            # Re-raise as a standard TimeoutError or a custom exception if preferred
+            raise TimeoutError("Confirmation request to webapp timed out.")
         except Exception as e:
             self.log(f'Error in _async_confirmation_request: {e}')
             self.log(f'Exception type: {type(e)}')
             self.log(f'Exception traceback: {traceback.format_exc()}')
             raise
-    
+
     def assistant_output_wrapper(self, message, pretty=None):
         # Log debug information
         self.log(f"assistant_output_wrapper called with message type: {type(message)}")
