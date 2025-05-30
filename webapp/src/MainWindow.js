@@ -199,9 +199,10 @@ export class MainWindow extends JRPCClient {
       overflow: hidden;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
+      min-height: 0;
     }
     .commands-container {
-      flex: 0 0 200px;
+      flex: 0 0 150px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
