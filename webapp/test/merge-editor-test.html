@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MergeEditor Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .test-header {
+            background: #333;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .test-controls {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+        
+        .test-controls button {
+            margin-right: 10px;
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .test-controls button:hover {
+            background: #0056b3;
+        }
+        
+        .merge-editor-wrapper {
+            height: 600px;
+            padding: 0;
+        }
+        
+        merge-editor {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .debug-info {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .debug-info pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1>MergeEditor Test Page</h1>
+            <p>Testing the MergeEditor component with dummy content</p>
+        </div>
+        
+        <div class="test-controls">
+            <button onclick="loadJavaScriptExample()">Load JavaScript Example</button>
+            <button onclick="loadPythonExample()">Load Python Example</button>
+            <button onclick="loadHTMLExample()">Load HTML Example</button>
+            <button onclick="loadJSONExample()">Load JSON Example</button>
+            <button onclick="clearContent()">Clear Content</button>
+        </div>
+        
+        <div class="merge-editor-wrapper">
+            <merge-editor id="testEditor"></merge-editor>
+        </div>
+        
+        <div class="debug-info">
+            <strong>Debug Info:</strong>
+            <pre id="debugOutput">Component loaded. Use buttons above to test different content types.</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import '../merge-editor.js';
+        
+        // Get references to the editor and debug output
+        const editor = document.getElementById('testEditor');
+        const debugOutput = document.getElementById('debugOutput');
+        
+        // Mock the JRPCClient functionality for testing
+        class MockJRPCClient {
+            constructor() {
+                this.call = {};
+            }
+            
+            addClass() {
+                // Mock method
+            }
+            
+            connectedCallback() {
+                // Mock method
+            }
+            
+            disconnectedCallback() {
+                // Mock method
+            }
+        }
+        
+        // Override the JRPCClient for testing
+        editor.constructor.prototype.connectedCallback = function() {
+            console.log('MergeEditor connected');
+            this.addClass = () => {};
+        };
+        
+        // Helper function to simulate loading file content
+        function simulateFileLoad(filePath, headContent, workingContent) {
+            debugOutput.textContent = `Loading: ${filePath}\nHEAD content length: ${headContent.length}\nWorking content length: ${workingContent.length}`;
+            
+            // Set the properties directly
+            editor.filePath = filePath;
+            editor.headContent = headContent;
+            editor.workingContent = workingContent;
+            editor.loading = false;
+            editor.error = null;
+            
+            // Trigger update
+            editor.requestUpdate();
+            
+            console.log('Simulated file load:', {
+                filePath,
+                headLength: headContent.length,
+                workingLength: workingContent.length
+            });
+        }
+        
+        // Make functions global for button onclick handlers
+        window.loadJavaScriptExample = function() {
+            const headContent = `function calculateSum(a, b) {
+    return a + b;
+}
+
+function calculateProduct(a, b) {
+    return a * b;
+}
+
+const result = calculateSum(5, 3);
+console.log('Sum result:', result);`;
+
+            const workingContent = `function calculateSum(a, b) {
+    // Added input validation
+    if (typeof a !== 'number' || typeof b !== 'number') {
+        throw new Error('Both arguments must be numbers');
+    }
+    return a + b;
+}
+
+function calculateProduct(a, b) {
+    // Added input validation
+    if (typeof a !== 'number' || typeof b !== 'number') {
+        throw new Error('Both arguments must be numbers');
+    }
+    return a * b;
+}
+
+// Added error handling
+try {
+    const result = calculateSum(5, 3);
+    console.log('Sum result:', result);
+    
+    const product = calculateProduct(4, 6);
+    console.log('Product result:', product);
+} catch (error) {
+    console.error('Calculation error:', error.message);
+}`;
+
+            simulateFileLoad('example.js', headContent, workingContent);
+        };
+        
+        window.loadPythonExample = function() {
+            const headContent = `def calculate_sum(a, b):
+    return a + b
+
+def calculate_product(a, b):
+    return a * b
+
+result = calculate_sum(5, 3)
+print(f"Sum result: {result}")`;
+
+            const workingContent = `def calculate_sum(a, b):
+    """Calculate the sum of two numbers with type checking."""
+    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+        raise TypeError("Both arguments must be numbers")
+    return a + b
+
+def calculate_product(a, b):
+    """Calculate the product of two numbers with type checking."""
+    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+        raise TypeError("Both arguments must be numbers")
+    return a * b
+
+def main():
+    """Main function with error handling."""
+    try:
+        result = calculate_sum(5, 3)
+        print(f"Sum result: {result}")
+        
+        product = calculate_product(4, 6)
+        print(f"Product result: {product}")
+    except TypeError as e:
+        print(f"Type error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+if __name__ == "__main__":
+    main()`;
+
+            simulateFileLoad('example.py', headContent, workingContent);
+        };
+        
+        window.loadHTMLExample = function() {
+            const headContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Page</title>
+</head>
+<body>
+    <h1>Welcome</h1>
+    <p>This is a simple page.</p>
+</body>
+</html>`;
+
+            const workingContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .highlight {
+            background-color: yellow;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Welcome to Our Enhanced Site</h1>
+        <nav>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+        </nav>
+    </header>
+    
+    <main>
+        <p>This is a <span class="highlight">much improved</span> page with better structure and styling.</p>
+        
+        <section id="about">
+            <h2>About Us</h2>
+            <p>We create amazing web experiences.</p>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2024 Our Company</p>
+    </footer>
+</body>
+</html>`;
+
+            simulateFileLoad('example.html', headContent, workingContent);
+        };
+        
+        window.loadJSONExample = function() {
+            const headContent = `{
+  "name": "my-project",
+  "version": "1.0.0",
+  "description": "A simple project",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}`;
+
+            const workingContent = `{
+  "name": "my-project",
+  "version": "1.2.0",
+  "description": "An enhanced project with additional features",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "build": "webpack --mode production",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "nodemon": "^2.0.20",
+    "webpack": "^5.74.0",
+    "eslint": "^8.23.0"
+  },
+  "keywords": ["node", "express", "web"],
+  "author": "Developer Name",
+  "license": "MIT"
+}`;
+
+            simulateFileLoad('package.json', headContent, workingContent);
+        };
+        
+        window.clearContent = function() {
+            editor.filePath = '';
+            editor.headContent = '';
+            editor.workingContent = '';
+            editor.loading = false;
+            editor.error = null;
+            editor.requestUpdate();
+            
+            debugOutput.textContent = 'Content cleared. Use buttons above to load test content.';
+        };
+        
+        // Log when the component is ready
+        editor.addEventListener('updated', () => {
+            console.log('MergeEditor updated');
+        });
+        
+        console.log('Test page loaded. MergeEditor component should be ready.');
+    </script>
+</body>
+</html>

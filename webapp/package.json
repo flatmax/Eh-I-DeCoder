@@ -8,7 +8,8 @@
     "url": "https://github.com/your-username/Eh-I-DeCoder.git"
   },
   "scripts": {
-    "start": "web-dev-server --app-index index.html --node-resolve --open --watch"
+    "start": "web-dev-server --app-index index.html --node-resolve --open --watch",
+    "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch"
   },
   "dependencies": {
     "@flatmax/jrpc-oo": "^1.0.0",
