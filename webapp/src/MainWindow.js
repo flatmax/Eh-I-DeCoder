@@ -48,7 +48,7 @@ export class MainWindow extends JRPCClient {
     this.reconnectDelay = 1000; // Reconnect after 1 second
     this.headerExpanded = false; // Start with minimized header
     this.sidebarExpanded = true; // Start with expanded sidebar
-    this.activeTabIndex = 0; // Default to files tab
+    this.activeTabIndex = 1; // Default to Repository tab (index 1)
     this.sidebarWidth = 280; // Default sidebar width in pixels
   }
   
@@ -379,7 +379,7 @@ export class MainWindow extends JRPCClient {
           <div class="sidebar-content">
             <!-- Tabs Navigation -->
             <md-tabs
-              .activeIndex=${this.activeTabIndex || 0}
+              .activeIndex=${this.activeTabIndex || 1}
               @click=${(e) => {
                 // Determine which tab was clicked based on the event target
                 if (e.target && e.target.tagName === 'MD-PRIMARY-TAB') {
