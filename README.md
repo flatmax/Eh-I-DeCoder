@@ -4,11 +4,11 @@
 
 **Eh-I-DeCoder** is a multi-faceted AI coding assistant that draws inspiration from several concepts:
 
-### 1. "Eh ¿ De Coder" - The Debugging Detective
-*"What the fuck just happened here?"* - When your AI coding assistant does something unexpected or seemingly crazy, Eh-I-DeCoder helps you decode what it did. Whether you need to guide the AI to fix its changes or understand the modifications well enough to fix them yourself, this tool provides the transparency and control you need.
-
-### 2. AI IDE Coder - The Web-Based Development Environment
+### 1. AI IDE Coder - The Web-Based Development Environment
 A modern, web-based AI IDE that brings the power of AI pair programming directly to your browser. No more switching between terminals and editors - everything you need for AI-assisted development in one intuitive interface.
+
+### 2. "Eh ¿ De Coder" - The Debugging Detective
+*"What the f*** just happened here?"* - When your AI coding assistant does something unexpected or seemingly crazy, Eh-I-DeCoder helps you decode what it did. Whether you need to guide the AI to fix its changes or understand the modifications well enough to fix them yourself, this tool provides the transparency and control you need.
 
 ### 3. AI Error Correction Decoder - Quantum-Inspired Error Handling
 Drawing inspiration from Quantum Error Correcting Code (QECC) decoders, Eh-I-DeCoder applies similar principles to AI-assisted coding. Just as quantum computers use error correction to detect and fix quantum state corruption in noisy environments, this tool helps detect when AI-generated code introduces bugs or unexpected behavior, recognizes patterns in AI coding mistakes, and provides corrective suggestions - all operating in the inherently noisy environment where both quantum systems and AI coding assistants are prone to errors that require intelligent correction mechanisms.
