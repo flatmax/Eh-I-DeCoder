@@ -34,6 +34,9 @@ export class PromptView extends JRPCClient {
       { role: 'user', content: '' },
       { role: 'assistant', content: '' }
     ];
+    
+    // Bind the click handler to maintain context
+    this.handleDocumentClick = this.handleDocumentClick.bind(this);
   }
 
   static styles = css`
@@ -204,6 +207,51 @@ export class PromptView extends JRPCClient {
     super.connectedCallback();
     this.addClass?.(this);
     this.updateDialogClass();
+    
+    // Add document click listener
+    document.addEventListener('click', this.handleDocumentClick, true);
+  }
+  
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    
+    // Remove document click listener
+    document.removeEventListener('click', this.handleDocumentClick, true);
+  }
+  
+  handleDocumentClick(event) {
+    // Check if the click is inside the dialog
+    const dialogContainer = this.shadowRoot.querySelector('.dialog-container');
+    if (!dialogContainer) return;
+    
+    // Get the click target
+    const clickTarget = event.target;
+    
+    // Check if click is inside this component
+    const isInsideDialog = event.composedPath().includes(this) || 
+                          this.shadowRoot.contains(clickTarget) ||
+                          clickTarget === this;
+    
+    if (isInsideDialog) {
+      // Click is inside the dialog - maximize if minimized
+      if (this.isMinimized) {
+        this.maximize();
+      }
+    } else {
+      // Click is outside the dialog - minimize if maximized
+      if (!this.isMinimized) {
+        this.minimize();
+      }
+    }
+  }
+  
+  handleDialogClick(event) {
+    // Maximize when dialog is clicked (if minimized)
+    if (this.isMinimized) {
+      this.maximize();
+    }
+    // Stop propagation to prevent document click handler from running
+    event.stopPropagation();
   }
   
   updateDialogClass() {
@@ -220,6 +268,22 @@ export class PromptView extends JRPCClient {
     this.isMinimized = !this.isMinimized;
     this.updateDialogClass();
     this.requestUpdate();
+  }
+  
+  maximize() {
+    if (this.isMinimized) {
+      this.isMinimized = false;
+      this.updateDialogClass();
+      this.requestUpdate();
+    }
+  }
+  
+  minimize() {
+    if (!this.isMinimized) {
+      this.isMinimized = true;
+      this.updateDialogClass();
+      this.requestUpdate();
+    }
   }
   
   /**
@@ -315,7 +379,7 @@ export class PromptView extends JRPCClient {
    */
   render() {
     return html`
-      <div class="dialog-container">
+      <div class="dialog-container" @click=${this.handleDialogClick}>
         <div class="dialog-header">
           <h3 class="dialog-title">AI Assistant</h3>
           <div class="dialog-controls">
@@ -397,7 +461,7 @@ export class PromptView extends JRPCClient {
     
     // Maximize dialog when sending a prompt
     if (this.isMinimized) {
-      this.toggleMinimized();
+      this.maximize();
     }
     
     // Add user message to history
