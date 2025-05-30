@@ -12,7 +12,7 @@ import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
 import './CommandsTab.js';
-import './PromptView.js';
+import '../prompt-view.js';
 import '../file-tree.js';
 import '../repo-tree.js';
 import '../merge-editor.js';
