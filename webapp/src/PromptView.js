@@ -6,6 +6,7 @@ import {html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
+import '@material/web/iconbutton/filled-icon-button.js';
 import '../card-markdown.js';
 import './SpeechToText.js';
 
@@ -15,7 +16,8 @@ export class PromptView extends JRPCClient {
     inputValue: { type: String, state: true },
     serverURI: { type: String },
     isProcessing: { type: Boolean, state: true },
-    showVoiceInput: { type: Boolean, state: true }
+    showVoiceInput: { type: Boolean, state: true },
+    isMinimized: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -27,6 +29,7 @@ export class PromptView extends JRPCClient {
     this.serverURI = "ws://0.0.0.0:9000";
     this.isProcessing = false;
     this.showVoiceInput = true;
+    this.isMinimized = true;
     this.messageHistory = [
       { role: 'user', content: '' },
       { role: 'assistant', content: '' }
@@ -35,34 +38,88 @@ export class PromptView extends JRPCClient {
 
   static styles = css`
     :host {
-      display: flex;
-      flex-direction: column;
+      position: fixed;
+      z-index: 1000;
+      transition: all 0.3s ease;
       font-family: sans-serif;
+    }
+    
+    :host(.minimized) {
+      bottom: 20px;
+      right: 20px;
+      width: calc(100vw / 6);
+      height: 120px;
+    }
+    
+    :host(.maximized) {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100vw / 3);
+      height: 100vh;
+      max-height: calc(100vh - 40px);
+    }
+    
+    .dialog-container {
       width: 100%;
       height: 100%;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
+      border: 1px solid #e0e0e0;
     }
+    
+    .dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #e0e0e0;
+      min-height: 48px;
+    }
+    
+    .dialog-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #333;
+      margin: 0;
+    }
+    
+    .dialog-controls {
+      display: flex;
+      gap: 4px;
+    }
+    
     .prompt-container {
       display: flex;
       flex-direction: column;
       width: 100%;
       height: 100%;
       overflow: hidden;
+      flex: 1;
     }
+    
     .voice-input-container {
       margin-top: 8px;
     }
+    
     .message-history {
       flex: 1;
       overflow-y: auto;
-      border: 1px solid #ccc;
       padding: 10px;
-      margin-bottom: 10px;
       background-color: #f9f9f9;
-      border-radius: 4px;
       white-space: pre-wrap;
-      min-height: 200px;
+      min-height: 0;
     }
+    
+    :host(.minimized) .message-history {
+      display: none;
+    }
+    
     .assistant-message {
       background-color: #f1f1f1;
       padding: 8px 12px;
@@ -72,15 +129,24 @@ export class PromptView extends JRPCClient {
       white-space: pre-wrap;
       font-family: monospace;
     }
-    /* Message styling now handled by card-markdown component */
+    
     .input-area {
       display: grid;
       grid-template-columns: 1fr auto;
       grid-gap: 10px;
       width: 100%;
-      min-height: 80px;
+      padding: 10px;
       flex-shrink: 0;
+      background: white;
+      border-top: 1px solid #e0e0e0;
     }
+    
+    :host(.minimized) .input-area {
+      grid-template-columns: 1fr;
+      grid-gap: 5px;
+      padding: 8px;
+    }
+    
     .controls-column {
       display: flex;
       flex-direction: column;
@@ -89,11 +155,24 @@ export class PromptView extends JRPCClient {
       height: 100%;
       min-width: 120px;
     }
+    
+    :host(.minimized) .controls-column {
+      flex-direction: row;
+      min-width: auto;
+      height: auto;
+      gap: 5px;
+    }
+    
     .voice-input-container {
       display: flex;
       flex-direction: column;
       align-items: stretch;
     }
+    
+    :host(.minimized) .voice-input-container {
+      display: none;
+    }
+    
     textarea {
       flex-grow: 1;
       padding: 8px;
@@ -102,6 +181,11 @@ export class PromptView extends JRPCClient {
       min-height: 60px;
       resize: vertical;
     }
+    
+    :host(.minimized) md-filled-text-field {
+      --md-filled-text-field-container-shape: 4px;
+    }
+    
     button {
       padding: 8px 16px;
       background-color: #1976d2;
@@ -110,6 +194,7 @@ export class PromptView extends JRPCClient {
       border-radius: 4px;
       cursor: pointer;
     }
+    
     button:hover {
       background-color: #1565c0;
     }
@@ -118,6 +203,23 @@ export class PromptView extends JRPCClient {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    this.updateDialogClass();
+  }
+  
+  updateDialogClass() {
+    if (this.isMinimized) {
+      this.classList.add('minimized');
+      this.classList.remove('maximized');
+    } else {
+      this.classList.add('maximized');
+      this.classList.remove('minimized');
+    }
+  }
+  
+  toggleMinimized() {
+    this.isMinimized = !this.isMinimized;
+    this.updateDialogClass();
+    this.requestUpdate();
   }
   
   /**
@@ -213,48 +315,61 @@ export class PromptView extends JRPCClient {
    */
   render() {
     return html`
-      <div class="prompt-container">
-        <div class="message-history" id="messageHistory">
-          ${repeat(
-            this.messageHistory,
-            (message, i) => i, // Using index as key since messages may not have unique IDs
-            message => html`
-              <card-markdown 
-                .role=${message.role} 
-                .content=${message.content}
-              ></card-markdown>
-            `
-          )}
+      <div class="dialog-container">
+        <div class="dialog-header">
+          <h3 class="dialog-title">AI Assistant</h3>
+          <div class="dialog-controls">
+            <md-filled-icon-button 
+              icon="${this.isMinimized ? 'fullscreen' : 'fullscreen_exit'}"
+              @click=${this.toggleMinimized}
+              title="${this.isMinimized ? 'Maximize' : 'Minimize'}"
+            ></md-filled-icon-button>
+          </div>
         </div>
-        <div class="input-area">
-          <md-filled-text-field
-            id="promptInput"
-            type="textarea" 
-            label="Enter your prompt"
-            rows="2"
-            .value=${this.inputValue}
-            @input=${e => this.inputValue = e.target.value}
-            @keydown=${this.handleKeyDown}
-            ?disabled=${this.isProcessing}
-            style="width: 100%;"
-          ></md-filled-text-field>
-          <div class="controls-column">
-            <md-filled-button 
-              id="sendButton" 
-              @click=${this.sendPrompt}
+        
+        <div class="prompt-container">
+          <div class="message-history" id="messageHistory">
+            ${repeat(
+              this.messageHistory,
+              (message, i) => i, // Using index as key since messages may not have unique IDs
+              message => html`
+                <card-markdown 
+                  .role=${message.role} 
+                  .content=${message.content}
+                ></card-markdown>
+              `
+            )}
+          </div>
+          <div class="input-area">
+            <md-filled-text-field
+              id="promptInput"
+              type="textarea" 
+              label="Enter your prompt"
+              rows="${this.isMinimized ? '1' : '2'}"
+              .value=${this.inputValue}
+              @input=${e => this.inputValue = e.target.value}
+              @keydown=${this.handleKeyDown}
               ?disabled=${this.isProcessing}
-            >
-              ${this.isProcessing ? 'Processing...' : 'Send'}
-            </md-filled-button>
-            
-            <div class="voice-input-container">
-              ${this.showVoiceInput ? html`
-                <speech-to-text
-                  @transcript=${this._handleTranscript}
-                  @recording-started=${this._handleRecordingStarted}
-                  @recognition-error=${this._handleRecognitionError}
-                ></speech-to-text>
-              ` : ''}
+              style="width: 100%;"
+            ></md-filled-text-field>
+            <div class="controls-column">
+              <md-filled-button 
+                id="sendButton" 
+                @click=${this.sendPrompt}
+                ?disabled=${this.isProcessing}
+              >
+                ${this.isProcessing ? 'Processing...' : 'Send'}
+              </md-filled-button>
+              
+              <div class="voice-input-container">
+                ${this.showVoiceInput ? html`
+                  <speech-to-text
+                    @transcript=${this._handleTranscript}
+                    @recording-started=${this._handleRecordingStarted}
+                    @recognition-error=${this._handleRecognitionError}
+                  ></speech-to-text>
+                ` : ''}
+              </div>
             </div>
           </div>
         </div>
@@ -279,6 +394,11 @@ export class PromptView extends JRPCClient {
     const message = this.inputValue.trim();
     
     if (!message || this.isProcessing) return;
+    
+    // Maximize dialog when sending a prompt
+    if (this.isMinimized) {
+      this.toggleMinimized();
+    }
     
     // Add user message to history
     this.addMessageToHistory('user', message);

@@ -12,6 +12,7 @@ import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
 import './CommandsTab.js';
+import './PromptView.js';
 import '../file-tree.js';
 import '../repo-tree.js';
 import '../merge-editor.js';
@@ -190,14 +191,6 @@ export class MainWindow extends JRPCClient {
       overflow: hidden;
       padding: 10px;
       gap: 10px;
-    }
-    .prompt-view-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid #f0f0f0;
-      border-radius: 4px;
     }
     .merge-editor-container {
       flex: 1;
@@ -506,11 +499,6 @@ export class MainWindow extends JRPCClient {
         <!-- Main Content Area -->
         <div class="main-content">
           <div class="right-panel">
-            ${this.showPromptView ? 
-              html`<div class="prompt-view-container">
-                <prompt-view .serverURI=${this.serverURI}></prompt-view>
-              </div>` : ''}
-            
             ${this.showMergeEditor ? 
               html`<div class="merge-editor-container">
                 <merge-editor .serverURI=${this.serverURI}></merge-editor>
@@ -522,6 +510,10 @@ export class MainWindow extends JRPCClient {
               </div>` : ''}
           </div>
         </div>
+        
+        <!-- Floating Prompt View Dialog -->
+        ${this.showPromptView ? 
+          html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
       </div>
     `;
   }
@@ -588,7 +580,6 @@ export class MainWindow extends JRPCClient {
     if (this.newServerURI && this.newServerURI !== this.serverURI) {
       this.serverURI = this.newServerURI;
       console.log(`Connecting to server at: ${this.serverURI}`);
-      this.showPromptView = false;
       this.connectionStatus = 'connecting';
       this.requestUpdate();
     }
