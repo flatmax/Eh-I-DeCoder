@@ -269,6 +269,13 @@ export class MergeEditor extends JRPCClient {
               html`<div class="merge-container"></div>` :
               html`<div class="no-file">Select a file from the Repository tab to view changes</div>`
         }
+        
+        ${this.hasUnsavedChanges ? 
+          html`<md-fab class="save-button" aria-label="Save changes">
+                 <md-icon>save</md-icon>
+               </md-fab>` : 
+          ''
+        }
       </div>
     `;
   }
@@ -279,6 +286,7 @@ export class MergeEditor extends JRPCClient {
     flex-direction: column;
     height: 100%;
     width: 100%;
+    position: relative;
   }
 
   .merge-editor-container {
@@ -289,6 +297,16 @@ export class MergeEditor extends JRPCClient {
     background: white;
     border: 1px solid #ddd;
     border-radius: 4px;
+  }
+  
+  .save-button {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10;
+    --md-fab-container-color: #1976d2;
+    --md-fab-icon-color: white;
+    --md-sys-color-primary: #1976d2;
   }
 
   .merge-header {
