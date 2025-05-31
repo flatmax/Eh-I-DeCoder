@@ -1,8 +1,7 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {EditorView} from '@codemirror/view';
+import {EditorView, keymap} from '@codemirror/view';
 import {EditorState, StateEffect, StateField} from '@codemirror/state';
-import {keymap} from '@codemirror/view';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
 import {oneDark} from '@codemirror/theme-one-dark';
