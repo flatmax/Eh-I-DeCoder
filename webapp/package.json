@@ -8,7 +8,7 @@
     "url": "https://github.com/your-username/Eh-I-DeCoder.git"
   },
   "scripts": {
-    "start": "web-dev-server --app-index index.html --node-resolve --open --watch",
+    "start": "web-dev-server --config web-dev-server.config.mjs",
     "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@codemirror/lang-markdown": "^6.2.2"
   },
   "devDependencies": {
-    "@web/dev-server": "^0.1.35"
+    "@web/dev-server": "^0.4.6",
+    "@open-wc/dev-server-hmr": "^0.2.0"
   }
 }
