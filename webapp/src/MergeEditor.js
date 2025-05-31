@@ -1,7 +1,7 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView} from '@codemirror/view';
-import {EditorState} from '@codemirror/state';
+import {EditorState, StateEffect, StateField} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
 import {javascript} from '@codemirror/lang-javascript';
@@ -18,7 +18,9 @@ export class MergeEditor extends JRPCClient {
     workingContent: { type: String, state: true },
     loading: { type: Boolean, state: true },
     error: { type: String, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    hasUnsavedChanges: { type: Boolean, state: true },
+    originalContent: { type: String, state: true }
   };
   
   constructor() {
@@ -29,6 +31,11 @@ export class MergeEditor extends JRPCClient {
     this.loading = false;
     this.error = null;
     this.mergeView = null;
+    this.hasUnsavedChanges = false;
+    this.originalContent = '';
+    
+    // Bind methods to this instance
+    this.checkForChanges = this.checkForChanges.bind(this);
   }
   
   connectedCallback() {
@@ -41,6 +48,50 @@ export class MergeEditor extends JRPCClient {
     if (this.mergeView) {
       this.mergeView.destroy();
       this.mergeView = null;
+    }
+    
+    // Clean up interval
+    if (this.changeDetectionInterval) {
+      clearInterval(this.changeDetectionInterval);
+      this.changeDetectionInterval = null;
+    }
+  }
+  
+  // Get current content from panel B (right side)
+  getCurrentContent() {
+    if (this.mergeView && this.mergeView.b) {
+      return this.mergeView.b.state.doc.toString();
+    }
+    return this.workingContent;
+  }
+  
+  // Reset unsaved changes flag
+  resetChangeTracking() {
+    this.hasUnsavedChanges = false;
+    this.originalContent = this.getCurrentContent();
+    this.requestUpdate();
+  }
+  
+  // Set up polling for changes
+  setupChangeDetection() {
+    // Clean up any existing interval
+    if (this.changeDetectionInterval) {
+      clearInterval(this.changeDetectionInterval);
+    }
+    
+    // Check for changes every second
+    this.changeDetectionInterval = setInterval(this.checkForChanges, 1000);
+  }
+  
+  // Check if content has changed from original
+  checkForChanges() {
+    if (!this.mergeView || !this.mergeView.b) return;
+    
+    const currentContent = this.getCurrentContent();
+    
+    if (currentContent !== this.originalContent) {
+      this.hasUnsavedChanges = true;
+      this.requestUpdate();
     }
   }
   
@@ -65,6 +116,10 @@ export class MergeEditor extends JRPCClient {
       // Extract content from responses (handle UUID wrapper)
       this.headContent = this.extractContent(headResponse);
       this.workingContent = this.extractContent(workingResponse);
+      
+      // Reset change tracking whenever we load a new file
+      this.hasUnsavedChanges = false;
+      this.originalContent = this.workingContent;
       
       console.log('File content loaded:', {
         filePath,
@@ -170,6 +225,12 @@ export class MergeEditor extends JRPCClient {
       });
       
       console.log('MergeView created successfully');
+
+      // Store original content for comparison
+      this.originalContent = this.workingContent;
+      
+      // Set up polling for changes
+      this.setupChangeDetection();
     } catch (error) {
       console.error('Error creating MergeView:', error);
       this.error = `Failed to create merge view: ${error.message}`;
@@ -195,7 +256,7 @@ export class MergeEditor extends JRPCClient {
         <div class="merge-header">
           <div class="merge-labels">
             <span class="label head-label">HEAD</span>
-            <h3>${this.filePath}</h3>
+            <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
             <span class="label working-label">Working Directory</span>
           </div>
         </div>
@@ -267,6 +328,12 @@ export class MergeEditor extends JRPCClient {
   .working-label {
     background: #fff3e0;
     color: #f57c00;
+  }
+  
+  .unsaved-indicator {
+    color: #f44336;
+    font-weight: bold;
+    margin-left: 5px;
   }
 
   .merge-container {
