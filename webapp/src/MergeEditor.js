@@ -95,6 +95,36 @@ export class MergeEditor extends JRPCClient {
     }
   }
   
+  async saveChanges() {
+    if (!this.filePath || !this.hasUnsavedChanges) return;
+    
+    try {
+      // Get the current content from the editor
+      const content = this.getCurrentContent();
+      
+      // Save the file via the Repo API
+      console.log(`Saving changes to file: ${this.filePath}`);
+      const response = await this.call['Repo.save_file_content'](this.filePath, content);
+      
+      // Check response
+      if (response.error) {
+        console.error('Error saving file:', response.error);
+        this.error = `Failed to save file: ${response.error}`;
+        this.requestUpdate();
+        return;
+      }
+      
+      // Update tracking state
+      this.resetChangeTracking();
+      console.log('File saved successfully');
+      
+    } catch (error) {
+      console.error('Error saving file:', error);
+      this.error = `Failed to save file: ${error.message}`;
+      this.requestUpdate();
+    }
+  }
+  
   remoteIsUp() {
     console.log('MergeEditor::remoteIsUp');
   }
@@ -271,7 +301,7 @@ export class MergeEditor extends JRPCClient {
         }
         
         ${this.hasUnsavedChanges ? 
-          html`<md-fab class="save-button" aria-label="Save changes">
+          html`<md-fab class="save-button" aria-label="Save changes" @click=${this.saveChanges}>
                  <md-icon>save</md-icon>
                </md-fab>` : 
           ''

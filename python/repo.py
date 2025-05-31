@@ -128,3 +128,35 @@ class Repo(BaseWrapper):
             print(f"get_file_content returning error: {error_msg}")
             self.log(f"get_file_content returning error: {error_msg}")
             return error_msg
+            
+    def save_file_content(self, file_path, content):
+        """Save file content to disk in the working directory"""
+        print(f"save_file_content called for {file_path}")
+        self.log(f"save_file_content called for {file_path}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            print(f"save_file_content returning error: {error_msg}")
+            self.log(f"save_file_content returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Construct the full path
+            full_path = os.path.join(self.repo.working_tree_dir, file_path)
+            
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            # Write content to file
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            print(f"File {file_path} saved successfully")
+            self.log(f"File {file_path} saved successfully")
+            return {"status": "success", "message": f"File {file_path} saved successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error saving file {file_path}: {e}"}
+            print(f"save_file_content returning error: {error_msg}")
+            self.log(f"save_file_content returning error: {error_msg}")
+            return error_msg
