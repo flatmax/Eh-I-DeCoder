@@ -1,6 +1,7 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView} from '@codemirror/view';
+import {EditorState} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
 import {javascript} from '@codemirror/lang-javascript';
@@ -145,6 +146,7 @@ export class MergeEditor extends JRPCClient {
           extensions: [
             basicSetup,
             this.getLanguageExtension(this.filePath),
+            EditorState.readOnly.of(true), // Make left pane read-only
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
@@ -156,6 +158,7 @@ export class MergeEditor extends JRPCClient {
           extensions: [
             basicSetup,
             this.getLanguageExtension(this.filePath),
+            // Right pane remains editable (no readOnly extension)
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
