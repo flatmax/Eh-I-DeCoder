@@ -40,7 +40,7 @@ export class Commands extends JRPCClient {
       font-family: monospace;
       color: #f8f8f8;
       max-height: 300px;
-      overflow-y: auto;
+      overflow-y: hidden;
     }
 
     .output-header {

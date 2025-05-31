@@ -202,10 +202,12 @@ export class MainWindow extends JRPCClient {
       min-height: 0;
     }
     .commands-container {
-      flex: 0 0 150px;
+      flex: 0 0 auto;
+      min-height: 150px;
+      max-height: 200px;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: auto;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
     }
