@@ -337,6 +337,30 @@ export class MainWindow extends JRPCClient {
     this.showConnectionDetails = !this.showConnectionDetails;
     this.requestUpdate();
   }
+
+  /**
+   * Handle tab change events from md-tabs
+   */
+  handleTabChange(e) {
+    console.log('Tab change event:', e);
+    this.activeTabIndex = e.target.activeTabIndex;
+    this.requestUpdate();
+  }
+
+  /**
+   * Update tabs component after render to sync active tab
+   */
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    
+    if (changedProperties.has('activeTabIndex')) {
+      // Update the md-tabs component to reflect the active tab
+      const tabsElement = this.shadowRoot.querySelector('md-tabs');
+      if (tabsElement && tabsElement.activeTabIndex !== this.activeTabIndex) {
+        tabsElement.activeTabIndex = this.activeTabIndex;
+      }
+    }
+  }
   
   /**
    * LitElement render method
@@ -373,20 +397,8 @@ export class MainWindow extends JRPCClient {
           <div class="sidebar-content">
             <!-- Tabs Navigation -->
             <md-tabs
-              .activeIndex=${this.activeTabIndex || 1}
-              @click=${(e) => {
-                // Determine which tab was clicked based on the event target
-                if (e.target && e.target.tagName === 'MD-PRIMARY-TAB') {
-                  // Find the index of the clicked tab
-                  const tabs = Array.from(this.shadowRoot.querySelectorAll('md-primary-tab'));
-                  const clickedIndex = tabs.indexOf(e.target);
-                  if (clickedIndex !== -1) {
-                    console.log(`Tab clicked: ${clickedIndex}`);
-                    this.activeTabIndex = clickedIndex;
-                    this.requestUpdate();
-                  }
-                }
-              }}
+              .activeTabIndex=${this.activeTabIndex}
+              @change=${this.handleTabChange}
             >
               <md-primary-tab 
                 aria-label="Files Tab" 
