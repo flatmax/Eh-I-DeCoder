@@ -270,7 +270,7 @@ export class MergeEditor extends JRPCClient {
 
   .merge-container {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
     position: relative;
   }
 
