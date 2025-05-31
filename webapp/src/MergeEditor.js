@@ -138,7 +138,7 @@ export class MergeEditor extends JRPCClient {
     if (!this.headContent && !this.workingContent) return;
     
     try {
-      // Create new merge view
+      // Create new merge view with shadow root specified
       this.mergeView = new MergeView({
         a: {
           doc: this.headContent,
@@ -162,7 +162,8 @@ export class MergeEditor extends JRPCClient {
             })
           ]
         },
-        parent: container
+        parent: container,
+        root: this.shadowRoot, // Specify the shadow root for CodeMirror
       });
       
       console.log('MergeView created successfully');
@@ -209,105 +210,162 @@ export class MergeEditor extends JRPCClient {
   }
   
   static styles = css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      width: 100%;
-    }
-    
-    .merge-editor-container {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      width: 100%;
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    
-    .merge-header {
-      padding: 12px;
-      border-bottom: 1px solid #ddd;
-      background: #f8f9fa;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .merge-header h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-    }
-    
-    .merge-labels {
-      display: flex;
-      gap: 16px;
-    }
-    
-    .label {
-      padding: 4px 8px;
-      border-radius: 3px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    
-    .head-label {
-      background: #e3f2fd;
-      color: #1976d2;
-    }
-    
-    .working-label {
-      background: #fff3e0;
-      color: #f57c00;
-    }
-    
-    .merge-container {
-      flex: 1;
-      overflow: hidden;
-      position: relative;
-    }
-    
-    .loading, .error, .no-file {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 200px;
-      color: #666;
-      font-style: italic;
-    }
-    
-    .error {
-      color: #d32f2f;
-    }
-    
-    /* CodeMirror merge view styling */
-    .merge-container :global(.cm-merge-view) {
-      height: 100%;
-    }
-    
-    .merge-container :global(.cm-merge-view .cm-editor) {
-      height: 100%;
-    }
-    
-    .merge-container :global(.cm-merge-view .cm-merge-gap) {
-      background: #f5f5f5;
-      border-left: 1px solid #ddd;
-      border-right: 1px solid #ddd;
-    }
-    
-    .merge-container :global(.cm-merge-view .cm-merge-chunk) {
-      background: rgba(255, 0, 0, 0.1);
-    }
-    
-    .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-insert) {
-      background: rgba(0, 255, 0, 0.1);
-    }
-    
-    .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-delete) {
-      background: rgba(255, 0, 0, 0.1);
-    }
-  `;
+  :host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+  }
+
+  .merge-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .merge-header {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .merge-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .merge-labels {
+    display: flex;
+    gap: 16px;
+  }
+
+  .label {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .head-label {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+
+  .working-label {
+    background: #fff3e0;
+    color: #f57c00;
+  }
+
+  .merge-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .loading, .error, .no-file {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .error {
+    color: #d32f2f;
+  }
+
+  /* === BEGIN CodeMirror Base and MergeView Styles === */
+
+  /* Styles for MergeView layout (ensure side-by-side) */
+  /* CodeMirror's MergeView typically sets display:flex inline, but good to be sure */
+  .merge-container :global(.cm-merge-view) {
+    display: flex !important; /* Ensure flex display */
+    flex-direction: row !important; /* Ensure side-by-side */
+    height: 100%;
+    width: 100%;
+  }
+
+  .merge-container :global(.cm-merge-view > .cm-editorPane) { /* Panes holding each editor */
+    flex-grow: 1;
+    flex-basis: 0;
+    overflow: hidden; /* Important */
+    height: 100%;
+    position: relative; /* CM might need this */
+  }
+
+  .merge-container :global(.cm-merge-view > .cm-gutter) { /* The gutter between panes */
+    flex-grow: 0;
+    flex-shrink: 0;
+    /* You might need to style width, borders, background for the gutter here if not showing */
+    /* Example:
+    width: 10px;
+    border-left: 1px solid #ccc;
+    border-right: 1px solid #ccc;
+    background-color: #f0f0f0;
+    */
+  }
+
+  /* Essential styles from EditorView.baseTheme (these are illustrative, get the full set) */
+  .merge-container :global(.cm-editor) {
+    position: relative !important;
+    box-sizing: border-box !important;
+    display: flex !important; /* CRITICAL for internal layout */
+    flex-direction: column !important; /* CRITICAL for internal layout */
+    height: 100%; /* Your theme already sets this for '&', which is .cm-editor */
+  }
+
+  .merge-container :global(.cm-scroller) {
+    flex-grow: 1 !important;
+    overflow: auto !important;
+    box-sizing: border-box !important;
+    position: relative !important; /* Often needed */
+    outline: none !important;
+    font-family: Monaco, Menlo, "Ubuntu Mono", monospace; /* Your theme */
+  }
+
+  .merge-container :global(.cm-content) {
+    box-sizing: border-box !important;
+    position: relative !important; /* Crucial for positioning lines, selections */
+    /* Add other .cm-content styles from baseTheme if needed */
+  }
+
+  .merge-container :global(.cm-line) {
+     /* Add .cm-line styles from baseTheme if needed */
+  }
+
+  /* Add other necessary base styles: .cm-gutters, .cm-lineNumbers, .cm-activeLine, etc. */
+  /* The more complete these base styles are, the better CM will render. */
+
+  /* === END CodeMirror Base and MergeView Styles === */
+
+
+  /* Your existing CodeMirror merge view styling customizations */
+  .merge-container :global(.cm-merge-view .cm-merge-gap) {
+    background: #f5f5f5;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+  }
+
+  .merge-container :global(.cm-merge-view .cm-merge-chunk) {
+    background: rgba(255, 0, 0, 0.1);
+  }
+
+  .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-insert) {
+    background: rgba(0, 255, 0, 0.1);
+  }
+
+  .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-delete) {
+    background: rgba(255, 0, 0, 0.1);
+  }
+`;
 }

@@ -213,7 +213,7 @@ def calculate_product(a, b):
     """Calculate the product of two numbers with type checking."""
     if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
         raise TypeError("Both arguments must be numbers")
-    return a * b
+    return a + b
 
 def main():
     """Main function with error handling."""
@@ -347,6 +347,14 @@ if __name__ == "__main__":
         // Log when the component is ready
         editor.addEventListener('updated', () => {
             console.log('MergeEditor updated');
+        });
+        
+        // Auto-load JavaScript example when page loads
+        window.addEventListener('load', () => {
+            console.log('Page loaded, auto-loading JavaScript example...');
+            setTimeout(() => {
+                loadJavaScriptExample();
+            }, 500); // Small delay to ensure component is fully initialized
         });
         
         console.log('Test page loaded. MergeEditor component should be ready.');
