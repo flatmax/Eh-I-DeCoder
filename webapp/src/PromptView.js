@@ -504,16 +504,32 @@ export class PromptView extends JRPCClient {
   }
 
   /**
+   * Check if user is scrolled to bottom of the history container
+   */
+  _isScrolledToBottom() {
+    const historyContainer = this.shadowRoot.getElementById('messageHistory');
+    if (historyContainer) {
+      const { scrollTop, scrollHeight, clientHeight } = historyContainer;
+      // Consider "at bottom" if within 10px of actual bottom
+      return Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
+    }
+    return true;
+  }
+  
+  /**
    * Add a message to the chat history
    */
   addMessageToHistory(role, content) {
+    // Check if we're at bottom before adding content
+    const shouldScrollToBottom = this._isScrolledToBottom();
+    
     this.messageHistory.push({ role, content });
     this.requestUpdate();
     
-    // Scroll to bottom after update
+    // Only scroll to bottom if we were already there
     this.updateComplete.then(() => {
       const historyContainer = this.shadowRoot.getElementById('messageHistory');
-      if (historyContainer) {
+      if (historyContainer && shouldScrollToBottom) {
         historyContainer.scrollTop = historyContainer.scrollHeight;
       }
     });
@@ -538,6 +554,9 @@ export class PromptView extends JRPCClient {
     console.log(`Chunk received at ${timestamp.toISOString()} (${timestamp.getTime()})`, 
       typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 
       'final:', final);
+    
+    // Check if we're at bottom before modifying content
+    const shouldScrollToBottom = this._isScrolledToBottom();
     
     // If chunk is null or undefined, handle gracefully
     if (!chunk) {
@@ -566,10 +585,10 @@ export class PromptView extends JRPCClient {
     // Request an immediate update
     this.requestUpdate();
     
-    // Scroll to bottom after update
+    // Only scroll to bottom if we were already there
     await this.updateComplete;
     const historyContainer = this.shadowRoot.getElementById('messageHistory');
-    if (historyContainer) {
+    if (historyContainer && shouldScrollToBottom) {
       historyContainer.scrollTop = historyContainer.scrollHeight;
     }
   }
@@ -616,6 +635,9 @@ export class PromptView extends JRPCClient {
   async _processStreamError(errorMessage) {
     console.error('Streaming error:', errorMessage);
     
+    // Check if we're at bottom before modifying content
+    const shouldScrollToBottom = this._isScrolledToBottom();
+    
     // Add error to message history or update last assistant message
     if (this.messageHistory.length > 0 && this.messageHistory[this.messageHistory.length - 1].role === 'assistant') {
       // Update the existing assistant message
@@ -628,10 +650,10 @@ export class PromptView extends JRPCClient {
     
     this.requestUpdate();
     
-    // Scroll to bottom after update
+    // Only scroll to bottom if we were already there
     await this.updateComplete;
     const historyContainer = this.shadowRoot.getElementById('messageHistory');
-    if (historyContainer) {
+    if (historyContainer && shouldScrollToBottom) {
       historyContainer.scrollTop = historyContainer.scrollHeight;
     }
   }
