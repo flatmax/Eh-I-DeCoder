@@ -103,32 +103,26 @@ export class RepoTree extends FileTree {
     if (!isFile) return; // Only handle file clicks, not directory clicks
     
     try {
-      // Check if file has changes (modified, staged, or untracked)
+      // Check file git status for logging purposes
       const gitStatus = this.getFileGitStatus(path);
       
-      if (gitStatus !== 'clean') {
-        // File has changes, show in merge editor
-        console.log(`Opening file with changes in merge editor: ${path} (${gitStatus})`);
-        
-        // Find the MergeEditor component in MainWindow
-        const mainWindow = document.querySelector('main-window');
-        if (mainWindow && mainWindow.shadowRoot) {
-          const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-          if (mergeEditor) {
-            await mergeEditor.loadFileContent(path);
-          } else {
-            console.warn('MergeEditor component not found');
-          }
+      // Always show in merge editor regardless of git status
+      console.log(`Opening file in merge editor: ${path} (${gitStatus})`);
+      
+      // Find the MergeEditor component in MainWindow
+      const mainWindow = document.querySelector('main-window');
+      if (mainWindow && mainWindow.shadowRoot) {
+        const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
+        if (mergeEditor) {
+          await mergeEditor.loadFileContent(path);
+        } else {
+          console.warn('MergeEditor component not found');
         }
-      } else {
-        // File is clean, handle normally (add/remove from context)
-        await super.handleFileClick(path, isFile);
       }
       
     } catch (error) {
       console.error('Error handling file click:', error);
-      // Fall back to normal file handling
-      await super.handleFileClick(path, isFile);
+      // Don't fall back to super.handleFileClick even on error
     }
   }
   
@@ -136,7 +130,6 @@ export class RepoTree extends FileTree {
     if (!node) return html``; // Handle null/undefined nodes
     
     const nodePath = path ? `${path}/${node.name}` : node.name;
-    const isAdded = node.isFile && this.addedFiles.includes(nodePath);
     const hasChildren = node.children && Object.keys(node.children).length > 0;
     const gitStatus = node.isFile ? this.getFileGitStatus(nodePath) : 'clean';
     
@@ -144,7 +137,6 @@ export class RepoTree extends FileTree {
       'file-node': true,
       'directory': !node.isFile,
       'file': node.isFile,
-      'added-file': isAdded,
       [`git-${gitStatus}`]: node.isFile
     };
     
