@@ -5,6 +5,7 @@ import {EditorState, StateEffect, StateField} from '@codemirror/state';
 import {keymap} from '@codemirror/view';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
+import {oneDark} from '@codemirror/theme-one-dark';
 import {javascript} from '@codemirror/lang-javascript';
 import {python} from '@codemirror/lang-python';
 import {html as htmlLang} from '@codemirror/lang-html';
@@ -233,6 +234,7 @@ export class MergeEditor extends JRPCClient {
             basicSetup,
             this.getLanguageExtension(this.filePath),
             EditorState.readOnly.of(true), // Make left pane read-only
+            oneDark,
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
@@ -245,6 +247,7 @@ export class MergeEditor extends JRPCClient {
             basicSetup,
             this.getLanguageExtension(this.filePath),
             // Right pane remains editable (no readOnly extension)
+            oneDark,
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }

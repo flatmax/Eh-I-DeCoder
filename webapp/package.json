@@ -24,7 +24,8 @@
     "@codemirror/lang-html": "^6.4.6",
     "@codemirror/lang-css": "^6.2.1",
     "@codemirror/lang-json": "^6.0.1",
-    "@codemirror/lang-markdown": "^6.2.2"
+    "@codemirror/lang-markdown": "^6.2.2",
+    "@codemirror/theme-one-dark": "^6.1.2"
   },
   "devDependencies": {
     "@web/dev-server": "^0.4.6",
