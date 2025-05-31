@@ -2,6 +2,7 @@ import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView} from '@codemirror/view';
 import {EditorState, StateEffect, StateField} from '@codemirror/state';
+import {keymap} from '@codemirror/view';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
 import {javascript} from '@codemirror/lang-javascript';
@@ -247,7 +248,15 @@ export class MergeEditor extends JRPCClient {
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
-            })
+            }),
+            // Add keyboard shortcut for save (Mod = Ctrl on Windows/Linux, Cmd on Mac)
+            keymap.of([{
+              key: "Mod-s",
+              run: () => {
+                this.saveChanges();
+                return true; // Prevent other keymap handlers
+              }
+            }])
           ]
         },
         parent: container,
