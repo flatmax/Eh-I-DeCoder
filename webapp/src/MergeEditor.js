@@ -193,9 +193,9 @@ export class MergeEditor extends JRPCClient {
     return html`
       <div class="merge-editor-container">
         <div class="merge-header">
-          <h3>File Comparison: ${this.filePath}</h3>
           <div class="merge-labels">
             <span class="label head-label">HEAD</span>
+            <h3>${this.filePath}</h3>
             <span class="label working-label">Working Directory</span>
           </div>
         </div>
@@ -248,7 +248,8 @@ export class MergeEditor extends JRPCClient {
 
   .merge-labels {
     display: flex;
-    gap: 16px;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .label {
