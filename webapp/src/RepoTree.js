@@ -200,7 +200,7 @@ export class RepoTree extends FileTree {
     return html`
       <div class="file-tree-container">
         <div class="file-tree-header">
-          <h3>Repository Files</h3>
+          <h3>Context + Git</h3>
           <div class="header-info">
             ${this.gitStatus.branch ? html`
               <span class="branch-info">Branch: ${this.gitStatus.branch}</span>
