@@ -19,6 +19,7 @@ export class RepoTree extends FileTree {
     this.modifiedFiles = [];
     this.stagedFiles = [];
     this.untrackedFiles = [];
+    this.addedFiles = [];
   }
   
   connectedCallback() {
@@ -99,6 +100,7 @@ export class RepoTree extends FileTree {
     return 'clean';
   }
   
+  // Handle file click to open the file in merge editor
   async handleFileClick(path, isFile) {
     if (!isFile) return; // Only handle file clicks, not directory clicks
     
@@ -126,10 +128,46 @@ export class RepoTree extends FileTree {
     }
   }
   
+  // New method specifically for checkbox clicks
+  async handleCheckboxClick(event, path) {
+    // Stop propagation to prevent the parent div's click handler from being called
+    event.stopPropagation();
+    
+    try {
+      // Save current scroll position
+      const fileTreeContainer = this.shadowRoot.querySelector('.file-tree-container');
+      const scrollTop = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
+      
+      const isAdded = this.addedFiles.includes(path);
+      
+      if (isAdded) {
+        // If the file is already added, drop it
+        await this.call['EditBlockCoder.drop_rel_fname'](path);
+        
+        // Remove from addedFiles
+        this.addedFiles = this.addedFiles.filter(f => f !== path);
+      } else {
+        // If the file is not added, add it
+        await this.call['EditBlockCoder.add_rel_fname'](path);
+        
+        // Add to addedFiles
+        this.addedFiles = [...this.addedFiles, path];
+      }
+      
+      // Refresh the tree to ensure consistency, but preserve scroll position
+      setTimeout(() => this.loadFileTree(scrollTop), 300);
+      
+      this.requestUpdate();
+    } catch (error) {
+      console.error(`Error ${isAdded ? 'dropping' : 'adding'} file:`, error);
+    }
+  }
+  
   renderTreeNode(node, path = '') {
     if (!node) return html``; // Handle null/undefined nodes
     
     const nodePath = path ? `${path}/${node.name}` : node.name;
+    const isAdded = node.isFile && this.addedFiles.includes(nodePath);
     const hasChildren = node.children && Object.keys(node.children).length > 0;
     const gitStatus = node.isFile ? this.getFileGitStatus(nodePath) : 'clean';
     
@@ -139,8 +177,6 @@ export class RepoTree extends FileTree {
       'file': node.isFile,
       [`git-${gitStatus}`]: node.isFile
     };
-    
-    const iconName = node.isFile ? 'description' : 'folder';
     
     if (node.name === 'root') {
       // Root node - just render its children
@@ -162,7 +198,6 @@ export class RepoTree extends FileTree {
       return html`
         <details class="directory-details" open>
           <summary class=${classMap(nodeClasses)}>
-            <md-icon>${iconName}</md-icon>
             <span>${node.name}</span>
           </summary>
           <div class="children-container">
@@ -179,9 +214,10 @@ export class RepoTree extends FileTree {
     } else {
       // File or empty directory
       return html`
-        <div class=${classMap(nodeClasses)} @click=${() => this.handleFileClick(nodePath, node.isFile)}>
-          <md-icon>${iconName}</md-icon>
-          <span>${node.name}</span>
+        <div class=${classMap(nodeClasses)}>
+          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
+                               @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
+          <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
           ${node.isFile && gitStatus !== 'clean' ? html`
             <span class="git-status-indicator">${this.getGitStatusSymbol(gitStatus)}</span>
           ` : ''}
