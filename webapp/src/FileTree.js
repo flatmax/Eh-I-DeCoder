@@ -141,8 +141,15 @@ export class FileTree extends JRPCClient {
     return root;
   }
   
+  // handleFileClick doesn't do anything now - users must click checkbox directly to add/remove files
   async handleFileClick(path, isFile) {
-    if (!isFile) return; // Only handle file clicks, not directory clicks
+    // No action when clicking file name
+  }
+  
+  // New method specifically for checkbox clicks
+  async handleCheckboxClick(event, path) {
+    // Stop propagation to prevent the parent div's click handler from being called
+    event.stopPropagation();
     
     try {
       // Save current scroll position
@@ -225,9 +232,10 @@ export class FileTree extends JRPCClient {
     } else {
       // File or empty directory
       return html`
-        <div class=${classMap(nodeClasses)} @click=${() => this.handleFileClick(nodePath, node.isFile)}>
-          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" readonly>` : ''}
-          <span>${node.name}</span>
+        <div class=${classMap(nodeClasses)}>
+          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
+                               @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
+          <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
         </div>
       `;
     }
@@ -299,7 +307,7 @@ export class FileTree extends JRPCClient {
     
     .file-checkbox {
       margin-right: 4px;
-      pointer-events: none; /* Make checkbox non-interactive, as clicks will be handled by the parent */
+      cursor: pointer;
     }
     
     .directory-details {
