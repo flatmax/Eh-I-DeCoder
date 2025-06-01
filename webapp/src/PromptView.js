@@ -576,10 +576,11 @@ export class PromptView extends JRPCClient {
     // Force a re-render by creating a new array
     this.messageHistory = [...this.messageHistory];
     
-    // If final is true, prepare for the next message
+    // If final is true, prepare for the next message and refresh file tree
     if (final) {
-      console.log('Final chunk received, preparing for next message');
-      // The streamComplete method will be called separately to finish this message
+      console.log('Final chunk received, preparing for next message and refreshing file tree');
+      // Refresh the file tree to update git status and context
+      this._refreshFileTree();
     }
     
     // Request an immediate update
@@ -590,6 +591,30 @@ export class PromptView extends JRPCClient {
     const historyContainer = this.shadowRoot.getElementById('messageHistory');
     if (historyContainer && shouldScrollToBottom) {
       historyContainer.scrollTop = historyContainer.scrollHeight;
+    }
+  }
+  
+  /**
+   * Refresh the file tree to update git status and context
+   */
+  _refreshFileTree() {
+    try {
+      // Find the MainWindow component
+      const mainWindow = document.querySelector('main-window');
+      if (mainWindow && mainWindow.shadowRoot) {
+        // Find the RepoTree component
+        const repoTree = mainWindow.shadowRoot.querySelector('repo-tree');
+        if (repoTree && typeof repoTree.loadFileTree === 'function') {
+          console.log('Refreshing RepoTree file tree after final chunk');
+          repoTree.loadFileTree();
+        } else {
+          console.warn('RepoTree component not found or loadFileTree method not available');
+        }
+      } else {
+        console.warn('MainWindow component not found');
+      }
+    } catch (error) {
+      console.error('Error refreshing file tree:', error);
     }
   }
   

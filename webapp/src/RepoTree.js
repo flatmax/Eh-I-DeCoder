@@ -31,14 +31,13 @@ export class RepoTree extends FileTree {
     console.log('RepoTree::remoteIsUp');
     // Add a timeout before loading to ensure connection is fully established
     setTimeout(() => {
-      this.loadGitStatus();
       this.loadFileTree();
     }, 500);
   }
   
   async loadGitStatus() {
     try {
-      this.loading = true;
+      // Don't set loading state here to avoid UI updates that affect scroll
       this.error = null;
       
       // Get Git status from the Repo class - fix the call syntax
@@ -76,15 +75,20 @@ export class RepoTree extends FileTree {
     } catch (error) {
       console.error('Error loading Git status:', error);
       this.error = `Failed to load Git status: ${error.message}`;
-    } finally {
-      this.loading = false;
-      this.requestUpdate();
     }
   }
   
-  async loadFileTree(scrollPosition = 0) {
-    // Load Git status first, then file tree
+  async loadFileTree(scrollPosition = null) {
+    // Save current scroll position if not provided
+    if (scrollPosition === null) {
+      const fileTreeContainer = this.shadowRoot?.querySelector('.file-tree-container');
+      scrollPosition = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
+    }
+    
+    // Load Git status first (without affecting loading state)
     await this.loadGitStatus();
+    
+    // Then load the file tree with preserved scroll position
     await super.loadFileTree(scrollPosition);
   }
   
