@@ -137,9 +137,21 @@ class IOWrapper(BaseWrapper):
             # Send to webapp asynchronously - fire and forget
             self._safe_create_task(self.send_stream_update(content, final))
             
-            # Call original method immediately
+            # Call original method with error handling for Rich LiveError
             self.log("Calling original mdstream.update")
-            return original_update(content, final)
+            try:
+                return original_update(content, final)
+            except Exception as e:
+                # Check if it's a Rich LiveError
+                if "Only one live display may be active at once" in str(e):
+                    self.log(f"Rich LiveError caught: {e}. Skipping original update to avoid conflict.")
+                    # Don't call the original update to avoid the Rich conflict
+                    # The webapp will handle the display instead
+                    return None
+                else:
+                    # Re-raise other exceptions
+                    self.log(f"Unexpected error in original mdstream.update: {e}")
+                    raise
         
         mdstream.update = update_wrapper
         return mdstream
