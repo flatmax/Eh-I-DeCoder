@@ -184,8 +184,7 @@ export class FileTree extends JRPCClient {
     const nodeClasses = {
       'file-node': true,
       'directory': !node.isFile,
-      'file': node.isFile,
-      'added-file': isAdded
+      'file': node.isFile
     };
     
     const iconName = node.isFile ? 'description' : 'folder';
@@ -228,6 +227,7 @@ export class FileTree extends JRPCClient {
       // File or empty directory
       return html`
         <div class=${classMap(nodeClasses)} @click=${() => this.handleFileClick(nodePath, node.isFile)}>
+          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" readonly>` : ''}
           <md-icon>${iconName}</md-icon>
           <span>${node.name}</span>
         </div>
@@ -299,6 +299,11 @@ export class FileTree extends JRPCClient {
       display: inline-flex;
     }
     
+    .file-checkbox {
+      margin-right: 4px;
+      pointer-events: none; /* Make checkbox non-interactive, as clicks will be handled by the parent */
+    }
+    
     .directory-details {
       margin-left: 0;
     }
@@ -316,11 +321,6 @@ export class FileTree extends JRPCClient {
       margin-left: 16px;
       border-left: 1px solid #ccc;
       padding-left: 8px;
-    }
-    
-    .added-file {
-      color: green;
-      font-weight: 500;
     }
     
     .loading, .error {
