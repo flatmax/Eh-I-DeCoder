@@ -13,7 +13,6 @@ import '@material/web/iconbutton/filled-icon-button.js';
 import './Commands.js';
 import './CommandsTab.js';
 import '../prompt-view.js';
-import '../file-tree.js';
 import '../repo-tree.js';
 import '../merge-editor.js';
 
@@ -49,7 +48,7 @@ export class MainWindow extends JRPCClient {
     this.reconnectDelay = 1000; // Reconnect after 1 second
     this.headerExpanded = false; // Start with minimized header
     this.sidebarExpanded = true; // Start with expanded sidebar
-    this.activeTabIndex = 1; // Default to Repository tab (index 1)
+    this.activeTabIndex = 0; // Default to Repository tab (index 0)
     this.sidebarWidth = 280; // Default sidebar width in pixels
   }
   
@@ -403,12 +402,6 @@ export class MainWindow extends JRPCClient {
               @change=${this.handleTabChange}
             >
               <md-primary-tab 
-                aria-label="Files Tab" 
-                title=${this.sidebarExpanded ? "Context" : ""}
-              >
-                ${this.sidebarExpanded ? "Context" : html`<md-icon>folder</md-icon>`}
-              </md-primary-tab>
-              <md-primary-tab 
                 aria-label="Repository Tab" 
                 title=${this.sidebarExpanded ? "Repository" : ""}
               >
@@ -430,21 +423,11 @@ export class MainWindow extends JRPCClient {
             
             <!-- Tab Content -->
             <div class="tab-content">
-              <!-- Files Tab Panel -->
+              <!-- Repository Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
                 'active': this.activeTabIndex === 0
               })} style="${this.activeTabIndex === 0 ? 'display: flex;' : 'display: none;'}">
-                <div class="file-tree-container">
-                  <file-tree .serverURI=${this.serverURI}></file-tree>
-                </div>
-              </div>
-              
-              <!-- Repository Tab Panel -->
-              <div class=${classMap({
-                'tab-panel': true,
-                'active': this.activeTabIndex === 1
-              })} style="${this.activeTabIndex === 1 ? 'display: flex;' : 'display: none;'}">
                 <div class="file-tree-container">
                   <repo-tree .serverURI=${this.serverURI}></repo-tree>
                 </div>
@@ -453,16 +436,16 @@ export class MainWindow extends JRPCClient {
               <!-- Commands Tab Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
-                'active': this.activeTabIndex === 2
-              })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
+                'active': this.activeTabIndex === 1
+              })} style="${this.activeTabIndex === 1 ? 'display: flex;' : 'display: none;'}">
                 <files-and-settings .serverURI=${this.serverURI}></files-and-settings>
               </div>
               
               <!-- Settings Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
-                'active': this.activeTabIndex === 3
-              })} style="${this.activeTabIndex === 3 ? 'display: flex;' : 'display: none;'}">
+                'active': this.activeTabIndex === 2
+              })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
                 <!-- Server Status Section -->
                 <div class="connection-status">
                   <span class=${classMap(ledClasses)}></span>
