@@ -7,12 +7,9 @@ import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/filled-icon-button.js';
-import { UserCard, AssistantCard } from './CardMarkdown.js';
+import '../assistant-card.js';
+import '../user-card.js';
 import './SpeechToText.js';
-
-// Register the custom elements
-customElements.define('user-card', UserCard);
-customElements.define('assistant-card', AssistantCard);
 
 export class PromptView extends JRPCClient {
   static properties = {

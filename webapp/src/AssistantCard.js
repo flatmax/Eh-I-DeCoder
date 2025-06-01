@@ -1,21 +1,18 @@
 /**
- * CardMarkdown component for displaying markdown content in a card format
+ * AssistantCard component for displaying assistant messages in a card format
  */
 import { LitElement, html, css } from 'lit';
-import { classMap } from 'lit/directives/class-map.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { marked } from 'marked';
 
-export class CardMarkdown extends LitElement {
+export class AssistantCard extends LitElement {
   static properties = {
-    content: { type: String },
-    role: { type: String, reflect: true }, // 'user' or 'assistant'
+    content: { type: String }
   };
 
   constructor() {
     super();
     this.content = '';
-    this.role = 'assistant'; // default
   }
 
   static styles = css`
@@ -30,14 +27,6 @@ export class CardMarkdown extends LitElement {
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       overflow: hidden;
       max-width: 90%;
-    }
-    
-    .user-card {
-      background-color: #e1f5fe;
-      margin-left: auto;
-    }
-    
-    .assistant-card {
       background-color: #f1f1f1;
       margin-right: auto;
     }
@@ -65,17 +54,11 @@ export class CardMarkdown extends LitElement {
   `;
 
   render() {
-    const classes = {
-      card: true,
-      'user-card': this.role === 'user',
-      'assistant-card': this.role !== 'user'
-    };
-
     // Parse markdown content
     const parsedContent = marked(this.content || '');
 
     return html`
-      <div class=${classMap(classes)}>
+      <div class="card">
         <div class="card-content">${unsafeHTML(parsedContent)}</div>
       </div>
     `;
