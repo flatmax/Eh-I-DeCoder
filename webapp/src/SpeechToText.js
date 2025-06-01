@@ -81,6 +81,12 @@ export class SpeechToText extends LitElement {
       color: #d32f2f;
       font-style: italic;
     }
+
+    .button-content {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
   `;
 
   connectedCallback() {
@@ -258,7 +264,12 @@ export class SpeechToText extends LitElement {
           ?disabled=${!this.isSupported}
           @click=${this._toggleListening}
         >
-          ${this.isListening ? 'Stop' : ''}
+          <div class="button-content">
+            <md-icon class="material-symbols-outlined">
+              ${this.isListening ? 'mic_off' : 'mic'}
+            </md-icon>
+            ${this.isListening ? 'Stop' : ''}
+          </div>
         </md-filled-tonal-button>
       </div>
       
