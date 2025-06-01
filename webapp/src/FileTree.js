@@ -209,7 +209,6 @@ export class FileTree extends JRPCClient {
       return html`
         <details class="directory-details" open>
           <summary class=${classMap(nodeClasses)}>
-            <md-icon>${iconName}</md-icon>
             <span>${node.name}</span>
           </summary>
           <div class="children-container">
@@ -228,7 +227,6 @@ export class FileTree extends JRPCClient {
       return html`
         <div class=${classMap(nodeClasses)} @click=${() => this.handleFileClick(nodePath, node.isFile)}>
           ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" readonly>` : ''}
-          <md-icon>${iconName}</md-icon>
           <span>${node.name}</span>
         </div>
       `;
