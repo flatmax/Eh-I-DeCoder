@@ -25,8 +25,8 @@ class CoderWrapper(BaseWrapper):
         """Signal that command processing is complete"""
         self.log("Signaling command completion to webapp")
         try:
-            # Send completion signal to PromptView
-            self._safe_create_task(self.get_call()['PromptView.streamComplete']())
+            # Send completion signal to MessageHandler
+            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
             self.log("streamComplete call initiated")
         except Exception as e:
             self.log(f"Error signaling completion: {e}")
@@ -58,7 +58,7 @@ class CoderWrapper(BaseWrapper):
                 
                 self.log(f"Thread '{thread_name}' for coder.run completed for message (first 100 chars): {str(message)[:100]}...")
                 
-                # Signal completion to PromptView
+                # Signal completion to MessageHandler
                 self.signal_completion()
                 
             except Exception as e:

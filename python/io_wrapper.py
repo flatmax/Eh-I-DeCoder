@@ -90,7 +90,7 @@ class IOWrapper(BaseWrapper):
         """Make the async RPC call to the webapp"""
         self.log('Making RPC call to webapp')
         try:
-            call_func = self.get_call()['PromptView.confirmation_request']
+            call_func = self.get_call()['MessageHandler.confirmation_request']
             response = await asyncio.wait_for(call_func(confirmation_data), timeout=30.0)
             
             # Extract response from dict if needed
@@ -220,7 +220,7 @@ class IOWrapper(BaseWrapper):
             # Reset the flag
             self.has_command_output = False
             # Send completion signal
-            self._safe_create_task(self.get_call()['PromptView.streamComplete']())
+            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
     
     async def send_to_webapp(self, message):
         """Send completed response to webapp - OPTIMIZED VERSION"""
@@ -229,11 +229,11 @@ class IOWrapper(BaseWrapper):
         
         try:
             # Fire and forget - don't wait for response
-            self.log("About to call PromptView.streamWrite")
-            self._safe_create_task(self.get_call()['PromptView.streamWrite'](message))
+            self.log("About to call MessageHandler.streamWrite")
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](message))
             self.log("streamWrite call initiated, calling streamComplete")
             
-            self._safe_create_task(self.get_call()['PromptView.streamComplete']())
+            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
             self.log("streamComplete call initiated")
             
         except Exception as e:
@@ -243,7 +243,7 @@ class IOWrapper(BaseWrapper):
             
             # Try to notify the webapp about the error - fire and forget
             try:
-                self._safe_create_task(self.get_call()['PromptView.streamError'](str(e)))
+                self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
@@ -254,15 +254,15 @@ class IOWrapper(BaseWrapper):
         self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
         try:
-            self.log(f"[TIME: {current_time:.6f}] Calling PromptView.streamWrite with content and final param")
+            self.log(f"[TIME: {current_time:.6f}] Calling MessageHandler.streamWrite with content and final param")
             # Fire and forget - don't wait for response
-            self._safe_create_task(self.get_call()['PromptView.streamWrite'](content, final))
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](content, final))
             self.log("streamWrite call initiated")
             
             if final:
                 self.log("Final chunk, calling streamComplete")
                 # Fire and forget - don't wait for response
-                self._safe_create_task(self.get_call()['PromptView.streamComplete']())
+                self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
                 self.log("streamComplete call initiated")
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
@@ -271,7 +271,7 @@ class IOWrapper(BaseWrapper):
             
             # Try to notify the webapp about the error - fire and forget
             try:
-                self._safe_create_task(self.get_call()['PromptView.streamError'](str(e)))
+                self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
                 self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
