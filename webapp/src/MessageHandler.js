@@ -168,43 +168,33 @@ export class MessageHandler extends JRPCClient {
   }
   
   /**
-   * Handle streaming chunks from Aider - OPTIMIZED VERSION
+   * Handle streaming chunks from Aider - OPTIMIZED VERSION with role parameter
    * Called by IOWrapper.send_stream_update and send_to_webapp via RPC
    * Returns immediately to avoid blocking Python, processes asynchronously
    */
-  streamWrite(chunk, final = false) {
+  streamWrite(chunk, final = false, role = 'assistant') {
     // Return immediately to Python - don't block
-    setTimeout(() => this._processStreamChunk(chunk, final), 0);
+    setTimeout(() => this._processStreamChunk(chunk, final, role), 0);
     // No return value needed - Python doesn't wait
   }
   
   /**
    * Process stream chunk asynchronously
    */
-  async _processStreamChunk(chunk, final = false) {
+  async _processStreamChunk(chunk, final = false, role = 'assistant') {
     const timestamp = new Date();
     console.log(`Chunk received at ${timestamp.toISOString()} (${timestamp.getTime()})`, 
       typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 
-      'final:', final);
+      'final:', final, 'role:', role);
     
     // If chunk is null or undefined, handle gracefully
     if (!chunk) {
       console.warn('Received empty chunk');
       return;
     }
-    
-    // If there's no assistant message yet, create one
-    if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== 'assistant') {
-      this.addMessageToHistory('assistant', '');
-    }
-    
-    // Append the chunk to the last message
-    const lastIndex = this.messageHistory.length - 1;
-    this.messageHistory[lastIndex].content = chunk;
-    
-    // Force a re-render by creating a new array
-    this.messageHistory = [...this.messageHistory];
-    
+
+    this._handleChunk(chunk, final, role);
+
     // If final is true, prepare for the next message and refresh file tree
     if (final) {
       console.log('Final chunk received, preparing for next message and refreshing file tree');
@@ -216,7 +206,29 @@ export class MessageHandler extends JRPCClient {
     this.requestUpdate();
     
     // Call hook for subclasses
-    this.onStreamChunk?.(chunk, final);
+    this.onStreamChunk?.(chunk, final, role);
+  }
+  
+  /**
+   * Handle message chunks
+   */
+  _handleChunk(chunk, final, role) {
+    console.log(chunk)
+    // If there's no role message yet, create one
+    if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
+      this.addMessageToHistory(role, '');
+    }
+    
+    // Append the chunk to the last assistant message
+    const lastIndex = this.messageHistory.length - 1;
+    if (role == 'command')
+      this.messageHistory[lastIndex].content += chunk+'\n';
+    else
+      this.messageHistory[lastIndex].content = chunk;
+    
+    // Force a re-render by creating a new array
+    this.messageHistory = [...this.messageHistory];
+    console.log(this.messageHistory)
   }
   
   /**

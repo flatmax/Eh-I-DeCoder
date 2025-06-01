@@ -229,12 +229,9 @@ class IOWrapper(BaseWrapper):
         
         try:
             # Fire and forget - don't wait for response
-            self.log("About to call MessageHandler.streamWrite")
-            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](message))
-            self.log("streamWrite call initiated, calling streamComplete")
-            
-            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
-            self.log("streamComplete call initiated")
+            self.log("About to call MessageHandler.streamWrite with role 'assistant'")
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](message, True, 'assistant'))
+            self.log("streamWrite call initiated with final=True and role='assistant'")
             
         except Exception as e:
             err_msg = f"Error sending to webapp: {e}"
@@ -254,16 +251,11 @@ class IOWrapper(BaseWrapper):
         self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
         try:
-            self.log(f"[TIME: {current_time:.6f}] Calling MessageHandler.streamWrite with content and final param")
+            self.log(f"[TIME: {current_time:.6f}] Calling MessageHandler.streamWrite with content, final param, and role 'assistant'")
             # Fire and forget - don't wait for response
-            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](content, final))
-            self.log("streamWrite call initiated")
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](content, final, 'assistant'))
+            self.log("streamWrite call initiated with role='assistant'")
             
-            if final:
-                self.log("Final chunk, calling streamComplete")
-                # Fire and forget - don't wait for response
-                self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
-                self.log("streamComplete call initiated")
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
@@ -277,13 +269,17 @@ class IOWrapper(BaseWrapper):
                 self.log(f"Failed to send error notification: {e2}")
                 
     async def send_to_webapp_command(self, msg_type, message):
-        """Send command output to webapp - OPTIMIZED VERSION"""
+        """Send command output to webapp using streamWrite with 'command' role"""
         self.log(f"send_to_webapp_command called with type: {msg_type}, message: {message}")
         
         try:
+            # Format the message with type prefix for parsing in JavaScript
+            formatted_message = f"{msg_type}:{message}"
+            
             # Fire and forget - don't wait for response
-            self._safe_create_task(self.get_call()['Commands.displayCommandOutput'](msg_type, message))
-            self.log("displayCommandOutput call initiated")
+            # Use streamWrite with 'command' role instead of displayCommandOutput
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](formatted_message, False, 'command'))
+            self.log("streamWrite call initiated with role='command'")
         except Exception as e:
             err_msg = f"Error sending command output to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")

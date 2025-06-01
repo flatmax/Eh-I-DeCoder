@@ -9,7 +9,7 @@ import { marked } from 'marked';
 export class CardMarkdown extends LitElement {
   static properties = {
     content: { type: String },
-    role: { type: String, reflect: true }, // 'user' or 'assistant'
+    role: { type: String, reflect: true }, // 'user', 'assistant', or 'command'
   };
 
   constructor() {
@@ -41,11 +41,21 @@ export class CardMarkdown extends LitElement {
       background-color: #f1f1f1;
       margin-right: auto;
     }
+
+    .command-card {
+      background-color: #2d2d2d;
+      margin-right: auto;
+    }
     
     .card-content {
       padding: 12px 16px;
       font-family: sans-serif;
       overflow-x: auto;
+    }
+
+    .command-card .card-content {
+      font-family: monospace;
+      color: #f8f8f8;
     }
 
     /* Markdown styling */
@@ -62,17 +72,45 @@ export class CardMarkdown extends LitElement {
       padding: 2px 4px;
       border-radius: 3px;
     }
+
+    /* Command output styling */
+    .output-message {
+      margin: 4px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+    }
+
+    .output-type-output {
+      color: #f8f8f8;
+    }
+
+    .output-type-error {
+      color: #ff5555;
+    }
+
+    .output-type-warning {
+      color: #ffb86c;
+    }
+
+    .output-type-print {
+      color: #8be9fd;
+    }
   `;
 
   render() {
     const classes = {
       card: true,
       'user-card': this.role === 'user',
-      'assistant-card': this.role !== 'user'
+      'assistant-card': this.role === 'assistant',
+      'command-card': this.role === 'command'
     };
-
+console.log('this.content')
+console.log(this.content)
     // Parse markdown content
     const parsedContent = marked(this.content || '');
+    console.log('parsedContent')
+    console.log(parsedContent)
 
     return html`
       <div class=${classMap(classes)}>
