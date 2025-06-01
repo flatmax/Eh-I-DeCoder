@@ -11,7 +11,7 @@ export class CommandsTab extends LitElement {
   
   constructor() {
     super();
-    this.serverURI = "ws://0.0.0.0:9000";
+    this.serverURI = "ws://0.0.0.0:8999";
   }
 
   static styles = css`

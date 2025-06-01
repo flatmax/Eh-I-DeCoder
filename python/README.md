@@ -27,7 +27,7 @@ This will install all required dependencies including Aider and the JSON-RPC lib
 After installation, start the server using the `aider-server` command:
 
 ```bash
-# Start with default settings (port 9000)
+# Start with default settings (port 8999)
 aider-server
 
 # Specify a different port for the JSON-RPC server

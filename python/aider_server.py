@@ -23,8 +23,8 @@ from aider.main import main
 def parse_args():
     # Create a parser that will extract the port argument
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
-    # parser.add_argument("--port", '--no-fancy-input', type=int, default=9000, help="Port for JSON-RPC server")
-    parser.add_argument("--port", type=int, default=9000, help="Port for JSON-RPC server")
+    # parser.add_argument("--port", '--no-fancy-input', type=int, default=8999, help="Port for JSON-RPC server")
+    parser.add_argument("--port", type=int, default=8999, help="Port for JSON-RPC server")
     
     # Parse known args to get the port
     args, unknown_args = parser.parse_known_args()

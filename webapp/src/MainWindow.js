@@ -41,8 +41,8 @@ export class MainWindow extends JRPCClient {
     this.showCommands = true; // Show commands by default
     this.showFileTree = true; // Show file tree by default
     this.showMergeEditor = true; // Show merge editor by default
-    this.serverURI = "ws://0.0.0.0:9000";
-    this.newServerURI = "ws://0.0.0.0:9000";
+    this.serverURI = "ws://0.0.0.0:8999";
+    this.newServerURI = "ws://0.0.0.0:8999";
     this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
     this.showConnectionDetails = false;
     this.reconnectTimeout = null; // Timeout for reconnection attempts

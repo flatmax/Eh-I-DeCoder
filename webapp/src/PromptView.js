@@ -26,7 +26,7 @@ export class PromptView extends JRPCClient {
     this.debug = false;
     this.messageHistory = [];
     this.inputValue = '';
-    this.serverURI = "ws://0.0.0.0:9000";
+    this.serverURI = "ws://0.0.0.0:8999";
     this.isProcessing = false;
     this.showVoiceInput = true;
     this.isMinimized = true;

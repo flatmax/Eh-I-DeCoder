@@ -18,7 +18,7 @@ export class Commands extends JRPCClient {
     super();
     this.commandOutput = [];
     this.showOutput = true; // Show output by default
-    this.serverURI = "ws://0.0.0.0:9000";
+    this.serverURI = "ws://0.0.0.0:8999";
   }
 
   static styles = css`

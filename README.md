@@ -75,7 +75,7 @@ You need to start both the backend and frontend components:
 After installation, use the `aider-server` console script:
 
 ```bash
-# Start with default settings (port 9000)
+# Start with default settings (port 8999)
 aider-server
 
 # Specify a different port for the JSON-RPC server
