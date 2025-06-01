@@ -163,67 +163,28 @@ export class RepoTree extends FileTree {
     }
   }
   
-  renderTreeNode(node, path = '') {
-    if (!node) return html``; // Handle null/undefined nodes
-    
-    const nodePath = path ? `${path}/${node.name}` : node.name;
-    const isAdded = node.isFile && this.addedFiles.includes(nodePath);
-    const hasChildren = node.children && Object.keys(node.children).length > 0;
-    const gitStatus = node.isFile ? this.getFileGitStatus(nodePath) : 'clean';
-    
-    const nodeClasses = {
-      'file-node': true,
-      'directory': !node.isFile,
-      'file': node.isFile,
-      [`git-${gitStatus}`]: node.isFile
-    };
-    
-    if (node.name === 'root') {
-      // Root node - just render its children
-      return html`
-        <div class="tree-root">
-          ${node.children ? Object.values(node.children)
-            .sort((a, b) => {
-              // Sort directories first, then by name
-              if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-              return a.name.localeCompare(b.name);
-            })
-            .map(child => this.renderTreeNode(child)) : ''}
-        </div>
-      `;
+  // Override to add git status classes
+  getAdditionalNodeClasses(node, nodePath) {
+    if (node.isFile) {
+      const gitStatus = this.getFileGitStatus(nodePath);
+      return {
+        [`git-${gitStatus}`]: gitStatus !== 'clean'
+      };
     }
-    
-    if (hasChildren) {
-      // Directory with children - add expand/collapse functionality
-      return html`
-        <details class="directory-details" open>
-          <summary class=${classMap(nodeClasses)}>
-            <span>${node.name}</span>
-          </summary>
-          <div class="children-container">
-            ${node.children ? Object.values(node.children)
-              .sort((a, b) => {
-                // Sort directories first, then by name
-                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-                return a.name.localeCompare(b.name);
-              })
-              .map(child => this.renderTreeNode(child, nodePath)) : ''}
-          </div>
-        </details>
-      `;
-    } else {
-      // File or empty directory
-      return html`
-        <div class=${classMap(nodeClasses)}>
-          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
-                               @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
-          <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
-          ${node.isFile && gitStatus !== 'clean' ? html`
-            <span class="git-status-indicator">${this.getGitStatusSymbol(gitStatus)}</span>
-          ` : ''}
-        </div>
-      `;
+    return {};
+  }
+  
+  // Override to add git status indicator
+  renderAdditionalIndicators(node, nodePath) {
+    if (node.isFile) {
+      const gitStatus = this.getFileGitStatus(nodePath);
+      if (gitStatus !== 'clean') {
+        return html`
+          <span class="git-status-indicator">${this.getGitStatusSymbol(gitStatus)}</span>
+        `;
+      }
     }
+    return html``;
   }
   
   getGitStatusSymbol(status) {

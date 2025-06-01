@@ -181,6 +181,16 @@ export class FileTree extends JRPCClient {
     }
   }
   
+  // Method to get additional node classes - can be overridden by subclasses
+  getAdditionalNodeClasses(node, nodePath) {
+    return {};
+  }
+  
+  // Method to render additional indicators - can be overridden by subclasses
+  renderAdditionalIndicators(node, nodePath) {
+    return html``;
+  }
+  
   renderTreeNode(node, path = '') {
     if (!node) return html``; // Handle null/undefined nodes
     
@@ -188,13 +198,14 @@ export class FileTree extends JRPCClient {
     const isAdded = node.isFile && this.addedFiles.includes(nodePath);
     const hasChildren = node.children && Object.keys(node.children).length > 0;
     
+    // Get basic node classes
     const nodeClasses = {
       'file-node': true,
       'directory': !node.isFile,
-      'file': node.isFile
+      'file': node.isFile,
+      // Add any additional classes from subclasses
+      ...this.getAdditionalNodeClasses(node, nodePath)
     };
-    
-    const iconName = node.isFile ? 'description' : 'folder';
     
     if (node.name === 'root') {
       // Root node - just render its children
@@ -236,6 +247,7 @@ export class FileTree extends JRPCClient {
           ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
                                @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
           <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
+          ${this.renderAdditionalIndicators(node, nodePath)}
         </div>
       `;
     }
