@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-aider-server = "python.aider_server:main_starter"
+aider-server = "eh_i_decoder.aider_server:main_starter"
 
 [project.urls]
 Homepage = "https://github.com/your-username/Eh-I-DeCoder"
@@ -24,4 +24,6 @@ Repository = "https://github.com/your-username/Eh-I-DeCoder.git"
 Issues = "https://github.com/your-username/Eh-I-DeCoder/issues"
 
 [tool.setuptools]
-py-modules = ["io_wrapper", "coder_wrapper", "base_wrapper", "simple_std_io", "repo_wrapper"]
+packages = ["eh_i_decoder"]
+package-dir = {"eh_i_decoder" = "."}
+py-modules = []

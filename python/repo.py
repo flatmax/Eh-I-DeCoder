@@ -1,6 +1,6 @@
 import git
 import os
-from base_wrapper import BaseWrapper
+from eh_i_decoder.base_wrapper import BaseWrapper
 
 
 class Repo(BaseWrapper):

@@ -6,7 +6,7 @@ import traceback
 from datetime import datetime
 import concurrent.futures
 import threading
-from base_wrapper import BaseWrapper
+from eh_i_decoder.base_wrapper import BaseWrapper
 
 # Enable tracemalloc for debugging
 tracemalloc.start()

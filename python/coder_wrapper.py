@@ -2,7 +2,7 @@ import asyncio
 import threading
 import traceback
 from datetime import datetime
-from base_wrapper import BaseWrapper
+from eh_i_decoder.base_wrapper import BaseWrapper
 
 
 class CoderWrapper(BaseWrapper):

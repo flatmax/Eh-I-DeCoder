@@ -1,18 +1,20 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="aider-server",
+    name="eh-i-decoder",
     version="0.1.0",
-    packages=find_packages(),
+    package_dir={"eh_i_decoder": "."},
+    packages=["eh_i_decoder"],
     include_package_data=True,
     install_requires=[
         "aider-chat",
-        # Add other dependencies as needed
+        "jrpc-oo",
+        "GitPython",
     ],
     entry_points={
         "console_scripts": [
-            "aider-server=python.aider_server:main_starter",
+            "aider-server=eh_i_decoder.aider_server:main_starter",
         ],
     },
-    python_requires=">=3.7",
+    python_requires=">=3.8",
 )

@@ -15,9 +15,9 @@ if os.path.exists('./jrpc-oo'):
     sys.path.insert(0, os.path.abspath('./jrpc-oo'))
 from jrpc_oo import JRPCServer
 
-from io_wrapper import IOWrapper
-from coder_wrapper import CoderWrapper
-from repo import Repo
+from eh_i_decoder.io_wrapper import IOWrapper
+from eh_i_decoder.coder_wrapper import CoderWrapper
+from eh_i_decoder.repo import Repo
 from aider.main import main
 
 def parse_args():
