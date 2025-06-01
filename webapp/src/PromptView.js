@@ -7,8 +7,12 @@ import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/iconbutton/filled-icon-button.js';
-import '../card-markdown.js';
+import { UserCard, AssistantCard } from './CardMarkdown.js';
 import './SpeechToText.js';
+
+// Register the custom elements
+customElements.define('user-card', UserCard);
+customElements.define('assistant-card', AssistantCard);
 
 export class PromptView extends JRPCClient {
   static properties = {
@@ -396,12 +400,13 @@ export class PromptView extends JRPCClient {
             ${repeat(
               this.messageHistory,
               (message, i) => i, // Using index as key since messages may not have unique IDs
-              message => html`
-                <card-markdown 
-                  .role=${message.role} 
-                  .content=${message.content}
-                ></card-markdown>
-              `
+              message => {
+                if (message.role === 'user') {
+                  return html`<user-card .content=${message.content}></user-card>`;
+                } else {
+                  return html`<assistant-card .content=${message.content}></assistant-card>`;
+                }
+              }
             )}
           </div>
           <div class="input-area">
