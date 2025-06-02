@@ -4,6 +4,61 @@ import traceback
 from datetime import datetime
 from eh_i_decoder.base_wrapper import BaseWrapper
 
+def apply_coder_create_patch():
+    """
+    Monkey patch Coder.create to detect new coder creation and type changes.
+    Call this function before importing or using aider.
+    """
+    from aider.coders.base_coder import Coder
+    
+    # Store the original create method
+    original_create = Coder.create
+    
+    # Add a field to track the current coder type
+    Coder._current_coder_type = None
+    Coder._coder_change_callbacks = []
+    
+    @classmethod
+    def patched_create(cls, *args, **kwargs):
+        # Call the original create method
+        result = original_create(*args, **kwargs)
+        
+        # Get coder details
+        coder_type = result.__class__.__name__
+        edit_format = getattr(result, 'edit_format', 'unknown')
+        
+        # Check if coder type has changed
+        if Coder._current_coder_type != coder_type:
+            print(f"🔄 Coder switched to: {coder_type} (edit_format: {edit_format})")
+            
+            # Log the change
+            with open('/tmp/coder_changes.log', 'a') as f:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                f.write(f"[{timestamp}] Coder switched to: {coder_type} (edit_format: {edit_format})\n")
+            
+            # Update current type
+            Coder._current_coder_type = coder_type
+            
+            # Call any registered callbacks
+            for callback in Coder._coder_change_callbacks:
+                try:
+                    callback(coder_type, edit_format, result)
+                except Exception as e:
+                    print(f"Error in coder change callback: {e}")
+        
+        return result
+    
+    # Replace the create method
+    Coder.create = patched_create
+    
+def register_coder_change_callback(callback):
+    """Register a callback to be called when coder type changes"""
+    from aider.coders.base_coder import Coder
+    if callback not in Coder._coder_change_callbacks:
+        Coder._coder_change_callbacks.append(callback)
+        return True
+    return False
+
 
 class CoderWrapper(BaseWrapper):
     """Wrapper for Coder that provides non-blocking run method"""
@@ -20,6 +75,22 @@ class CoderWrapper(BaseWrapper):
         self.original_run = coder.run
         # Replace with our wrapper method
         coder.run = self.run_wrapper
+        
+        # Register for coder type changes
+        from aider.coders.base_coder import Coder
+        if hasattr(Coder, '_coder_change_callbacks'):
+            self.log("Registering for coder change notifications")
+            register_coder_change_callback(self.on_coder_type_changed)
+    
+    def on_coder_type_changed(self, coder_type, edit_format, coder_instance):
+        """Handle coder type change events"""
+        self.log(f"Coder type changed to: {coder_type} (edit_format: {edit_format})")
+        
+        # You could send this to the webapp
+        self._safe_create_task(self.get_call()['MessageHandler.onCoderTypeChanged'](
+            coder_type, 
+            edit_format
+        ))
 
     def signal_completion(self):
         """Signal that command processing is complete"""

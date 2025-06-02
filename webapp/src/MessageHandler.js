@@ -311,10 +311,14 @@ export class MessageHandler extends JRPCClient {
   }
   
   /**
-   * Simple method to test RPC callbacks
+   * Handle coder type changes
+   * Called when the coder type is switched (e.g., to AskCoder)
    */
-  sayHello() {
-    console.log('Hello from MessageHandler!');
-    return 'Hello received';
+  onCoderTypeChanged(coderType) {
+    console.log(`Coder type changed to: ${coderType}`);
+    
+    // Request UI update
+    this.requestUpdate();
+    return true;
   }
 }

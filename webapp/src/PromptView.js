@@ -17,7 +17,8 @@ export class PromptView extends MessageHandler {
     ...MessageHandler.properties,
     inputValue: { type: String, state: true },
     showVoiceInput: { type: Boolean, state: true },
-    isMinimized: { type: Boolean, state: true }
+    isMinimized: { type: Boolean, state: true },
+    coderType: { type: String, state: true }
   };
   
   constructor() {
@@ -25,6 +26,7 @@ export class PromptView extends MessageHandler {
     this.inputValue = '';
     this.showVoiceInput = true;
     this.isMinimized = true;
+    this.coderType = 'Send';
     
     // Bind the click handler to maintain context
     this.handleDocumentClick = this.handleDocumentClick.bind(this);
@@ -328,7 +330,7 @@ export class PromptView extends MessageHandler {
                 @click=${this.sendPromptUI}
                 ?disabled=${this.isProcessing}
               >
-                ${this.isProcessing ? 'Processing...' : 'Send'}
+                ${this.isProcessing ? 'Processing...' : this.coderType}
               </md-filled-button>
               
               <div class="voice-input-container">
@@ -467,5 +469,20 @@ export class PromptView extends MessageHandler {
   _handleRecognitionError(event) {
     console.error('Speech recognition error:', event.detail.error);
     // Could show an error toast or message to the user
+  }
+
+  /**
+   * Override the MessageHandler.onCoderTypeChanged to update button label
+   */
+  onCoderTypeChanged(coderType) {
+    // Call the parent method
+    super.onCoderTypeChanged(coderType);
+    
+    // Update the coderType property to change the button label
+    this.coderType = coderType || 'Send';
+    
+    // Request UI update
+    this.requestUpdate();
+    return true;
   }
 }
