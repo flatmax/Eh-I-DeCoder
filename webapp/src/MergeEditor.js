@@ -1,9 +1,10 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView, keymap} from '@codemirror/view';
-import {EditorState, StateEffect, StateField} from '@codemirror/state';
+import {EditorState} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
 import {MergeView} from '@codemirror/merge';
+import {defaultKeymap, indentWithTab} from '@codemirror/commands';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {javascript} from '@codemirror/lang-javascript';
 import {python} from '@codemirror/lang-python';
@@ -251,14 +252,19 @@ export class MergeEditor extends JRPCClient {
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
             }),
-            // Add keyboard shortcut for save (Mod = Ctrl on Windows/Linux, Cmd on Mac)
-            keymap.of([{
-              key: "Mod-s",
-              run: () => {
-                this.saveChanges();
-                return true; // Prevent other keymap handlers
-              }
-            }])
+            // Add keyboard shortcuts
+            keymap.of([
+              // Save shortcut (Mod = Ctrl on Windows/Linux, Cmd on Mac)
+              {
+                key: "Mod-s",
+                run: () => {
+                  this.saveChanges();
+                  return true; // Prevent other keymap handlers
+                }
+              },
+              indentWithTab,
+              ...defaultKeymap
+            ])
           ]
         },
         parent: container,
