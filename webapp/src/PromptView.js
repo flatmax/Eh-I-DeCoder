@@ -18,7 +18,10 @@ export class PromptView extends MessageHandler {
     inputValue: { type: String, state: true },
     showVoiceInput: { type: Boolean, state: true },
     isMinimized: { type: Boolean, state: true },
-    coderType: { type: String, state: true }
+    coderType: { type: String, state: true },
+    // Drag properties
+    isDragging: { type: Boolean, state: true },
+    dialogPosition: { type: Object, state: true }
   };
   
   constructor() {
@@ -28,8 +31,16 @@ export class PromptView extends MessageHandler {
     this.isMinimized = true;
     this.coderType = 'Send';
     
-    // Bind the click handler to maintain context
+    // Drag state
+    this.isDragging = false;
+    this.dialogPosition = { x: 0, y: 0 };
+    this.dragOffset = { x: 0, y: 0 };
+    
+    // Bind event handlers to maintain context
     this.handleDocumentClick = this.handleDocumentClick.bind(this);
+    this.handleDragStart = this.handleDragStart.bind(this);
+    this.handleDrag = this.handleDrag.bind(this);
+    this.handleDragEnd = this.handleDragEnd.bind(this);
   }
 
   static styles = css`
@@ -56,6 +67,16 @@ export class PromptView extends MessageHandler {
       max-height: calc(100vh - 40px);
     }
     
+    :host(.dragging) {
+      transition: none;
+    }
+    
+    :host(.dragging.maximized),
+    :host(.dragged.maximized) {
+      position: absolute;
+      transform: none !important;
+    }
+    
     .dialog-container {
       width: 100%;
       height: 100%;
@@ -76,6 +97,11 @@ export class PromptView extends MessageHandler {
       background: #f5f5f5;
       border-bottom: 1px solid #e0e0e0;
       min-height: 48px;
+      user-select: none; /* Prevent text selection during drag */
+    }
+    
+    :host(.maximized) .dialog-header {
+      cursor: move; /* Indicate draggable only when maximized */
     }
     
     .dialog-title {
@@ -202,13 +228,89 @@ export class PromptView extends MessageHandler {
     
     // Add document click listener
     document.addEventListener('click', this.handleDocumentClick, true);
+    // Add global mouse event listeners for dragging
+    document.addEventListener('mousemove', this.handleDrag);
+    document.addEventListener('mouseup', this.handleDragEnd);
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
     
-    // Remove document click listener
+    // Remove all event listeners
     document.removeEventListener('click', this.handleDocumentClick, true);
+    document.removeEventListener('mousemove', this.handleDrag);
+    document.removeEventListener('mouseup', this.handleDragEnd);
+  }
+  
+  // Drag event handlers
+  handleDragStart(event) {
+    if (this.isMinimized) return; // Don't drag in minimized state
+    
+    // Get current position
+    const rect = this.getBoundingClientRect();
+    
+    // Calculate the offset between mouse position and dialog top-left
+    this.dragOffset = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    
+    // Remove transform and set initial absolute position
+    this.classList.add('dragging');
+    
+    // Set position before marking as dragging to avoid jumps
+    const initialX = rect.left;
+    const initialY = rect.top;
+    
+    // Apply position immediately
+    this.style.top = `${initialY}px`;
+    this.style.left = `${initialX}px`;
+    
+    // Update stored position
+    this.dialogPosition = { x: initialX, y: initialY };
+    
+    // Mark as dragging after positioning is set
+    this.isDragging = true;
+    
+    // Prevent default to avoid text selection
+    event.preventDefault();
+  }
+  
+  handleDrag(event) {
+    if (!this.isDragging) return;
+    
+    // Calculate new position
+    const x = event.clientX - this.dragOffset.x;
+    const y = event.clientY - this.dragOffset.y;
+    
+    // Update position
+    this.dialogPosition = { x, y };
+    this.hasBeenDragged = true;
+    
+    // Apply position
+    this.style.top = `${y}px`;
+    this.style.left = `${x}px`;
+    
+    event.preventDefault();
+  }
+  
+  handleDragEnd() {
+    if (!this.isDragging) return;
+    
+    // Store final position before changing drag state
+    const finalPosition = { ...this.dialogPosition };
+    
+    // Update dragging state
+    this.isDragging = false;
+    
+    // Keep the dragging class to maintain absolute positioning
+    // but add a specific class for no-longer-dragging state
+    this.classList.remove('dragging');
+    this.classList.add('dragged');
+    
+    // Ensure position is maintained
+    this.style.top = `${finalPosition.y}px`;
+    this.style.left = `${finalPosition.x}px`;
   }
   
   
@@ -249,11 +351,36 @@ export class PromptView extends MessageHandler {
   
   updateDialogClass() {
     if (this.isMinimized) {
+      // Clear dragging-related classes
+      this.classList.remove('dragging', 'dragged');
+      
+      // Update minimized/maximized classes
       this.classList.add('minimized');
       this.classList.remove('maximized');
+      
+      // Reset any custom positioning when minimizing
+      this.style.top = '';
+      this.style.left = '';
     } else {
+      // Update maximized/minimized classes
       this.classList.add('maximized');
       this.classList.remove('minimized');
+      
+      // Only apply custom position if we've dragged before
+      if (this.hasBeenDragged) {
+        // Apply position directly without timeout
+        this.style.top = `${this.dialogPosition.y}px`;
+        this.style.left = `${this.dialogPosition.x}px`;
+        
+        // Use 'dragged' class for previously dragged dialogs
+        // This keeps absolute positioning but without active drag state
+        this.classList.add('dragged');
+      } else {
+        // Reset to center position
+        this.style.top = '';
+        this.style.left = '';
+        this.classList.remove('dragging', 'dragged');
+      }
     }
   }
   
@@ -266,6 +393,15 @@ export class PromptView extends MessageHandler {
   maximize() {
     if (this.isMinimized) {
       this.isMinimized = false;
+      
+      // If this is the first maximization and we haven't dragged,
+      // position in center of screen
+      if (!this.hasBeenDragged) {
+        // We'll let CSS handle initial positioning
+        this.style.top = '';
+        this.style.left = '';
+      }
+      
       this.updateDialogClass();
       this.requestUpdate();
     }
@@ -285,7 +421,7 @@ export class PromptView extends MessageHandler {
   render() {
     return html`
       <div class="dialog-container" @click=${this.handleDialogClick}>
-        <div class="dialog-header">
+        <div class="dialog-header" @mousedown=${this.handleDragStart}>
           <h3 class="dialog-title">AI Assistant</h3>
           <div class="dialog-controls">
             <md-filled-icon-button 
