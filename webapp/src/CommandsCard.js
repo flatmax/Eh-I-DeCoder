@@ -79,8 +79,6 @@ export class CommandsCard extends LitElement {
   `;
 
   render() {
-    console.log('CommandsCard render with output:', this.commandOutput);
-    
     return html`
       <div class="command-card">
         <div class="card-header">
@@ -98,18 +96,16 @@ export class CommandsCard extends LitElement {
 
   updated(changedProperties) {
     if (changedProperties.has('commandOutput')) {
-      console.log('CommandsCard commandOutput updated:', this.commandOutput);
       this.requestUpdate();
     }
   }
 
   _formatOutput() {
     if (!this.commandOutput || !Array.isArray(this.commandOutput) || this.commandOutput.length === 0) {
-      console.warn('CommandsCard: No output to display');
       return '';
     }
 
-    const formattedOutput = this.commandOutput
+    return this.commandOutput
       .map(item => {
         let text;
         
@@ -129,9 +125,6 @@ export class CommandsCard extends LitElement {
         return text;
       })
       .join('\n'); // Join with newlines instead of empty string
-    
-    console.log('Formatted output:', formattedOutput);
-    return formattedOutput;
   }
 
   _clearOutput(e) {

@@ -182,11 +182,6 @@ export class MessageHandler extends JRPCClient {
    * Process stream chunk asynchronously
    */
   async _processStreamChunk(chunk, final = false, role = 'assistant') {
-    const timestamp = new Date();
-    console.log(`Chunk received at ${timestamp.toISOString()} (${timestamp.getTime()})`, 
-      typeof chunk === 'string' ? `length: ${chunk.length}` : 'non-string chunk', 
-      'final:', final, 'role:', role);
-    
     // If chunk is null or undefined, handle gracefully
     if (!chunk) {
       console.warn('Received empty chunk');
@@ -197,7 +192,6 @@ export class MessageHandler extends JRPCClient {
 
     // If final is true, prepare for the next message and refresh file tree
     if (final) {
-      console.log('Final chunk received, preparing for next message and refreshing file tree');
       // Refresh the file tree to update git status and context
       this._refreshFileTree();
     }
@@ -213,7 +207,6 @@ export class MessageHandler extends JRPCClient {
    * Handle message chunks
    */
   _handleChunk(chunk, final, role) {
-    console.log(chunk)
     // If there's no role message yet, create one
     if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
       if (role === 'command') {
@@ -236,11 +229,8 @@ export class MessageHandler extends JRPCClient {
         this.messageHistory[lastIndex].commandOutput = [];
       }
       
-      // Process newlines in chunk to make output more readable
-      const processedChunk = chunk;
-      
       // Create a new array to ensure the property change is detected
-      const updatedCommandOutput = [...this.messageHistory[lastIndex].commandOutput, processedChunk];
+      const updatedCommandOutput = [...this.messageHistory[lastIndex].commandOutput, chunk];
       this.messageHistory[lastIndex].commandOutput = updatedCommandOutput;
       
       // Also keep the content updated for backward compatibility
@@ -252,8 +242,6 @@ export class MessageHandler extends JRPCClient {
     
     // Force a re-render by creating a new array
     this.messageHistory = [...this.messageHistory];
-    console.log(this.messageHistory[lastIndex].role, 
-      this.messageHistory[lastIndex].commandOutput || this.messageHistory[lastIndex].content)
   }
   
   /**
@@ -295,14 +283,12 @@ export class MessageHandler extends JRPCClient {
    * Process stream completion asynchronously
    */
   async _processStreamComplete() {
-    console.log('Streaming complete - resetting isProcessing flag');
     // Mark processing as complete
     this.isProcessing = false;
     this.requestUpdate();
     
     // Force the update to be processed immediately
     await this.updateComplete;
-    console.log('Update completed after streaming complete');
     
     // Call hook for subclasses
     this.onStreamComplete?.();

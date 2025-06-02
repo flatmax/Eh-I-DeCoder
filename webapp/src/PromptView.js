@@ -454,7 +454,6 @@ export class PromptView extends MessageHandler {
    */
   async onStreamComplete() {
     await this.updateComplete;
-    console.log('UI updated after streaming complete');
   }
   
   /**

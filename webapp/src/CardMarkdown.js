@@ -105,12 +105,8 @@ export class CardMarkdown extends LitElement {
       'assistant-card': this.role === 'assistant',
       'command-card': this.role === 'command'
     };
-console.log('this.content')
-console.log(this.content)
     // Parse markdown content
     const parsedContent = marked(this.content || '');
-    console.log('parsedContent')
-    console.log(parsedContent)
 
     return html`
       <div class=${classMap(classes)}>
