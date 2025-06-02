@@ -209,35 +209,6 @@ export class PromptView extends MessageHandler {
     document.removeEventListener('click', this.handleDocumentClick, true);
   }
   
-  /**
-   * Handle clear output event from CommandsCard
-   */
-  handleClearOutput(event) {
-    // Find the command message that triggered this event
-    const commandsCard = event.target;
-    const messageIndex = Array.from(this.shadowRoot.querySelectorAll('commands-card')).indexOf(commandsCard);
-    
-    // Find the corresponding command message in history
-    let commandMessageIndex = -1;
-    let commandCount = 0;
-    
-    for (let i = 0; i < this.messageHistory.length; i++) {
-      if (this.messageHistory[i].role === 'command') {
-        if (commandCount === messageIndex) {
-          commandMessageIndex = i;
-          break;
-        }
-        commandCount++;
-      }
-    }
-    
-    if (commandMessageIndex >= 0) {
-      // Remove the command message from history
-      this.messageHistory.splice(commandMessageIndex, 1);
-      this.messageHistory = [...this.messageHistory]; // Force reactivity
-      this.requestUpdate();
-    }
-  }
   
   handleDocumentClick(event) {
     // Check if the click is inside the dialog
@@ -334,11 +305,7 @@ export class PromptView extends MessageHandler {
                 } else if (message.role === 'assistant') {
                   return html`<assistant-card .content=${message.content}></assistant-card>`;
                 } else if (message.role === 'command') {
-                  return html`<commands-card 
-                    .commandOutput=${[...message.commandOutput || []]} 
-                    .title=${'Command Output'}
-                    @clear-output=${this.handleClearOutput}
-                  ></commands-card>`;
+                  return html`<commands-card .content=${message.content}></commands-card>`;
                 }
               }
             )}

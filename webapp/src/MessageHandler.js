@@ -209,32 +209,18 @@ export class MessageHandler extends JRPCClient {
   _handleChunk(chunk, final, role) {
     // If there's no role message yet, create one
     if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
-      if (role === 'command') {
-        // Initialize command message with empty commandOutput array
-        this.messageHistory.push({
-          role: 'command',
-          content: '',
-          commandOutput: []
-        });
-      } else {
-        this.addMessageToHistory(role, '');
-      }
+      this.addMessageToHistory(role, '');
     }
     
     // Append the chunk to the last message
     const lastIndex = this.messageHistory.length - 1;
     if (role === 'command') {
-      // For command role, add to the commandOutput array
-      if (!this.messageHistory[lastIndex].commandOutput) {
-        this.messageHistory[lastIndex].commandOutput = [];
+      // For command role, append to content (with newline if not empty)
+      if (this.messageHistory[lastIndex].content) {
+        this.messageHistory[lastIndex].content += '\n' + chunk;
+      } else {
+        this.messageHistory[lastIndex].content = chunk;
       }
-      
-      // Create a new array to ensure the property change is detected
-      const updatedCommandOutput = [...this.messageHistory[lastIndex].commandOutput, chunk];
-      this.messageHistory[lastIndex].commandOutput = updatedCommandOutput;
-      
-      // Also keep the content updated for backward compatibility
-      this.messageHistory[lastIndex].content += chunk;
     } else {
       // For other roles, just update the content
       this.messageHistory[lastIndex].content = chunk;
