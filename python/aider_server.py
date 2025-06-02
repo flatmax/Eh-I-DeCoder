@@ -16,11 +16,11 @@ if os.path.exists('./jrpc-oo'):
 from jrpc_oo import JRPCServer
 
 from eh_i_decoder.io_wrapper import IOWrapper
-from eh_i_decoder.coder_wrapper import CoderWrapper, apply_coder_create_patch
+from eh_i_decoder.coder_wrapper import CoderWrapper
 from eh_i_decoder.repo import Repo
 
 # Apply the monkey patch before importing aider modules
-apply_coder_create_patch()
+CoderWrapper.apply_coder_create_patch()
 
 from aider.main import main
 
