@@ -13,6 +13,10 @@ A modern, web-based AI IDE that brings the power of AI pair programming directly
 ### 3. AI Error Correction Decoder - Quantum-Inspired Error Handling
 Drawing inspiration from Quantum Error Correcting Code (QECC) decoders, Eh-I-DeCoder applies similar principles to AI-assisted coding. Just as quantum computers use error correction to detect and fix quantum state corruption in noisy environments, this tool helps detect when AI-generated code introduces bugs or unexpected behavior, recognizes patterns in AI coding mistakes, and provides corrective suggestions - all operating in the inherently noisy environment where both quantum systems and AI coding assistants are prone to errors that require intelligent correction mechanisms.
 
+## Demo
+
+![Demo of Eh-I-DeCoder in action](https://github.com/user-attachments/assets/3e0719e9-769a-4242-8241-7fc585d4c799)
+
 ---
 
 This is a web-based interface for the [Aider](https://github.com/Aider-AI/aider) AI pair programming tool. The application consists of two components:
