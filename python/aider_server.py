@@ -9,6 +9,7 @@ from datetime import datetime
 import sys
 import os
 from pathlib import Path
+import threading
 
 # Add local jrpc-oo to path if needed
 if os.path.exists('./jrpc-oo'):
@@ -44,24 +45,40 @@ async def main_starter_async():
     
     # simple_stdio = SimpleStdIO()
 
-    # Start aider in API mode and get the coder instance
-    # coder = main(aider_args, return_coder=True, input = simple_stdio.input, output = simple_stdio.output)
-    # coder = main(aider_args, return_coder=True, input = simple_stdio.input)
-    coder = main(aider_args, return_coder=True)
-    coder.io.yes = None  # Now confirm_ask will actually prompt the user
-
-    # Add the coder instance directly to the server with explicit class name
-    jrpc_server.add_class(coder, 'EditBlockCoder')
-    # Add the coder's commands to the server
-    jrpc_server.add_class(coder.commands, 'Commands')
+    # Start aider in a separate thread so it doesn't block the asyncio loop                                                                                                                          
+    aider_thread = threading.Thread(target=main, args=(aider_args,), daemon=True)
+    aider_thread.start()
     
-    # Create a Repo instance and add it to the server
-    repo = Repo()
-    jrpc_server.add_class(repo, 'Repo')
+    # Wait for the coder instance to be initialized instead of arbitrary sleep
+    print("Waiting for coder initialization...")
+    timeout = 60  # seconds
+    start_time = asyncio.get_event_loop().time()
+    while CoderWrapper._coder_instance is None:
+        if asyncio.get_event_loop().time() - start_time > timeout:
+            print(f"Timed out waiting for coder initialization after {timeout} seconds")
+            break
+        await asyncio.sleep(0.5)  # Check every half second
     
-    # Create a CoderWrapper to handle non-blocking run method
+    if CoderWrapper._coder_instance:
+        print(f"Coder initialized after {asyncio.get_event_loop().time() - start_time:.1f} seconds")
+    else:
+        print("Warning: Coder initialization may not be complete")
+                                
+    # Create a CoderWrapper to handle non-blocking run method using stored coder
     try:
-        coder_wrapper = CoderWrapper(coder)
+        coder_wrapper = CoderWrapper()
+        coder = coder_wrapper.coder
+        coder.io.yes = None  # Now confirm_ask will actually prompt the user
+        
+        # Add the coder instance directly to the server with explicit class name
+        jrpc_server.add_class(coder, 'EditBlockCoder')
+        # Add the coder's commands to the server
+        jrpc_server.add_class(coder.commands, 'Commands')
+        
+        # Create a Repo instance and add it to the server
+        repo = Repo()
+        jrpc_server.add_class(repo, 'Repo')
+        
         jrpc_server.add_class(coder_wrapper, 'CoderWrapper')
         print(f"Coder wrapper created successfully: {coder_wrapper}")
     except Exception as e:

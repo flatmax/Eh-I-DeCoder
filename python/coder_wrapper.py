@@ -6,6 +6,8 @@ from eh_i_decoder.base_wrapper import BaseWrapper
 
 
 class CoderWrapper(BaseWrapper):
+    # Class variable to store the coder instance
+    _coder_instance = None
     @staticmethod
     def apply_coder_create_patch():
         """
@@ -29,6 +31,9 @@ class CoderWrapper(BaseWrapper):
             # Get coder details
             coder_type = result.__class__.__name__
             edit_format = getattr(result, 'edit_format', 'unknown')
+            
+            # Store the coder instance in CoderWrapper
+            CoderWrapper._coder_instance = result
             
             # Check if coder type has changed
             if Coder._current_coder_type != coder_type:
@@ -63,7 +68,17 @@ class CoderWrapper(BaseWrapper):
         return False
     """Wrapper for Coder that provides non-blocking run method"""
     
-    def __init__(self, coder):
+    @classmethod
+    def get_coder(cls):
+        """Get the current coder instance"""
+        return cls._coder_instance
+
+    def __init__(self, coder=None):
+        if coder is None:
+            coder = self.__class__._coder_instance
+            if coder is None:
+                raise ValueError("No coder instance available, and none was provided")
+        
         self.coder = coder
         self.log_file = '/tmp/coder_wrapper.log'
         self.log(f"CoderWrapper initialized with coder: {coder}")
@@ -85,7 +100,7 @@ class CoderWrapper(BaseWrapper):
     def on_coder_type_changed(self, coder_type, edit_format, coder_instance):
         """Handle coder type change events"""
         self.log(f"Coder type changed to: {coder_type} (edit_format: {edit_format})")
-        
+        self.coder = coder_instance
         # You could send this to the webapp
         self._safe_create_task(self.get_call()['MessageHandler.onCoderTypeChanged'](
             coder_type, 
