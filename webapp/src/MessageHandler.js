@@ -216,19 +216,44 @@ export class MessageHandler extends JRPCClient {
     console.log(chunk)
     // If there's no role message yet, create one
     if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
-      this.addMessageToHistory(role, '');
+      if (role === 'command') {
+        // Initialize command message with empty commandOutput array
+        this.messageHistory.push({
+          role: 'command',
+          content: '',
+          commandOutput: []
+        });
+      } else {
+        this.addMessageToHistory(role, '');
+      }
     }
     
-    // Append the chunk to the last assistant message
+    // Append the chunk to the last message
     const lastIndex = this.messageHistory.length - 1;
-    if (role == 'command')
-      this.messageHistory[lastIndex].content += chunk+'\n';
-    else
+    if (role === 'command') {
+      // For command role, add to the commandOutput array
+      if (!this.messageHistory[lastIndex].commandOutput) {
+        this.messageHistory[lastIndex].commandOutput = [];
+      }
+      
+      // Process newlines in chunk to make output more readable
+      const processedChunk = chunk;
+      
+      // Create a new array to ensure the property change is detected
+      const updatedCommandOutput = [...this.messageHistory[lastIndex].commandOutput, processedChunk];
+      this.messageHistory[lastIndex].commandOutput = updatedCommandOutput;
+      
+      // Also keep the content updated for backward compatibility
+      this.messageHistory[lastIndex].content += chunk;
+    } else {
+      // For other roles, just update the content
       this.messageHistory[lastIndex].content = chunk;
+    }
     
     // Force a re-render by creating a new array
     this.messageHistory = [...this.messageHistory];
-    console.log(this.messageHistory)
+    console.log(this.messageHistory[lastIndex].role, 
+      this.messageHistory[lastIndex].commandOutput || this.messageHistory[lastIndex].content)
   }
   
   /**

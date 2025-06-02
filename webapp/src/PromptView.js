@@ -335,7 +335,7 @@ export class PromptView extends MessageHandler {
                   return html`<assistant-card .content=${message.content}></assistant-card>`;
                 } else if (message.role === 'command') {
                   return html`<commands-card 
-                    .commandOutput=${message.commandOutput}
+                    .commandOutput=${[...message.commandOutput || []]} 
                     .title=${'Command Output'}
                     @clear-output=${this.handleClearOutput}
                   ></commands-card>`;
