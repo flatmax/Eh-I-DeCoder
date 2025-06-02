@@ -134,9 +134,6 @@ export class MessageHandler extends JRPCClient {
     this.isProcessing = true;
     
     try {
-      // Add placeholder for assistant response
-      this.addMessageToHistory('assistant', '');
-      
       // Call EditBlockCoder.run with named argument dictionary
       console.log('Calling EditBlockCoder.run...');
       this.call['EditBlockCoder.run'](message)
