@@ -21,7 +21,10 @@ export class PromptView extends MessageHandler {
     coderType: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
-    dialogPosition: { type: Object, state: true }
+    minimizedPosition: { type: Object, state: true },
+    maximizedPosition: { type: Object, state: true },
+    hasBeenDraggedMinimized: { type: Boolean, state: true },
+    hasBeenDraggedMaximized: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -33,7 +36,10 @@ export class PromptView extends MessageHandler {
     
     // Drag state
     this.isDragging = false;
-    this.dialogPosition = { x: 0, y: 0 };
+    this.minimizedPosition = { x: 0, y: 0 };
+    this.maximizedPosition = { x: 0, y: 0 };
+    this.hasBeenDraggedMinimized = false;
+    this.hasBeenDraggedMaximized = false;
     this.dragOffset = { x: 0, y: 0 };
     
     // Bind event handlers to maintain context
@@ -56,6 +62,12 @@ export class PromptView extends MessageHandler {
       right: 20px;
       width: calc(100vw / 6);
       height: 120px;
+    }
+    
+    /* When minimized and moved by user */
+    :host(.minimized.dragged) {
+      bottom: auto;
+      right: auto;
     }
     
     :host(.maximized) {
@@ -98,10 +110,7 @@ export class PromptView extends MessageHandler {
       border-bottom: 1px solid #e0e0e0;
       min-height: 48px;
       user-select: none; /* Prevent text selection during drag */
-    }
-    
-    :host(.maximized) .dialog-header {
-      cursor: move; /* Indicate draggable only when maximized */
+      cursor: move; /* Always indicate draggable */
     }
     
     .dialog-title {
@@ -244,8 +253,6 @@ export class PromptView extends MessageHandler {
   
   // Drag event handlers
   handleDragStart(event) {
-    if (this.isMinimized) return; // Don't drag in minimized state
-    
     // Get current position
     const rect = this.getBoundingClientRect();
     
@@ -266,8 +273,12 @@ export class PromptView extends MessageHandler {
     this.style.top = `${initialY}px`;
     this.style.left = `${initialX}px`;
     
-    // Update stored position
-    this.dialogPosition = { x: initialX, y: initialY };
+    // Update stored position based on current state
+    if (this.isMinimized) {
+      this.minimizedPosition = { x: initialX, y: initialY };
+    } else {
+      this.maximizedPosition = { x: initialX, y: initialY };
+    }
     
     // Mark as dragging after positioning is set
     this.isDragging = true;
@@ -283,9 +294,14 @@ export class PromptView extends MessageHandler {
     const x = event.clientX - this.dragOffset.x;
     const y = event.clientY - this.dragOffset.y;
     
-    // Update position
-    this.dialogPosition = { x, y };
-    this.hasBeenDragged = true;
+    // Update position based on current state
+    if (this.isMinimized) {
+      this.minimizedPosition = { x, y };
+      this.hasBeenDraggedMinimized = true;
+    } else {
+      this.maximizedPosition = { x, y };
+      this.hasBeenDraggedMaximized = true;
+    }
     
     // Apply position
     this.style.top = `${y}px`;
@@ -298,7 +314,12 @@ export class PromptView extends MessageHandler {
     if (!this.isDragging) return;
     
     // Store final position before changing drag state
-    const finalPosition = { ...this.dialogPosition };
+    let finalPosition;
+    if (this.isMinimized) {
+      finalPosition = { ...this.minimizedPosition };
+    } else {
+      finalPosition = { ...this.maximizedPosition };
+    }
     
     // Update dragging state
     this.isDragging = false;
@@ -351,26 +372,37 @@ export class PromptView extends MessageHandler {
   
   updateDialogClass() {
     if (this.isMinimized) {
-      // Clear dragging-related classes
-      this.classList.remove('dragging', 'dragged');
-      
       // Update minimized/maximized classes
       this.classList.add('minimized');
       this.classList.remove('maximized');
       
-      // Reset any custom positioning when minimizing
-      this.style.top = '';
-      this.style.left = '';
+      // Remove dragging class but keep dragged if previously moved
+      this.classList.remove('dragging');
+      
+      // Only apply custom position if we've dragged this state before
+      if (this.hasBeenDraggedMinimized) {
+        // Apply position directly
+        this.style.top = `${this.minimizedPosition.y}px`;
+        this.style.left = `${this.minimizedPosition.x}px`;
+        
+        // Use 'dragged' class for previously dragged dialogs
+        this.classList.add('dragged');
+      } else {
+        // Reset to default bottom-right position
+        this.style.top = '';
+        this.style.left = '';
+        this.classList.remove('dragged');
+      }
     } else {
       // Update maximized/minimized classes
       this.classList.add('maximized');
       this.classList.remove('minimized');
       
-      // Only apply custom position if we've dragged before
-      if (this.hasBeenDragged) {
+      // Only apply custom position if we've dragged this state before
+      if (this.hasBeenDraggedMaximized) {
         // Apply position directly without timeout
-        this.style.top = `${this.dialogPosition.y}px`;
-        this.style.left = `${this.dialogPosition.x}px`;
+        this.style.top = `${this.maximizedPosition.y}px`;
+        this.style.left = `${this.maximizedPosition.x}px`;
         
         // Use 'dragged' class for previously dragged dialogs
         // This keeps absolute positioning but without active drag state
