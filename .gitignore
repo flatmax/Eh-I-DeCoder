@@ -42,3 +42,7 @@ htmlcov/
 .spyderproject
 .spyproject
 .aider*
+
+# WebApp
+webapp/node_modules/
+webapp/package-lock.json
