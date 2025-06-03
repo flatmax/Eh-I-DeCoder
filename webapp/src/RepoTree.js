@@ -90,6 +90,23 @@ export class RepoTree extends FileTree {
     
     // Then load the file tree with preserved scroll position
     await super.loadFileTree(scrollPosition);
+    
+    // After the parent has loaded the file tree and expanded directories with checked files,
+    // also expand directories that contain git-modified files
+    if (this.modifiedFiles.length > 0 || this.stagedFiles.length > 0) {
+      // Expand directories with modified files
+      this.modifiedFiles.forEach(filePath => {
+        this._expandPathToFile(filePath);
+      });
+      
+      // Expand directories with staged files
+      this.stagedFiles.forEach(filePath => {
+        this._expandPathToFile(filePath);
+      });
+      
+      // Request an update to reflect the expanded state
+      this.requestUpdate();
+    }
   }
   
   getFileGitStatus(filePath) {

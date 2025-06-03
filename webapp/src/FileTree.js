@@ -87,6 +87,21 @@ export class FileTree extends JRPCClient {
     }
   }
   
+  // Expand all parent directories for a given file path
+  _expandPathToFile(filePath) {
+    if (!filePath) return;
+    
+    const parts = filePath.split('/');
+    let currentPath = '';
+    
+    // For each part of the path except the last one (which is the file)
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+      // Mark this directory as expanded
+      this.expandedDirs[currentPath] = true;
+    }
+  }
+  
   async loadFileTree(scrollPosition = 0) {
     try {
       this.loading = true;
@@ -129,6 +144,18 @@ export class FileTree extends JRPCClient {
       
       // Build the file tree structure from all files
       this.treeData = this.buildTreeFromPaths(this.files);
+      
+      // Initially collapse all directories
+      this.expandedDirs = {};
+      this._setAllExpandedState(this.treeData, false);
+      
+      // Then ensure directories with added files are expanded
+      if (this.addedFiles && this.addedFiles.length > 0) {
+        // For each added file, expand the path to it
+        this.addedFiles.forEach(filePath => {
+          this._expandPathToFile(filePath);
+        });
+      }
     } catch (error) {
       console.error('Error loading file tree:', error);
       this.error = `Failed to load file tree: ${error.message}`;
@@ -276,10 +303,12 @@ export class FileTree extends JRPCClient {
     if (hasChildren) {
       // Directory with children - add expand/collapse functionality
       // Use the expandedDirs object to determine if this directory should be open
-      const isOpen = this.expandedDirs[nodePath] !== false;
+      const isOpen = !!this.expandedDirs[nodePath];
       
       return html`
-        <details class="directory-details" ?open=${isOpen}>
+        <details class="directory-details" ?open=${isOpen} @toggle=${(e) => {
+          this.expandedDirs[nodePath] = e.target.open;
+        }}>
           <summary class=${classMap(nodeClasses)}>
             <span>${node.name}</span>
           </summary>
