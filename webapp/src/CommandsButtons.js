@@ -22,7 +22,7 @@ export class CommandsButtons extends JRPCClient {
     this.commands = [];
     this.loading = false;
     this.error = null;
-    this.serverURI = "ws://0.0.0.0:8999";
+    this.serverURI = "";  // Will be set from parent component
   }
 
   static styles = css`

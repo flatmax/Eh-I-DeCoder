@@ -16,7 +16,7 @@ export class MessageHandler extends JRPCClient {
     this.debug = false;
     this.messageHistory = [];
     this.isProcessing = false;
-    this.serverURI = "ws://0.0.0.0:8999";
+    this.serverURI = "";  // Will be set from parent component
     this.messageHistory = [
       { role: 'user', content: '' },
       { role: 'assistant', content: '' }

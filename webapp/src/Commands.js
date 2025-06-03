@@ -15,7 +15,7 @@ export class Commands extends JRPCClient {
     super();
     this.commandOutput = [];
     this.showOutput = true; // Show output by default
-    this.serverURI = "ws://0.0.0.0:8999";
+    this.serverURI = "";  // Will be set from parent component
   }
   
   connectedCallback() {
