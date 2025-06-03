@@ -41,8 +41,17 @@ export class MainWindow extends JRPCClient {
     this.showCommands = true; // Show commands by default
     this.showFileTree = true; // Show file tree by default
     this.showMergeEditor = true; // Show merge editor by default
-    this.serverURI = "ws://0.0.0.0:8999";
-    this.newServerURI = "ws://0.0.0.0:8999";
+    
+    // Check if port is specified in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const port = urlParams.get('port');
+    
+    // Set server URI based on URL parameter or default to 8999
+    const serverPort = port || '8999';
+    this.serverURI = `ws://0.0.0.0:${serverPort}`;
+    console.log('serverURI ', port)
+    console.log('serverURI ', serverPort)
+    this.newServerURI = this.serverURI;
     this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
     this.showConnectionDetails = false;
     this.reconnectTimeout = null; // Timeout for reconnection attempts
