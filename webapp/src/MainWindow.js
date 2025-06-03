@@ -49,8 +49,6 @@ export class MainWindow extends JRPCClient {
     // Set server URI based on URL parameter or default to 8999
     const serverPort = port || '8999';
     this.serverURI = `ws://0.0.0.0:${serverPort}`;
-    console.log('serverURI ', port)
-    console.log('serverURI ', serverPort)
     this.newServerURI = this.serverURI;
     this.connectionStatus = 'disconnected'; // 'disconnected', 'connecting', 'connected'
     this.showConnectionDetails = false;
@@ -634,14 +632,30 @@ export class MainWindow extends JRPCClient {
   }
 
   /**
-   * Update the server URI and reconnect
+   * Update the server URI and reconnect by changing browser URL with port parameter
+   * and forcing the page to reload
    */
   updateServerURI() {
     if (this.newServerURI && this.newServerURI !== this.serverURI) {
-      this.serverURI = this.newServerURI;
-      console.log(`Connecting to server at: ${this.serverURI}`);
-      this.connectionStatus = 'connecting';
-      this.requestUpdate();
+      // Extract port from the new server URI (format: ws://0.0.0.0:PORT)
+      const portMatch = this.newServerURI.match(/:(\d+)$/);
+      if (portMatch && portMatch[1]) {
+        const port = portMatch[1];
+        
+        // Create a new URL based on the current location
+        const url = new URL(window.location.href);
+        
+        // Set the port parameter
+        url.searchParams.set('port', port);
+        
+        console.log(`Redirecting to: ${url.toString()}`);
+        
+        // Redirect to the new URL, forcing a page reload
+        window.location.href = url.toString();
+      } else {
+        console.error('Invalid server URI format, expected ws://host:port');
+        alert('Invalid server URI format. Expected: ws://host:port');
+      }
     }
   }
 
@@ -655,6 +669,7 @@ export class MainWindow extends JRPCClient {
     
     // Wait for the DOM update to complete before accessing child components
     this.updateComplete.then(() => {
+      console.log('updateComplete ', this.serverURI)
       // Find child components and update their server URIs
       const promptView = this.shadowRoot.querySelector('prompt-view');
       const commandsView = this.shadowRoot.querySelector('aider-commands');
