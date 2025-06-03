@@ -30,6 +30,32 @@ class Repo(BaseWrapper):
             self.log(f"Error initializing Git repository: {e}")
             self.repo = None
     
+    def get_repo_name(self):
+        """Get the name of the repository (top-level directory name)"""
+        self.log("get_repo_name method called")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_repo_name returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Get the repository root directory path
+            repo_root = self.repo.working_tree_dir
+            if repo_root:
+                # Extract just the directory name (not the full path)
+                repo_name = os.path.basename(repo_root)
+                self.log(f"get_repo_name returning: {repo_name}")
+                return repo_name
+            else:
+                error_msg = {"error": "Could not determine repository root"}
+                self.log(f"get_repo_name returning error: {error_msg}")
+                return error_msg
+        except Exception as e:
+            error_msg = {"error": f"Error getting repository name: {e}"}
+            self.log(f"get_repo_name returning error: {error_msg}")
+            return error_msg
+    
     def get_status(self):
         """Get the current status of the repository"""
         self.log("get_status method called")

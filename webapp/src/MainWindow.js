@@ -29,7 +29,8 @@ export class MainWindow extends JRPCClient {
     headerExpanded: { type: Boolean, state: true },
     sidebarExpanded: { type: Boolean, state: true },
     activeTabIndex: { type: Number, state: true },
-    sidebarWidth: { type: Number, state: true }
+    sidebarWidth: { type: Number, state: true },
+    repoName: { type: String, state: true }
   };
   
   constructor() {
@@ -50,6 +51,7 @@ export class MainWindow extends JRPCClient {
     this.sidebarExpanded = true; // Start with expanded sidebar
     this.activeTabIndex = 0; // Default to Repository tab (index 0)
     this.sidebarWidth = 280; // Default sidebar width in pixels
+    this.repoName = null; // Repository name for browser tab title
   }
   
   static styles = css`
@@ -311,6 +313,10 @@ export class MainWindow extends JRPCClient {
     console.log('MainWindow setupDone: UI created with prompt view');
     this.connectionStatus = 'connected';
     this.requestUpdate();
+        
+    // Load repository name and update browser title
+    this.loadRepoName();
+
     console.log(this.call)
   }
   
@@ -329,6 +335,53 @@ export class MainWindow extends JRPCClient {
     
     // Schedule reconnect
     this.scheduleReconnect();
+  }
+  
+  /**
+   * Load repository name and set browser tab title
+   */
+  async loadRepoName() {
+    try {
+      console.log('Loading repository name...');
+      const response = await this.call['Repo.get_repo_name']();
+      
+      // Extract the repository name from the response
+      let repoName = null;
+      
+      if (typeof response === 'string') {
+        // Direct string response
+        repoName = response;
+      } else if (typeof response === 'object' && !Array.isArray(response)) {
+        // UUID-wrapped response
+        const keys = Object.keys(response);
+        if (keys.length > 0) {
+          repoName = response[keys[0]];
+        }
+      }
+      
+      if (repoName && !repoName.error) {
+        this.repoName = repoName;
+        this.updateBrowserTitle();
+        console.log(`Repository name loaded: ${repoName}`);
+      } else {
+        console.log('Could not load repository name:', response);
+        this.updateBrowserTitle(); // Update with default title
+      }
+    } catch (error) {
+      console.error('Error loading repository name:', error);
+      this.updateBrowserTitle(); // Update with default title
+    }
+  }
+  
+  /**
+   * Update the browser tab title
+   */
+  updateBrowserTitle() {
+    if (this.repoName) {
+      document.title = `${this.repoName} - Aider`;
+    } else {
+      document.title = 'Aider';
+    }
   }
   
   /**
