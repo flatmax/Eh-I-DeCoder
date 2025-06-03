@@ -10,7 +10,6 @@ import '@material/web/icon/icon.js';
 import '@material/web/tabs/tabs.js';
 import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
-import './Commands.js';
 import './CommandsTab.js';
 import '../prompt-view.js';
 import '../repo-tree.js';
@@ -19,7 +18,6 @@ import '../merge-editor.js';
 export class MainWindow extends JRPCClient {
   static properties = {
     showPromptView: { type: Boolean, state: true },
-    showCommands: { type: Boolean, state: true },
     showFileTree: { type: Boolean, state: true },
     showMergeEditor: { type: Boolean, state: true },
     serverURI: { type: String },
@@ -38,7 +36,6 @@ export class MainWindow extends JRPCClient {
     this.remoteTimeout = 300;
     this.debug = false;
     this.showPromptView = true;
-    this.showCommands = true; // Show commands by default
     this.showFileTree = true; // Show file tree by default
     this.showMergeEditor = true; // Show merge editor by default
     
@@ -190,34 +187,12 @@ export class MainWindow extends JRPCClient {
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
-    }
-    .right-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      overflow: hidden;
       padding: 10px;
+      margin: 10px;
       gap: 10px;
-    }
-    .merge-editor-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
       min-height: 0;
-    }
-    .commands-container {
-      flex: 0 0 auto;
-      min-height: 150px;
-      max-height: 200px;
-      display: flex;
-      flex-direction: column;
-      overflow: auto;
-      border: 1px solid #f0f0f0;
-      border-radius: 4px;
     }
     .header-section {
       padding: 8px 12px;
@@ -556,17 +531,8 @@ export class MainWindow extends JRPCClient {
         
         <!-- Main Content Area -->
         <div class="main-content">
-          <div class="right-panel">
-            ${this.showMergeEditor ? 
-              html`<div class="merge-editor-container">
-                <merge-editor .serverURI=${this.serverURI}></merge-editor>
-              </div>` : ''}
-            
-            ${this.showCommands && this.connectionStatus === 'connected' ? 
-              html`<div class="commands-container">
-                <aider-commands .serverURI=${this.serverURI}></aider-commands>
-              </div>` : ''}
-          </div>
+          ${this.showMergeEditor ? 
+            html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
         </div>
         
         <!-- Floating Prompt View Dialog -->
@@ -672,16 +638,9 @@ export class MainWindow extends JRPCClient {
       console.log('updateComplete ', this.serverURI)
       // Find child components and update their server URIs
       const promptView = this.shadowRoot.querySelector('prompt-view');
-      const commandsView = this.shadowRoot.querySelector('aider-commands');
-      
       if (promptView && promptView.serverURI !== this.serverURI) {
         console.log('Updating PromptView server URI to:', this.serverURI);
         promptView.serverURI = this.serverURI;
-      }
-      
-      if (commandsView && commandsView.serverURI !== this.serverURI) {
-        console.log('Updating Commands server URI to:', this.serverURI);
-        commandsView.serverURI = this.serverURI;
       }
       
       const fileTree = this.shadowRoot.querySelector('file-tree');
