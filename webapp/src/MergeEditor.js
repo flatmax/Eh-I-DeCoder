@@ -1,9 +1,9 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView, keymap} from '@codemirror/view';
-import {EditorState} from '@codemirror/state';
+import {EditorState, EditorSelection} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
-import {MergeView} from '@codemirror/merge';
+import {MergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
 import {defaultKeymap, indentWithTab} from '@codemirror/commands';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {javascript} from '@codemirror/lang-javascript';
@@ -72,6 +72,18 @@ export class MergeEditor extends JRPCClient {
     this.hasUnsavedChanges = false;
     this.originalContent = this.getCurrentContent();
     this.requestUpdate();
+  }
+  
+  // Navigate to next chunk in the diff view
+  goToNextChunk() {
+    if (!this.mergeView || !this.mergeView.b) return;
+    goToNextChunk(this.mergeView.b);
+  }
+  
+  // Navigate to previous chunk in the diff view
+  goToPreviousChunk() {
+    if (!this.mergeView || !this.mergeView.b) return;
+    goToPreviousChunk(this.mergeView.b);
   }
   
   // Set up polling for changes
@@ -297,6 +309,22 @@ export class MergeEditor extends JRPCClient {
                   return true; // Prevent other keymap handlers
                 }
               },
+              // Next chunk navigation (Alt+n)
+              {
+                key: "Alt-n",
+                run: () => {
+                  this.goToNextChunk();
+                  return true;
+                }
+              },
+              // Previous chunk navigation (Alt+p)
+              {
+                key: "Alt-p",
+                run: () => {
+                  this.goToPreviousChunk();
+                  return true;
+                }
+              },
               indentWithTab,
               ...defaultKeymap
             ])
@@ -335,6 +363,17 @@ export class MergeEditor extends JRPCClient {
         setTimeout(() => this.updateMergeView(), 100);
       }
     }
+    
+    // Force refresh of button tooltips
+    this.updateComplete.then(() => {
+      const buttons = this.shadowRoot.querySelectorAll('.nav-button');
+      if (buttons) {
+        const prevButton = buttons[0];
+        const nextButton = buttons[1];
+        if (prevButton) prevButton.title = "Previous Change (Alt+p)";
+        if (nextButton) nextButton.title = "Next Change (Alt+n)";
+      }
+    });
   }
   
   render() {
@@ -345,6 +384,14 @@ export class MergeEditor extends JRPCClient {
             <span class="label head-label">HEAD</span>
             <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
             <span class="label working-label">Working Directory</span>
+          </div>
+          <div class="merge-actions">
+            <button class="nav-button" title="Previous Change (Alt+p)" @click=${this.goToPreviousChunk}>
+              <span class="nav-icon">▲</span>
+            </button>
+            <button class="nav-button" title="Next Change (Alt+n)" @click=${this.goToNextChunk}>
+              <span class="nav-icon">▼</span>
+            </button>
           </div>
         </div>
         
@@ -403,6 +450,37 @@ export class MergeEditor extends JRPCClient {
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  
+  .merge-actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .nav-button {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .nav-button:hover {
+    background: #e0e0e0;
+  }
+  
+  .nav-button:active {
+    background: #d0d0d0;
+  }
+  
+  .nav-icon {
+    font-size: 12px;
+    color: #444;
   }
 
   .merge-header h3 {
