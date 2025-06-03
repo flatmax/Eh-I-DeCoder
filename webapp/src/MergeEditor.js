@@ -226,6 +226,39 @@ export class MergeEditor extends JRPCClient {
     if (!this.headContent && !this.workingContent) return;
     
     try {
+      // Create CSS theme specifically for diff highlighting
+      const diffTheme = EditorView.theme({
+        // Styles for inserted content (in right editor)
+        ".cm-diff-insert": {
+          backgroundColor: "rgba(0, 255, 0, 0.15)",
+        },
+        ".cm-diff-insert-line": {
+          backgroundColor: "rgba(0, 255, 0, 0.1)",
+          borderLeft: "3px solid rgba(0, 200, 0, 0.8)",
+        },
+        
+        // Styles for deleted content (in left editor)
+        ".cm-diff-delete": {
+          backgroundColor: "rgba(255, 0, 0, 0.15)",
+        },
+        ".cm-diff-delete-line": {
+          backgroundColor: "rgba(255, 0, 0, 0.1)",
+          borderLeft: "3px solid rgba(200, 0, 0, 0.8)",
+        },
+        
+        // Styles for modified chunks
+        ".cm-diff-chunk": {
+          backgroundColor: "rgba(180, 180, 255, 0.1)",
+        },
+        
+        // Gap styles
+        ".cm-merge-gap": {
+          backgroundColor: "#f5f5f5",
+          borderLeft: "1px solid #ddd",
+          borderRight: "1px solid #ddd",
+        },
+      });
+      
       // Create new merge view with shadow root specified
       this.mergeView = new MergeView({
         a: {
@@ -235,6 +268,7 @@ export class MergeEditor extends JRPCClient {
             this.getLanguageExtension(this.filePath),
             EditorState.readOnly.of(true), // Make left pane read-only
             oneDark,
+            diffTheme,
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
@@ -248,6 +282,7 @@ export class MergeEditor extends JRPCClient {
             this.getLanguageExtension(this.filePath),
             // Right pane remains editable (no readOnly extension)
             oneDark,
+            diffTheme,
             EditorView.theme({
               '&': { height: '100%' },
               '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
@@ -267,8 +302,13 @@ export class MergeEditor extends JRPCClient {
             ])
           ]
         },
+        // Enhanced merge view options
+        revertControls: true,      // Show revert controls for chunks
+        highlightChanges: true,    // Highlight changed text
+        gutter: true,              // Show gutter between panes
+        lineNumbers: true,         // Show line numbers
         parent: container,
-        root: this.shadowRoot, // Specify the shadow root for CodeMirror
+        root: this.shadowRoot,     // Specify the shadow root for CodeMirror
       });
       
       console.log('MergeView created successfully');
@@ -485,23 +525,76 @@ export class MergeEditor extends JRPCClient {
   /* === END CodeMirror Base and MergeView Styles === */
 
 
-  /* Your existing CodeMirror merge view styling customizations */
+  /* Enhanced CodeMirror diff and merge view styling */
   .merge-container :global(.cm-merge-view .cm-merge-gap) {
     background: #f5f5f5;
     border-left: 1px solid #ddd;
     border-right: 1px solid #ddd;
+    position: relative;
   }
-
-  .merge-container :global(.cm-merge-view .cm-merge-chunk) {
-    background: rgba(255, 0, 0, 0.1);
+  
+  /* Controls in the gap */
+  .merge-container :global(.cm-merge-view .cm-merge-gap .cm-merge-controls) {
+    position: sticky;
+    top: 30px;
+    padding: 5px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 2px;
   }
-
-  .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-insert) {
+  
+  .merge-container :global(.cm-merge-view .cm-merge-controls button) {
+    margin: 2px 0;
+    padding: 2px 4px;
+    font-size: 11px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    background: white;
+    cursor: pointer;
+  }
+  
+  .merge-container :global(.cm-merge-view .cm-merge-controls button:hover) {
+    background: #e6e6e6;
+  }
+  
+  /* Chunk styling */
+  .merge-container :global(.cm-diff-chunk) {
+    background: rgba(180, 180, 255, 0.1);
+  }
+  
+  /* Line styling */
+  .merge-container :global(.cm-diff-insert-line) {
     background: rgba(0, 255, 0, 0.1);
+    border-left: 3px solid rgba(0, 200, 0, 0.8);
   }
-
-  .merge-container :global(.cm-merge-view .cm-merge-chunk.cm-merge-chunk-delete) {
+  
+  .merge-container :global(.cm-diff-delete-line) {
     background: rgba(255, 0, 0, 0.1);
+    border-left: 3px solid rgba(200, 0, 0, 0.8);
+  }
+  
+  /* Character-level diff styling */
+  .merge-container :global(.cm-diff-insert) {
+    background: rgba(0, 255, 0, 0.15);
+    border-radius: 2px;
+  }
+  
+  .merge-container :global(.cm-diff-delete) {
+    background: rgba(255, 0, 0, 0.15);
+    border-radius: 2px;
+  }
+  
+  /* Match the dark theme for better contrast */
+  .merge-container.theme-dark :global(.cm-diff-insert) {
+    background: rgba(0, 255, 0, 0.2);
+  }
+  
+  .merge-container.theme-dark :global(.cm-diff-delete) {
+    background: rgba(255, 0, 0, 0.2);
   }
 `;
 }
