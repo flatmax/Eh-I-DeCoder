@@ -115,21 +115,35 @@ async def main_starter_async():
     print("Command output wrapping enabled")
     print("Repo instance available for Git operations")
     
-    # Start server
-    await jrpc_server.start()
-
+    # Start server with proper error handling
     try:
-        # Keep server running indefinitely
-        await asyncio.Future()
-    except KeyboardInterrupt:
-        print("Server stopped by user")
-    finally:
-        await jrpc_server.stop()
+        await jrpc_server.start()
+        
+        try:
+            # Keep server running indefinitely
+            await asyncio.Future()
+        except KeyboardInterrupt:
+            print("Server stopped by user")
+        finally:
+            await jrpc_server.stop()
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            print(f"ERROR: Port {args.port} is already in use. Try a different port.")
+            print(f"       Use --port argument to specify an alternative port.")
+            return 1  # Exit code indicating error
+        else:
+            print(f"ERROR: Failed to start server: {e}")
+            return 2  # Different error code for other OSErrors
 
 
 def main_starter():
     """Entry point for the aider-server command"""
-    asyncio.run(main_starter_async())
+    try:
+        exit_code = asyncio.run(main_starter_async())
+        return exit_code if exit_code else 0
+    except Exception as e:
+        print(f"Unhandled exception: {e}")
+        return 3  # Exit code for unhandled exceptions
 
 if __name__ == "__main__":
     main_starter()
