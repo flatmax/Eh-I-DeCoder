@@ -3,7 +3,7 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView, keymap} from '@codemirror/view';
 import {EditorState, EditorSelection} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
-import {MergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
+import {MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
 import {defaultKeymap, indentWithTab} from '@codemirror/commands';
 import {oneDark} from '@codemirror/theme-one-dark';
 import {search, searchKeymap} from '@codemirror/search';
@@ -23,7 +23,8 @@ export class MergeEditor extends JRPCClient {
     error: { type: String, state: true },
     serverURI: { type: String },
     hasUnsavedChanges: { type: Boolean, state: true },
-    originalContent: { type: String, state: true }
+    originalContent: { type: String, state: true },
+    unifiedView: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -36,9 +37,11 @@ export class MergeEditor extends JRPCClient {
     this.mergeView = null;
     this.hasUnsavedChanges = false;
     this.originalContent = '';
+    this.unifiedView = false;
     
     // Bind methods to this instance
     this.checkForChanges = this.checkForChanges.bind(this);
+    this.toggleViewMode = this.toggleViewMode.bind(this);
   }
   
   connectedCallback() {
@@ -60,9 +63,13 @@ export class MergeEditor extends JRPCClient {
     }
   }
   
-  // Get current content from panel B (right side)
+  // Get current content from the active editor
   getCurrentContent() {
-    if (this.mergeView && this.mergeView.b) {
+    if (!this.mergeView) return this.workingContent;
+    
+    if (this.unifiedView) {
+      return this.mergeView.state.doc.toString();
+    } else if (this.mergeView.b) {
       return this.mergeView.b.state.doc.toString();
     }
     return this.workingContent;
@@ -75,16 +82,30 @@ export class MergeEditor extends JRPCClient {
     this.requestUpdate();
   }
   
+  // Toggle between unified and side-by-side view
+  toggleViewMode() {
+    this.unifiedView = !this.unifiedView;
+    this.updateMergeView();
+  }
+
   // Navigate to next chunk in the diff view
   goToNextChunk() {
-    if (!this.mergeView || !this.mergeView.b) return;
-    goToNextChunk(this.mergeView.b);
+    if (!this.mergeView) return;
+    if (!this.unifiedView && this.mergeView.b) {
+      goToNextChunk(this.mergeView.b);
+    } else if (this.unifiedView) {
+      goToNextChunk(this.mergeView);
+    }
   }
   
   // Navigate to previous chunk in the diff view
   goToPreviousChunk() {
-    if (!this.mergeView || !this.mergeView.b) return;
-    goToPreviousChunk(this.mergeView.b);
+    if (!this.mergeView) return;
+    if (!this.unifiedView && this.mergeView.b) {
+      goToPreviousChunk(this.mergeView.b);
+    } else if (this.unifiedView) {
+      goToPreviousChunk(this.mergeView);
+    }
   }
   
   // Set up polling for changes
@@ -272,83 +293,105 @@ export class MergeEditor extends JRPCClient {
         },
       });
       
-      // Create new merge view with shadow root specified
       // Create search configuration with panel at top
       const searchConfig = search({
         top: true // This places the search panel at the top instead of bottom
       });
       
-      this.mergeView = new MergeView({
-        a: {
-          doc: this.headContent,
-          extensions: [
-            basicSetup,
-            searchConfig, // Add search with top configuration
-            this.getLanguageExtension(this.filePath),
-            EditorState.readOnly.of(true), // Make left pane read-only
-            oneDark,
-            diffTheme,
-            EditorView.theme({
-              '&': { height: '100%' },
-              '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
-            })
-          ]
+      // Common keyboard shortcuts
+      const commonKeymap = [
+        // Save shortcut (Mod = Ctrl on Windows/Linux, Cmd on Mac)
+        {
+          key: "Mod-s",
+          run: () => {
+            this.saveChanges();
+            return true; // Prevent other keymap handlers
+          }
         },
-        b: {
+        ...searchKeymap, // Add search keyboard shortcuts
+        // Next chunk navigation (Alt+n)
+        {
+          key: "Alt-n",
+          run: () => {
+            this.goToNextChunk();
+            return true;
+          }
+        },
+        // Previous chunk navigation (Alt+p)
+        {
+          key: "Alt-p",
+          run: () => {
+            this.goToPreviousChunk();
+            return true;
+          }
+        },
+        indentWithTab,
+        ...defaultKeymap
+      ];
+      
+      const commonEditorTheme = [
+        oneDark,
+        diffTheme,
+        EditorView.theme({
+          '&': { height: '100%' },
+          '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
+        })
+      ];
+      
+      if (this.unifiedView) {
+        // Create unified view (single editor with the unifiedMergeView extension)
+        this.mergeView = new EditorView({
           doc: this.workingContent,
           extensions: [
             basicSetup,
-            searchConfig, // Add search with top configuration
+            searchConfig,
             this.getLanguageExtension(this.filePath),
-            // Right pane remains editable (no readOnly extension)
-            oneDark,
-            diffTheme,
-            EditorView.theme({
-              '&': { height: '100%' },
-              '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
-            }),
-            // Add keyboard shortcuts
-            keymap.of([
-              // Save shortcut (Mod = Ctrl on Windows/Linux, Cmd on Mac)
-              {
-                key: "Mod-s",
-                run: () => {
-                  this.saveChanges();
-                  return true; // Prevent other keymap handlers
-                }
-              },
-              ...searchKeymap, // Add search keyboard shortcuts
-              // Next chunk navigation (Alt+n)
-              {
-                key: "Alt-n",
-                run: () => {
-                  this.goToNextChunk();
-                  return true;
-                }
-              },
-              // Previous chunk navigation (Alt+p)
-              {
-                key: "Alt-p",
-                run: () => {
-                  this.goToPreviousChunk();
-                  return true;
-                }
-              },
-              indentWithTab,
-              ...defaultKeymap
-            ])
-          ]
-        },
-        // Enhanced merge view options
-        revertControls: true,      // Show revert controls for chunks
-        highlightChanges: true,    // Highlight changed text
-        gutter: true,              // Show gutter between panes
-        lineNumbers: true,         // Show line numbers
-        parent: container,
-        root: this.shadowRoot,     // Specify the shadow root for CodeMirror
-      });
+            ...commonEditorTheme,
+            keymap.of(commonKeymap),
+            unifiedMergeView({
+              original: this.headContent,
+              highlightChanges: true,
+              gutter: true,
+              mergeControls: true
+            })
+          ],
+          parent: container,
+          root: this.shadowRoot
+        });
+      } else {
+        // Create side-by-side MergeView
+        this.mergeView = new MergeView({
+          a: {
+            doc: this.headContent,
+            extensions: [
+              basicSetup,
+              searchConfig,
+              this.getLanguageExtension(this.filePath),
+              EditorState.readOnly.of(true), // Make left pane read-only
+              ...commonEditorTheme
+            ]
+          },
+          b: {
+            doc: this.workingContent,
+            extensions: [
+              basicSetup,
+              searchConfig,
+              this.getLanguageExtension(this.filePath),
+              ...commonEditorTheme,
+              keymap.of(commonKeymap)
+            ]
+          },
+          // Enhanced merge view options
+          revertControls: true,
+          highlightChanges: true,
+          gutter: true,
+          lineNumbers: true,
+          parent: container,
+          root: this.shadowRoot
+        });
+      }
       
-      console.log('MergeView created successfully');
+      console.log(`MergeView created successfully (mode: ${this.unifiedView ? 'unified' : 'side-by-side'})`);
 
       // Store original content for comparison
       this.originalContent = this.workingContent;
@@ -390,11 +433,18 @@ export class MergeEditor extends JRPCClient {
       <div class="merge-editor-container">
         <div class="merge-header">
           <div class="merge-labels">
-            <span class="label head-label">HEAD</span>
-            <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
-            <span class="label working-label">Working Directory</span>
+            ${this.unifiedView 
+              ? html`<h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
+                 <span class="label unified-label">Unified View</span>` 
+              : html`<span class="label head-label">HEAD</span>
+                 <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
+                 <span class="label working-label">Working Directory</span>`
+            }
           </div>
           <div class="merge-actions">
+            <button class="view-toggle-button" title="${this.unifiedView ? 'Switch to Side-by-Side View' : 'Switch to Unified View'}" @click=${this.toggleViewMode}>
+              ${this.unifiedView ? 'Side-by-Side' : 'Unified'}
+            </button>
             <button class="nav-button" title="Previous Change (Alt+p)" @click=${this.goToPreviousChunk}>
               <span class="nav-icon">▲</span>
             </button>
@@ -466,6 +516,28 @@ export class MergeEditor extends JRPCClient {
     gap: 8px;
   }
   
+  .view-toggle-button {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-right: 8px;
+  }
+  
+  .view-toggle-button:hover {
+    background: #e0e0e0;
+  }
+  
+  .view-toggle-button:active {
+    background: #d0d0d0;
+  }
+
   .nav-button {
     background: #f0f0f0;
     border: 1px solid #ddd;
@@ -520,6 +592,11 @@ export class MergeEditor extends JRPCClient {
   .working-label {
     background: #fff3e0;
     color: #f57c00;
+  }
+  
+  .unified-label {
+    background: linear-gradient(to right, #e3f2fd, #fff3e0);
+    color: #333;
   }
   
   .unsaved-indicator {
