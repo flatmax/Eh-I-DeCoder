@@ -22,6 +22,12 @@ class IOWrapper(BaseWrapper):
         # Initialize base class
         super().__init__()
         
+        # Keep track of connection status
+        self.connection_status_check_interval = 0.5  # seconds
+        self.is_connected = True  # Start optimistic
+        self._connection_check_task = None
+        self._start_connection_monitor()
+        
         # Store the original method
         self.original_assistant_output = io_instance.assistant_output
         # Replace with our wrapper method
@@ -54,6 +60,47 @@ class IOWrapper(BaseWrapper):
 
         # Track if we've seen any command output for this request
         self.has_command_output = False
+        
+        # Override prompt input to check for connections
+        self.override_prompt_input()
+        
+    def _start_connection_monitor(self):
+        """Start a background task to monitor connection status"""
+        def check_connection():
+            while True:
+                try:
+                    # Check connection status
+                    was_connected = self.is_connected
+                    self.is_connected = self._has_remote_connections()
+                    
+                    # If connection status changed
+                    if was_connected != self.is_connected:
+                        if self.is_connected:
+                            # Connection restored
+                            self.log("Remote connection established - enabling input")
+                            self.io.console.print("[green]Remote connection established - input enabled[/green]")
+                        else:
+                            # Connection lost
+                            self.log("No remote connections - disabling input")
+                            self.io.console.print("[red]No remote connections - input disabled[/red]")
+                            self.io.console.print("[yellow]Please check that the web app is running and connected[/yellow]")
+                except Exception as e:
+                    self.log(f"Error in connection monitor: {e}")
+                
+                time.sleep(self.connection_status_check_interval)
+        
+        # Start the thread
+        thread = threading.Thread(target=check_connection, daemon=True)
+        thread.start()
+        
+    def _has_remote_connections(self):
+        """Check if any remotes are connected"""
+        try:
+            remotes = self.get_remotes()
+            return bool(remotes and len(remotes) > 0)
+        except Exception as e:
+            self.log(f"Error checking remote connections: {e}")
+            return False
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
         """Intercept confirm_ask calls and send to webapp"""
@@ -114,9 +161,12 @@ class IOWrapper(BaseWrapper):
         # Store the message for webapp
         self.last_response = message
         
-        # Send to webapp - fire and forget
+        # Send to webapp if connected - fire and forget
         self.log(f"Sending message to webapp")
-        self._safe_create_task(self.send_to_webapp(message))
+        if self.is_connected:
+            self._safe_create_task(self.send_to_webapp(message))
+        else:
+            self.log("No remote connections - skipping send_to_webapp")
         
         # Call original method to maintain console output
         self.log(f"Calling original assistant_output method")
@@ -250,6 +300,10 @@ class IOWrapper(BaseWrapper):
         current_time = time.time()
         self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
         
+        if not self.is_connected:
+            self.log("No remote connections - skipping send_stream_update")
+            return
+            
         try:
             self.log(f"[TIME: {current_time:.6f}] Calling MessageHandler.streamWrite with content, final param, and role 'assistant'")
             # Fire and forget - don't wait for response
@@ -272,6 +326,10 @@ class IOWrapper(BaseWrapper):
         """Send command output to webapp using streamWrite with 'command' role"""
         self.log(f"send_to_webapp_command called with type: {msg_type}, message: {message}")
         
+        if not self.is_connected:
+            self.log("No remote connections - skipping send_to_webapp_command")
+            return
+            
         try:
             # Format the message with type prefix for parsing in JavaScript
             formatted_message = f"{msg_type}:{message}"
@@ -284,3 +342,40 @@ class IOWrapper(BaseWrapper):
             err_msg = f"Error sending command output to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
             print(err_msg)
+    
+    def override_prompt_input(self):
+        """Override the prompt_session to check for connections before accepting input"""
+        if not hasattr(self.io, 'prompt_session'):
+            self.log("No prompt_session to override")
+            return
+        
+        # Store the original prompt method
+        original_prompt_method = self.io.prompt_session.prompt
+    
+        def wrapped_prompt(*args, **kwargs):
+            # Check for remote connections before allowing input
+            if not self.is_connected:
+                # Print message once
+                self.io.console.print("[red]Input disabled: No remote connections[/red]")
+                self.io.console.print("[yellow]Please check that the web app is running and connected[/yellow]")
+                self.io.console.print("[yellow]Waiting for connection... (Press Ctrl+C to exit)[/yellow]")
+            
+                # Wait for connection to be restored, checking periodically
+                while not self.is_connected:
+                    try:
+                        # Sleep to avoid high CPU usage and repeated prints
+                        time.sleep(3)
+                    except KeyboardInterrupt:
+                        # Allow exit with Ctrl+C
+                        self.io.console.print("[yellow]Keyboard interrupt detected, exiting...[/yellow]")
+                        return "exit"
+            
+                # Connection restored
+                self.io.console.print("[green]Connection restored, input enabled[/green]")
+        
+            # Proceed with original prompt method
+            return original_prompt_method(*args, **kwargs)
+        
+        # Replace the original prompt method
+        self.io.prompt_session.prompt = wrapped_prompt
+        self.log("Prompt session method overridden to check connections")
