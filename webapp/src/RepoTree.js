@@ -213,9 +213,17 @@ export class RepoTree extends FileTree {
               <span class="dirty-indicator">●</span>
             ` : ''}
           </div>
-          <md-icon-button @click=${() => this.loadFileTree()}>
-            <md-icon class="material-symbols-outlined">refresh</md-icon>
-          </md-icon-button>
+          <div class="tree-controls">
+            <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
+              <md-icon class="material-symbols-outlined">unfold_more</md-icon>
+            </md-icon-button>
+            <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
+              <md-icon class="material-symbols-outlined">unfold_less</md-icon>
+            </md-icon-button>
+            <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
+              <md-icon class="material-symbols-outlined">refresh</md-icon>
+            </md-icon-button>
+          </div>
         </div>
         
         ${this.loading ? 

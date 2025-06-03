@@ -11,6 +11,7 @@ export class FileTree extends JRPCClient {
     loading: { type: Boolean, state: true },
     error: { type: String, state: true },
     treeData: { type: Object, state: true },
+    expandedDirs: { type: Object, state: true },
     serverURI: { type: String }
   };
   
@@ -21,6 +22,7 @@ export class FileTree extends JRPCClient {
     this.loading = false;
     this.error = null;
     this.treeData = {};
+    this.expandedDirs = {}; // Track which directories are expanded
   }
   
   connectedCallback() {
@@ -34,6 +36,55 @@ export class FileTree extends JRPCClient {
     setTimeout(() => {
       this.loadFileTree();
     }, 500);
+  }
+  
+  // Expand all directories in the tree
+  expandAll() {
+    // Update state
+    this.expandedDirs = {};
+    this._setAllExpandedState(this.treeData, true);
+    this.requestUpdate();
+    
+    // Directly manipulate DOM after update
+    this.updateComplete.then(() => {
+      const details = this.shadowRoot.querySelectorAll('details.directory-details');
+      details.forEach(detail => {
+        detail.open = true;
+      });
+    });
+  }
+  
+  // Collapse all directories in the tree
+  collapseAll() {
+    // Update state
+    this.expandedDirs = {};
+    this._setAllExpandedState(this.treeData, false);
+    this.requestUpdate();
+    
+    // Directly manipulate DOM after update
+    this.updateComplete.then(() => {
+      const details = this.shadowRoot.querySelectorAll('details.directory-details');
+      details.forEach(detail => {
+        detail.open = false;
+      });
+    });
+  }
+  
+  // Recursive helper to set expanded state for all directories
+  _setAllExpandedState(node, expanded, path = '') {
+    if (!node) return;
+    
+    const nodePath = path ? `${path}/${node.name}` : node.name;
+    
+    if (!node.isFile && node.children && Object.keys(node.children).length > 0) {
+      // Set expanded state for this directory
+      this.expandedDirs[nodePath] = expanded;
+      
+      // Process all children recursively
+      Object.values(node.children).forEach(child => {
+        this._setAllExpandedState(child, expanded, nodePath);
+      });
+    }
   }
   
   async loadFileTree(scrollPosition = 0) {
@@ -224,8 +275,11 @@ export class FileTree extends JRPCClient {
     
     if (hasChildren) {
       // Directory with children - add expand/collapse functionality
+      // Use the expandedDirs object to determine if this directory should be open
+      const isOpen = this.expandedDirs[nodePath] !== false;
+      
       return html`
-        <details class="directory-details" open>
+        <details class="directory-details" ?open=${isOpen}>
           <summary class=${classMap(nodeClasses)}>
             <span>${node.name}</span>
           </summary>
@@ -258,9 +312,17 @@ export class FileTree extends JRPCClient {
       <div class="file-tree-container">
         <div class="file-tree-header">
           <h3>Repository Files</h3>
-          <md-icon-button @click=${() => this.loadFileTree()}>
-            <md-icon class="material-symbols-outlined">refresh</md-icon>
-          </md-icon-button>
+          <div class="tree-controls">
+            <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
+              <md-icon class="material-symbols-outlined">unfold_more</md-icon>
+            </md-icon-button>
+            <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
+              <md-icon class="material-symbols-outlined">unfold_less</md-icon>
+            </md-icon-button>
+            <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
+              <md-icon class="material-symbols-outlined">refresh</md-icon>
+            </md-icon-button>
+          </div>
         </div>
         
         ${this.loading ? 
@@ -291,6 +353,11 @@ export class FileTree extends JRPCClient {
       justify-content: space-between;
       padding: 0 16px;
       border-bottom: 1px solid #ccc;
+    }
+    
+    .tree-controls {
+      display: flex;
+      gap: 4px;
     }
     
     .file-tree {
