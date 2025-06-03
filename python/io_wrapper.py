@@ -14,7 +14,7 @@ tracemalloc.start()
 class IOWrapper(BaseWrapper):
     """Wrapper for InputOutput that intercepts LLM responses for webapp display"""
     
-    def __init__(self, io_instance):
+    def __init__(self, io_instance, port=8999):
         self.io = io_instance
         self.log_file = '/tmp/io_wrapper.log'
         self.log(f"IOWrapper initialized with io_instance: {io_instance}")
@@ -26,6 +26,8 @@ class IOWrapper(BaseWrapper):
         self.connection_status_check_interval = 0.5  # seconds
         self.is_connected = True  # Start optimistic
         self._connection_check_task = None
+        # Define webapp URL - use port provided or default from environment variable
+        self.webapp_url = os.environ.get('WS URI', f'ws://localhost:{port}')
         self._start_connection_monitor()
         
         # Store the original method
@@ -83,7 +85,8 @@ class IOWrapper(BaseWrapper):
                             # Connection lost
                             self.log("No remote connections - disabling input")
                             self.io.console.print("[red]No remote connections - input disabled[/red]")
-                            self.io.console.print("[yellow]Please check that the web app is running and connected[/yellow]")
+                            self.io.console.print(f"[yellow]In the webapp, use the server URI : [bold]{self.webapp_url}[/bold][/yellow]")
+                            self.io.console.print("[yellow]If the web app is already running, check its connection[/yellow]")
                 except Exception as e:
                     self.log(f"Error in connection monitor: {e}")
                 
@@ -357,7 +360,7 @@ class IOWrapper(BaseWrapper):
             if not self.is_connected:
                 # Print message once
                 self.io.console.print("[red]Input disabled: No remote connections[/red]")
-                self.io.console.print("[yellow]Please check that the web app is running and connected[/yellow]")
+                self.io.console.print(f"[yellow]In your application use the Server URI : [bold]{self.webapp_url}[/bold][/yellow]")
                 self.io.console.print("[yellow]Waiting for connection... (Press Ctrl+C to exit)[/yellow]")
             
                 # Wait for connection to be restored, checking periodically
