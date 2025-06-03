@@ -203,16 +203,13 @@ export class RepoTree extends FileTree {
   render() {
     return html`
       <div class="file-tree-container">
-        <div class="file-tree-header">
-          <h3>Context + Git</h3>
-          <div class="header-info">
-            ${this.gitStatus.branch ? html`
-              <span class="branch-info">Branch: ${this.gitStatus.branch}</span>
-            ` : ''}
-            ${this.gitStatus.is_dirty ? html`
-              <span class="dirty-indicator">●</span>
-            ` : ''}
+        ${this.gitStatus.branch ? html`
+          <div class="branch-row">
+            <span class="branch-info">Branch: ${this.gitStatus.branch}</span>
+            ${this.gitStatus.is_dirty ? html`<span class="dirty-indicator">●</span>` : ''}
           </div>
+        ` : ''}
+        <div class="file-tree-header">
           <div class="tree-controls">
             <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
               <md-icon class="material-symbols-outlined">unfold_more</md-icon>
@@ -239,12 +236,15 @@ export class RepoTree extends FileTree {
   static styles = css`
     ${FileTree.styles}
     
-    .header-info {
+    .branch-row {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 12px;
       color: #666;
+      padding: 4px 8px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
     }
     
     .branch-info {

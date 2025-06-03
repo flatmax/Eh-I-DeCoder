@@ -311,7 +311,6 @@ export class FileTree extends JRPCClient {
     return html`
       <div class="file-tree-container">
         <div class="file-tree-header">
-          <h3>Repository Files</h3>
           <div class="tree-controls">
             <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
               <md-icon class="material-symbols-outlined">unfold_more</md-icon>
@@ -350,14 +349,14 @@ export class FileTree extends JRPCClient {
     .file-tree-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0 16px;
+      justify-content: flex-end;
+      padding: 4px 8px;
       border-bottom: 1px solid #ccc;
     }
     
     .tree-controls {
       display: flex;
-      gap: 4px;
+      gap: 2px;
     }
     
     .file-tree {
