@@ -6,6 +6,7 @@ import {basicSetup} from 'codemirror';
 import {MergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
 import {defaultKeymap, indentWithTab} from '@codemirror/commands';
 import {oneDark} from '@codemirror/theme-one-dark';
+import {search, searchKeymap} from '@codemirror/search';
 import {javascript} from '@codemirror/lang-javascript';
 import {python} from '@codemirror/lang-python';
 import {html as htmlLang} from '@codemirror/lang-html';
@@ -272,11 +273,17 @@ export class MergeEditor extends JRPCClient {
       });
       
       // Create new merge view with shadow root specified
+      // Create search configuration with panel at top
+      const searchConfig = search({
+        top: true // This places the search panel at the top instead of bottom
+      });
+      
       this.mergeView = new MergeView({
         a: {
           doc: this.headContent,
           extensions: [
             basicSetup,
+            searchConfig, // Add search with top configuration
             this.getLanguageExtension(this.filePath),
             EditorState.readOnly.of(true), // Make left pane read-only
             oneDark,
@@ -291,6 +298,7 @@ export class MergeEditor extends JRPCClient {
           doc: this.workingContent,
           extensions: [
             basicSetup,
+            searchConfig, // Add search with top configuration
             this.getLanguageExtension(this.filePath),
             // Right pane remains editable (no readOnly extension)
             oneDark,
@@ -309,6 +317,7 @@ export class MergeEditor extends JRPCClient {
                   return true; // Prevent other keymap handlers
                 }
               },
+              ...searchKeymap, // Add search keyboard shortcuts
               // Next chunk navigation (Alt+n)
               {
                 key: "Alt-n",
