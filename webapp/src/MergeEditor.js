@@ -432,16 +432,16 @@ export class MergeEditor extends JRPCClient {
     return html`
       <div class="merge-editor-container">
         <div class="merge-header">
-          <div class="merge-labels">
-            ${this.unifiedView 
-              ? html`<h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
-                 <span class="label unified-label">Unified View</span>` 
-              : html`<span class="label head-label">HEAD</span>
-                 <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
-                 <span class="label working-label">Working Directory</span>`
+          <div class="header-left">
+            ${!this.unifiedView 
+              ? html`<span class="label head-label">HEAD</span>`
+              : html`<span class="label unified-label">Unified View</span>`
             }
           </div>
-          <div class="merge-actions">
+          <div class="header-center">
+            <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
+          </div>
+          <div class="header-right">
             <button class="view-toggle-button" title="${this.unifiedView ? 'Switch to Side-by-Side View' : 'Switch to Unified View'}" @click=${this.toggleViewMode}>
               ${this.unifiedView ? 'Side-by-Side' : 'Unified'}
             </button>
@@ -451,6 +451,7 @@ export class MergeEditor extends JRPCClient {
             <button class="nav-button" title="Next Change (Alt+n)" @click=${this.goToNextChunk}>
               <span class="nav-icon">▼</span>
             </button>
+            ${!this.unifiedView ? html`<span class="label working-label">Working Directory</span>` : ''}
           </div>
         </div>
         
@@ -506,12 +507,21 @@ export class MergeEditor extends JRPCClient {
     padding: 12px;
     border-bottom: 1px solid #ddd;
     background: #f8f9fa;
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
   }
   
-  .merge-actions {
+  .header-left {
+    justify-self: start;
+  }
+  
+  .header-center {
+    text-align: center;
+  }
+  
+  .header-right {
+    justify-self: end;
     display: flex;
     gap: 8px;
   }
