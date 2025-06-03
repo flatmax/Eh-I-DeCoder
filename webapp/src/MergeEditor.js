@@ -441,7 +441,7 @@ export class MergeEditor extends JRPCClient {
           <div class="header-center">
             <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
           </div>
-          <div class="header-right">
+          <div class="header-buttons">
             <button class="view-toggle-button" title="${this.unifiedView ? 'Switch to Side-by-Side View' : 'Switch to Unified View'}" @click=${this.toggleViewMode}>
               ${this.unifiedView ? 'Side-by-Side' : 'Unified'}
             </button>
@@ -451,6 +451,8 @@ export class MergeEditor extends JRPCClient {
             <button class="nav-button" title="Next Change (Alt+n)" @click=${this.goToNextChunk}>
               <span class="nav-icon">▼</span>
             </button>
+          </div>
+          <div class="header-right">
             ${!this.unifiedView ? html`<span class="label working-label">Working Directory</span>` : ''}
           </div>
         </div>
@@ -508,8 +510,9 @@ export class MergeEditor extends JRPCClient {
     border-bottom: 1px solid #ddd;
     background: #f8f9fa;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr auto auto 1fr;
     align-items: center;
+    gap: 16px;
   }
   
   .header-left {
@@ -520,10 +523,14 @@ export class MergeEditor extends JRPCClient {
     text-align: center;
   }
   
-  .header-right {
-    justify-self: end;
+  .header-buttons {
+    justify-self: start;
     display: flex;
     gap: 8px;
+  }
+  
+  .header-right {
+    justify-self: end;
   }
   
   .view-toggle-button {
