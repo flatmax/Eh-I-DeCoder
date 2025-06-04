@@ -146,13 +146,16 @@ export class FindInFiles extends JRPCClient {
             </md-filled-button>
           </div>
           <div class="options-row">
-            <div class="checkbox-option">
+            <div class="checkbox-option" title="Whole words only">
               <md-checkbox
                 ?checked=${this.useWordMatch}
                 @change=${e => this.useWordMatch = e.target.checked}
                 ?disabled=${this.isSearching}
               ></md-checkbox>
-              <label>Whole words only</label>
+              <label>
+                <span class="mdi mdi-text-box-search" style="font-size: 20px;"></span>
+                <span class="option-text">Whole word</span>
+              </label>
             </div>
             
             <div class="checkbox-option">
@@ -293,6 +296,18 @@ export class FindInFiles extends JRPCClient {
     
     .checkbox-option label {
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .checkbox-option .mdi {
+      font-size: 20px;
+      color: var(--md-sys-color-on-surface-variant, #49454f);
+    }
+    
+    .option-text {
+      font-size: 14px;
     }
     
     .case-sensitive-button {
