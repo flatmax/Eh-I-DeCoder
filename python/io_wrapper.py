@@ -109,6 +109,10 @@ class IOWrapper(BaseWrapper):
         """Intercept confirm_ask calls and send to webapp"""
         self.log(f"confirm_ask_wrapper called with question: {question}")
         
+        question_id = (question, subject)
+        if question_id in self.io.never_prompts:
+            return False
+        
         try:
             confirmation_data = {
                 'question': str(question) if question is not None else '',
@@ -127,6 +131,12 @@ class IOWrapper(BaseWrapper):
                 )
                 response = future.result(timeout=30.0)
                 self.log(f"Received response from webapp: {response}")
+                if response == "d" and allow_never:
+                    self.io.never_prompts.add(question_id)
+                    hist = f"{question.strip()} {response}"
+                    self.io.append_chat_history(hist, linebreak=True, blockquote=True)
+                    return False
+
                 return response
             else:
                 self.log("No main loop available, falling back to original method")
@@ -142,7 +152,6 @@ class IOWrapper(BaseWrapper):
         try:
             call_func = self.get_call()['MessageHandler.confirmation_request']
             response = await asyncio.wait_for(call_func(confirmation_data), timeout=30.0)
-            
             # Extract response from dict if needed
             if isinstance(response, dict) and len(response) == 1:
                 response = next(iter(response.values()))

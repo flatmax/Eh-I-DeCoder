@@ -88,9 +88,9 @@ export class MessageHandler extends JRPCClient {
     // Parse the user's response
     const response = userInput.toLowerCase().trim();
     
-    if (data.allow_never && (response === 'never' || response === 'n')) {
+    if (data.allow_never && (response === 'd' || response === "don't")) {
       console.log('returning never');
-      return 'never';
+      return 'd';
     }
     
     // Check for yes/true responses
@@ -100,7 +100,7 @@ export class MessageHandler extends JRPCClient {
     }
     
     // Check for no/false responses
-    if (response === 'no' || response === 'false' || response === '0') {
+    if (response === 'n' || response === 'no' || response === 'false' || response === '0') {
       console.log('returning false');
       return false;
     }
