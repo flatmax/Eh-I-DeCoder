@@ -187,7 +187,98 @@ class Repo(BaseWrapper):
             error_msg = {"error": "No Git repository available"}
             self.log(f"search_files returning error: {error_msg}")
             return error_msg
+        
+        try:
+            # Use the optimized git grep implementation for faster searches
+            return self._search_with_git_grep(query, word, regex, respect_gitignore)
+        except git.exc.GitCommandError as e:
+            # If git grep fails, fall back to the Python implementation
+            self.log(f"Git grep failed with error: {e}. Falling back to Python implementation.")
+            return self._search_with_python(query, word, regex, respect_gitignore)
+        except Exception as e:
+            error_msg = {"error": f"Error during search: {e}"}
+            self.log(f"search_files returning error: {error_msg}")
+            return error_msg
+    
+    def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True):
+        """Search for content in repository files using Git's built-in grep command"""
+        self.log(f"_search_with_git_grep called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
+        
+        # Build git grep arguments
+        git_args = ["-n"]  # -n to show line numbers
+        
+        if word:
+            git_args.append("-w")  # --word-regexp
+        
+        if regex:
+            # git grep uses basic regex by default, -E for extended regex
+            git_args.append("-E")  # --extended-regexp
+        else:
+            # For plain text, git grep treats it literally
+            git_args.append("-F")  # --fixed-strings (literal string)
+        
+        # Set up gitignore handling
+        if not respect_gitignore:
+            # If not respecting gitignore, search all files including ignored ones
+            git_args.append("--no-index")
+        else:
+            # Default git grep behavior respects gitignore for tracked files
+            # Add --untracked to include untracked files that aren't ignored
+            git_args.append("--untracked")
+            git_args.append("--exclude-standard")
+        
+        # Always skip binary files
+        git_args.append("-I")  # --binary-files=without-match
+        
+        # Add the query as the last argument
+        git_args.append(query)
+        
+        try:
+            # Execute git grep and get results
+            grep_output = self.repo.git.grep(git_args, as_process=False)
             
+            # Process results into the expected format
+            consolidated_results = {}
+            
+            for line in grep_output.splitlines():
+                # Format is "path/to/file:line_num:line_content"
+                parts = line.split(':', 2)
+                if len(parts) == 3:
+                    file_path, line_num_str, line_content = parts
+                    try:
+                        line_num = int(line_num_str)
+                        
+                        # Add to consolidated results dictionary
+                        if file_path not in consolidated_results:
+                            consolidated_results[file_path] = {
+                                "file": file_path,
+                                "matches": []
+                            }
+                        
+                        consolidated_results[file_path]["matches"].append({
+                            "line_num": line_num,
+                            "line": line_content.rstrip('\n')
+                        })
+                    except ValueError:
+                        self.log(f"Warning: Could not parse line number from git grep output: {line}")
+            
+            # Convert dict to list for final results
+            final_results = list(consolidated_results.values())
+            self.log(f"_search_with_git_grep found {len(final_results)} files with matches")
+            return final_results
+            
+        except git.exc.GitCommandError as e:
+            # git grep returns exit code 1 if no matches found
+            if e.status == 1:
+                self.log("_search_with_git_grep: No matches found")
+                return []
+            # For other errors, re-raise to fall back to Python implementation
+            raise
+    
+    def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True):
+        """Fallback search implementation using Python when git grep fails"""
+        self.log(f"_search_with_python called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
+        
         try:
             results = []
             repo_root = self.repo.working_tree_dir
@@ -266,12 +357,10 @@ class Repo(BaseWrapper):
                             "matches": file_matches
                         })
             
-            self.log(f"search_files found {len(results)} files with matches")
-            # Return the results directly without nesting them in a "results" key
-            # This matches the structure expected by the frontend
+            self.log(f"_search_with_python found {len(results)} files with matches")
             return results
             
         except Exception as e:
-            error_msg = {"error": f"Error during search: {e}"}
-            self.log(f"search_files returning error: {error_msg}")
+            error_msg = {"error": f"Error during Python search: {e}"}
+            self.log(f"_search_with_python returning error: {error_msg}")
             return error_msg
