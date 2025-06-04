@@ -169,7 +169,7 @@ class Repo(BaseWrapper):
             self.log(f"save_file_content returning error: {error_msg}")
             return error_msg
             
-    def search_files(self, query, word=False, regex=False, respect_gitignore=True):
+    def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files
         
         Args:
@@ -177,11 +177,12 @@ class Repo(BaseWrapper):
             word (bool): If True, search for whole word matches
             regex (bool): If True, treat query as a regular expression
             respect_gitignore (bool): If True, skip files ignored by .gitignore
+            ignore_case (bool): If True, perform case-insensitive search
             
         Returns:
             dict: A dictionary with results or error information
         """
-        self.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
+        self.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
         
         if not self.repo:
             error_msg = {"error": "No Git repository available"}
@@ -190,22 +191,25 @@ class Repo(BaseWrapper):
         
         try:
             # Use the optimized git grep implementation for faster searches
-            return self._search_with_git_grep(query, word, regex, respect_gitignore)
+            return self._search_with_git_grep(query, word, regex, respect_gitignore, ignore_case)
         except git.exc.GitCommandError as e:
             # If git grep fails, fall back to the Python implementation
             self.log(f"Git grep failed with error: {e}. Falling back to Python implementation.")
-            return self._search_with_python(query, word, regex, respect_gitignore)
+            return self._search_with_python(query, word, regex, respect_gitignore, ignore_case)
         except Exception as e:
             error_msg = {"error": f"Error during search: {e}"}
             self.log(f"search_files returning error: {error_msg}")
             return error_msg
     
-    def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True):
+    def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files using Git's built-in grep command"""
-        self.log(f"_search_with_git_grep called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
+        self.log(f"_search_with_git_grep called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
         
         # Build git grep arguments
         git_args = ["-n"]  # -n to show line numbers
+        
+        if ignore_case:
+            git_args.append("-i")  # --ignore-case
         
         if word:
             git_args.append("-w")  # --word-regexp
@@ -275,9 +279,9 @@ class Repo(BaseWrapper):
             # For other errors, re-raise to fall back to Python implementation
             raise
     
-    def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True):
+    def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Fallback search implementation using Python when git grep fails"""
-        self.log(f"_search_with_python called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
+        self.log(f"_search_with_python called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
         
         try:
             results = []
@@ -288,9 +292,9 @@ class Repo(BaseWrapper):
                 try:
                     if word:
                         # For word+regex, we'll add word boundary assertions
-                        pattern = re.compile(r'\b' + query + r'\b')
+                        pattern = re.compile(r'\b' + query + r'\b', re.IGNORECASE if ignore_case else 0)
                     else:
-                        pattern = re.compile(query)
+                        pattern = re.compile(query, re.IGNORECASE if ignore_case else 0)
                 except re.error as e:
                     return {"error": f"Invalid regular expression: {e}"}
             else:
@@ -299,7 +303,7 @@ class Repo(BaseWrapper):
                     pattern = None  # We'll handle this separately
                 else:
                     # For plain text search, escape regex special chars
-                    pattern = re.compile(re.escape(query))
+                    pattern = re.compile(re.escape(query), re.IGNORECASE if ignore_case else 0)
             
             # Walk through all files in the repository
             for root, _, files in os.walk(repo_root):
@@ -345,7 +349,14 @@ class Repo(BaseWrapper):
                         else:
                             # For word-only search, do manual word boundary checking
                             words = re.findall(r'\b\w+\b', line)
-                            if query in words:
+                            if ignore_case:
+                                # Case-insensitive comparison
+                                if any(query.lower() == word.lower() for word in words):
+                                    file_matches.append({
+                                        "line_num": line_num,
+                                        "line": line.rstrip('\n')
+                                    })
+                            elif query in words:
                                 file_matches.append({
                                     "line_num": line_num,
                                     "line": line.rstrip('\n')

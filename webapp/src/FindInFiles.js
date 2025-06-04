@@ -11,6 +11,7 @@ export class FindInFiles extends JRPCClient {
     useWordMatch: { type: Boolean, state: true },
     useRegex: { type: Boolean, state: true },
     respectGitignore: { type: Boolean, state: true },
+    caseSensitive: { type: Boolean, state: true },
     serverURI: { type: String }
   };
 
@@ -23,6 +24,7 @@ export class FindInFiles extends JRPCClient {
     this.useWordMatch = false;
     this.useRegex = false;
     this.respectGitignore = true; // Default to respecting .gitignore
+    this.caseSensitive = false; // Default to case-insensitive search
   }
   
   connectedCallback() {
@@ -41,12 +43,13 @@ export class FindInFiles extends JRPCClient {
     this.searchError = null;
     
     try {
-      console.log(`Searching for "${query}" (word: ${this.useWordMatch}, regex: ${this.useRegex}, respectGitignore: ${this.respectGitignore})`);
+      console.log(`Searching for "${query}" (word: ${this.useWordMatch}, regex: ${this.useRegex}, respectGitignore: ${this.respectGitignore}, caseSensitive: ${this.caseSensitive})`);
       const response = await this.call['Repo.search_files'](
         query, 
         this.useWordMatch, 
         this.useRegex,
-        this.respectGitignore
+        this.respectGitignore,
+        !this.caseSensitive  // pass the inverse as ignore_case
       );
       
       if (response.error) {
@@ -160,6 +163,15 @@ export class FindInFiles extends JRPCClient {
                 ?disabled=${this.isSearching}
               >
               Respect .gitignore
+            </label>
+            <label class="checkbox-option">
+              <input 
+                type="checkbox" 
+                ?checked=${this.caseSensitive} 
+                @change=${e => this.caseSensitive = e.target.checked}
+                ?disabled=${this.isSearching}
+              >
+              Case sensitive
             </label>
           </div>
         </form>
