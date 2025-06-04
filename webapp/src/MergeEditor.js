@@ -25,7 +25,8 @@ export class MergeEditor extends JRPCClient {
     serverURI: { type: String },
     hasUnsavedChanges: { type: Boolean, state: true },
     originalContent: { type: String, state: true },
-    unifiedView: { type: Boolean, state: true }
+    unifiedView: { type: Boolean, state: true },
+    currentFilePath: { type: String, state: true }
   };
   
   constructor() {
@@ -39,6 +40,7 @@ export class MergeEditor extends JRPCClient {
     this.hasUnsavedChanges = false;
     this.originalContent = '';
     this.unifiedView = false;
+    this.currentFilePath = '';
     
     // Bind methods to this instance
     this.checkForChanges = this.checkForChanges.bind(this);
@@ -81,49 +83,229 @@ export class MergeEditor extends JRPCClient {
    * @param {number} lineNumber - The line number to scroll to
    */
   scrollToLine(lineNumber) {
-    if (!this.mergeView || !lineNumber) return;
+    console.log(`MergeEditor: scrollToLine called with lineNumber=${lineNumber} (type: ${typeof lineNumber})`);
     
-    console.log(`Scrolling to line ${lineNumber}`);
+    if (!this.mergeView) {
+      console.warn("MergeEditor: Cannot scroll, mergeView is not initialized");
+      return;
+    }
     
+    if (!lineNumber) {
+      console.warn("MergeEditor: Cannot scroll, lineNumber is falsy:", lineNumber);
+      return;
+    }
+    
+    // Use progressive retry mechanism with increasing delays
+    this._retryScrollToLine(lineNumber, 1);
+  }
+  
+  /**
+   * Retry scrolling to line with progressive backoff
+   * @param {number} lineNumber - The line number to scroll to
+   * @param {number} attempt - Current attempt number
+   */
+  _retryScrollToLine(lineNumber, attempt) {
+    const maxAttempts = 5;
+    const delay = Math.min(attempt * 200, 1000); // Increasing delay, max 1000ms
+    
+    setTimeout(() => {
+      try {
+        const result = this._executeScrollToLine(lineNumber);
+        if (!result && attempt < maxAttempts) {
+          console.log(`MergeEditor: Scroll attempt ${attempt} failed, retrying...`);
+          this._retryScrollToLine(lineNumber, attempt + 1);
+        }
+      } catch (error) {
+        console.error(`MergeEditor: Scroll attempt ${attempt} error:`, error);
+        if (attempt < maxAttempts) {
+          this._retryScrollToLine(lineNumber, attempt + 1);
+        }
+      }
+    }, delay);
+  }
+  
+  _executeScrollToLine(lineNumber) {
     try {
       // Get the editor view based on whether we're in unified or side-by-side mode
       const view = this.unifiedView ? this.mergeView : this.mergeView.b;
       
-      if (!view) return;
+      if (!view) {
+        console.warn(`MergeEditor: Cannot scroll, no view available in ${this.unifiedView ? 'unified' : 'side-by-side'} mode`);
+        return false;
+      }
+      
+      console.log(`MergeEditor: Using ${this.unifiedView ? 'unified' : 'side-by-side'} view`, view);
+      
+      // Check if editor state is ready
+      if (!view.state || !view.state.doc) {
+        console.warn('MergeEditor: Editor state not ready yet');
+        return false;
+      }
       
       // Make sure line number is within bounds
-      const line = Math.min(lineNumber, view.state.doc.lines);
+      const totalLines = view.state.doc.lines;
+      console.log(`MergeEditor: Document has ${totalLines} lines, requested line ${lineNumber}`);
+      
+      if (totalLines === 0) {
+        console.warn('MergeEditor: Document appears to be empty');
+        return false;
+      }
+      
+      const line = Math.min(lineNumber, totalLines);
+      console.log(`MergeEditor: Using line number ${line} (after bounds check)`);
       
       // Get the position for the specified line
-      const pos = view.state.doc.line(line).from;
+      const lineObj = view.state.doc.line(line);
+      if (!lineObj) {
+        console.warn(`MergeEditor: Couldn't get line object for line ${line}`);
+        return false;
+      }
+      
+      console.log(`MergeEditor: Line object:`, { 
+        from: lineObj.from, 
+        to: lineObj.to, 
+        text: lineObj.text.slice(0, 50) + (lineObj.text.length > 50 ? '...' : '') 
+      });
+      
+      const pos = lineObj.from;
       
       // Create a selection at that position
-      const selection = {
-        anchor: pos,
-        head: pos
-      };
+      const selection = EditorSelection.create([EditorSelection.range(pos, pos)]);
       
-      // Update the editor state to create the selection and scroll to it
+      // First set the selection 
       view.dispatch({
         selection,
-        effects: EditorView.scrollIntoView(selection, {
+        scrollIntoView: true
+      });
+      
+      // Then force scroll again with explicit center positioning
+      view.dispatch({
+        effects: EditorView.scrollIntoView(pos, {
           y: 'center',
-          margin: 50
+          margin: 150,
+          behavior: 'smooth'
         })
       });
       
-      // Also highlight the line for better visibility
-      setTimeout(() => {
-        const lineElement = view.dom.querySelector(`.cm-line:nth-child(${lineNumber})`);
-        if (lineElement) {
-          lineElement.classList.add('highlighted-line');
-          setTimeout(() => {
-            lineElement.classList.remove('highlighted-line');
-          }, 3000); // Remove highlight after 3 seconds
-        }
-      }, 100);
+      console.log(`MergeEditor: Scrolled to position ${pos} for line ${line}`);
+      
+      // Add highlight effect with stronger styling
+      this._highlightLine(view, line);
+      
+      return true;
     } catch (error) {
-      console.error('Error scrolling to line:', error);
+      console.error('MergeEditor: Error scrolling to line:', error);
+      console.error('MergeEditor: Error details:', { 
+        stack: error.stack,
+        lineNumber,
+        hasView: !!this.mergeView,
+        unified: this.unifiedView
+      });
+      return false;
+    }
+  }
+  
+  /**
+   * Highlight a specific line for visual emphasis
+   * @param {EditorView} view - The editor view
+   * @param {number} lineNum - Line number to highlight
+   */
+  _highlightLine(view, lineNum) {
+    // Add a class to the document for highlighted line styling
+    if (!this.shadowRoot.querySelector('style.highlight-styles')) {
+      const style = document.createElement('style');
+      style.className = 'highlight-styles';
+      style.textContent = `
+        .line-highlight-effect {
+          background-color: rgba(255, 255, 0, 0.3) !important;
+          outline: 2px solid gold !important;
+          animation: pulse-highlight 2s infinite;
+        }
+        @keyframes pulse-highlight {
+          0%, 100% { background-color: rgba(255, 255, 0, 0.3); }
+          50% { background-color: rgba(255, 255, 0, 0.5); }
+        }
+      `;
+      this.shadowRoot.appendChild(style);
+    }
+    
+    try {
+      // Get the position in the document for this line
+      const line = view.state.doc.line(lineNum);
+      
+      // Find all visible elements in the editor view
+      const domInfo = view.coordsAtPos(line.from);
+      if (!domInfo) {
+        console.warn(`MergeEditor: Couldn't get coordinates for line ${lineNum}`);
+        return;
+      }
+      
+      // Use the DOM coordinates to find the line element
+      // First try with posAtCoords (most accurate)
+      const pos = view.posAtCoords({x: domInfo.left + 5, y: domInfo.top + 5});
+      if (pos) {
+        // Get the DOM node at this position
+        const posDOM = view.domAtPos(pos);
+        if (posDOM && posDOM.node) {
+          // Find the line element (going up the DOM tree if needed)
+          let lineElement = posDOM.node;
+          while (lineElement && !lineElement.classList?.contains('cm-line')) {
+            lineElement = lineElement.parentElement;
+          }
+          
+          if (lineElement) {
+            console.log(`MergeEditor: Found line element at line ${lineNum}`, lineElement);
+            lineElement.classList.add('line-highlight-effect');
+            
+            // Ensure the element is visible
+            lineElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+            
+            // Remove highlight after 5 seconds
+            setTimeout(() => {
+              lineElement.classList.remove('line-highlight-effect');
+            }, 5000);
+            return;
+          }
+        }
+      }
+      
+      // Fallback: Try to find the right line using DOM structure
+      // This works by finding all lines and selecting the one closest to our line number
+      const allLines = Array.from(view.dom.querySelectorAll('.cm-line'));
+      
+      // If we have a good number of lines, try to estimate which one is ours
+      if (allLines.length > 0) {
+        const estimatedIndex = Math.min(Math.floor(lineNum * allLines.length / view.state.doc.lines), allLines.length - 1);
+        const lineElement = allLines[estimatedIndex];
+        
+        if (lineElement) {
+          console.log(`MergeEditor: Found line element (fallback) around line ${lineNum}`, lineElement);
+          lineElement.classList.add('line-highlight-effect');
+          
+          lineElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+          
+          setTimeout(() => {
+            lineElement.classList.remove('line-highlight-effect');
+          }, 5000);
+          return;
+        }
+      }
+      
+      console.warn(`MergeEditor: Couldn't find any suitable element for line ${lineNum}`);
+    } catch (error) {
+      console.error('MergeEditor: Error highlighting line:', error);
+      console.error('MergeEditor: Error details:', { 
+        stack: error.stack,
+        lineNum,
+        hasView: !!view,
+        docLines: view?.state?.doc?.lines || 'unknown'
+      });
     }
   }
   
@@ -246,13 +428,21 @@ export class MergeEditor extends JRPCClient {
     console.log('MergeEditor::remoteIsUp');
   }
   
-  async loadFileContent(filePath) {
+  async loadFileContent(filePath, lineNumber = null) {
     if (!filePath) return;
+    
+    // Check if this is the same file that's already loaded - if so, just scroll to line
+    if (filePath === this.currentFilePath && this.mergeView && lineNumber !== null) {
+      console.log(`File ${filePath} already loaded, scrolling to line ${lineNumber}`);
+      setTimeout(() => this.scrollToLine(lineNumber), 50);
+      return;
+    }
     
     try {
       this.loading = true;
       this.error = null;
       this.filePath = filePath;
+      this.currentFilePath = filePath;
       
       console.log(`Loading file content for: ${filePath}`);
       
@@ -276,6 +466,11 @@ export class MergeEditor extends JRPCClient {
       
       // Update the merge view
       this.updateMergeView();
+      
+      // If a line number was specified, scroll to it after a delay to ensure the editor is ready
+      if (lineNumber !== null) {
+        setTimeout(() => this.scrollToLine(lineNumber), 300);
+      }
       
     } catch (error) {
       console.error('Error loading file content:', error);

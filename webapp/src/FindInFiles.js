@@ -10,6 +10,7 @@ export class FindInFiles extends JRPCClient {
     searchError: { type: String, state: true },
     useWordMatch: { type: Boolean, state: true },
     useRegex: { type: Boolean, state: true },
+    respectGitignore: { type: Boolean, state: true },
     serverURI: { type: String }
   };
 
@@ -21,6 +22,7 @@ export class FindInFiles extends JRPCClient {
     this.searchError = null;
     this.useWordMatch = false;
     this.useRegex = false;
+    this.respectGitignore = true; // Default to respecting .gitignore
   }
   
   connectedCallback() {
@@ -39,11 +41,12 @@ export class FindInFiles extends JRPCClient {
     this.searchError = null;
     
     try {
-      console.log(`Searching for "${query}" (word: ${this.useWordMatch}, regex: ${this.useRegex})`);
+      console.log(`Searching for "${query}" (word: ${this.useWordMatch}, regex: ${this.useRegex}, respectGitignore: ${this.respectGitignore})`);
       const response = await this.call['Repo.search_files'](
         query, 
         this.useWordMatch, 
-        this.useRegex
+        this.useRegex,
+        this.respectGitignore
       );
       
       if (response.error) {
@@ -82,12 +85,30 @@ export class FindInFiles extends JRPCClient {
   }
   
   handleOpenFile(filePath, lineNumber = null) {
+    console.log(`FindInFiles: handleOpenFile called with:`, { 
+      filePath, 
+      lineNumber, 
+      lineNumberType: typeof lineNumber 
+    });
+    
+    // Ensure lineNumber is a number (if it exists)
+    if (lineNumber !== null) {
+      lineNumber = parseInt(lineNumber, 10);
+      if (isNaN(lineNumber)) {
+        console.warn(`FindInFiles: Invalid line number format: ${lineNumber}`);
+        lineNumber = null;
+      } else {
+        console.log(`FindInFiles: Converted line number to: ${lineNumber}`);
+      }
+    }
+    
     // Dispatch custom event to be handled by MainWindow
     const event = new CustomEvent('open-file', {
       bubbles: true,
       composed: true,
       detail: { filePath, lineNumber }
     });
+    console.log(`FindInFiles: Dispatching open-file event:`, event.detail);
     this.dispatchEvent(event);
   }
   
@@ -130,6 +151,15 @@ export class FindInFiles extends JRPCClient {
                 ?disabled=${this.isSearching}
               >
               Regular expression
+            </label>
+            <label class="checkbox-option">
+              <input 
+                type="checkbox" 
+                ?checked=${this.respectGitignore} 
+                @change=${e => this.respectGitignore = e.target.checked}
+                ?disabled=${this.isSearching}
+              >
+              Respect .gitignore
             </label>
           </div>
         </form>

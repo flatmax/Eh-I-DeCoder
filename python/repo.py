@@ -169,18 +169,19 @@ class Repo(BaseWrapper):
             self.log(f"save_file_content returning error: {error_msg}")
             return error_msg
             
-    def search_files(self, query, word=False, regex=False):
+    def search_files(self, query, word=False, regex=False, respect_gitignore=True):
         """Search for content in repository files
         
         Args:
             query (str): The search string or pattern
             word (bool): If True, search for whole word matches
             regex (bool): If True, treat query as a regular expression
+            respect_gitignore (bool): If True, skip files ignored by .gitignore
             
         Returns:
             dict: A dictionary with results or error information
         """
-        self.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}")
+        self.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}")
         
         if not self.repo:
             error_msg = {"error": "No Git repository available"}
@@ -214,11 +215,25 @@ class Repo(BaseWrapper):
                 for file in files:
                     full_path = os.path.join(root, file)
                     
-                    # Skip binary files, .git directory, and very large files
+                    # Get relative path
                     rel_path = os.path.relpath(full_path, repo_root)
+                
+                    # Skip binary files, .git directory, and very large files
                     if (rel_path.startswith('.git/') or 
                         os.path.getsize(full_path) > 1024 * 1024):  # Skip files > 1MB
                         continue
+                
+                    # Check if file is ignored by gitignore
+                    if respect_gitignore:
+                        try:
+                            # Use git's check-ignore command to see if file is ignored
+                            self.repo.git.check_ignore(rel_path)
+                            # If we reach here, the file is ignored (command succeeded)
+                            self.log(f"Skipping ignored file: {rel_path}")
+                            continue
+                        except git.exc.GitCommandError:
+                            # File is not ignored (command failed)
+                            pass
                     
                     try:
                         with open(full_path, 'r', encoding='utf-8') as f:
