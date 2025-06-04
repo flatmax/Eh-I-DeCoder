@@ -375,11 +375,6 @@ export class PromptView extends MessageHandler {
       if (this.isMinimized) {
         this.maximize();
       }
-    } else {
-      // Click is outside the dialog - minimize if maximized
-      if (!this.isMinimized) {
-        this.minimize();
-      }
     }
   }
   
