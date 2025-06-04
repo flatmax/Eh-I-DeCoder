@@ -431,10 +431,16 @@ export class MergeEditor extends JRPCClient {
   async loadFileContent(filePath, lineNumber = null) {
     if (!filePath) return;
     
-    // Check if this is the same file that's already loaded - if so, just scroll to line
-    if (filePath === this.currentFilePath && this.mergeView && lineNumber !== null) {
-      console.log(`File ${filePath} already loaded, scrolling to line ${lineNumber}`);
-      setTimeout(() => this.scrollToLine(lineNumber), 50);
+    // Check if this is the same file that's already loaded
+    if (filePath === this.currentFilePath && this.mergeView) {
+      console.log(`File ${filePath} already loaded`);
+      // If a line number is provided, just scroll to that line
+      if (lineNumber !== null) {
+        console.log(`Scrolling to line ${lineNumber}`);
+        setTimeout(() => this.scrollToLine(lineNumber), 50);
+      } else {
+        console.log(`Same file clicked, preserving current view state`);
+      }
       return;
     }
     
