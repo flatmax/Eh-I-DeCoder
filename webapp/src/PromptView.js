@@ -5,7 +5,6 @@ import {LitElement, html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
-import '@material/web/iconbutton/filled-icon-button.js';
 import '../assistant-card.js';
 import '../user-card.js';
 import './SpeechToText.js';
@@ -110,7 +109,11 @@ export class PromptView extends MessageHandler {
       border-bottom: 1px solid #e0e0e0;
       min-height: 48px;
       user-select: none; /* Prevent text selection during drag */
-      cursor: move; /* Always indicate draggable */
+      cursor: grab; /* Indicate draggable */
+    }
+    
+    .dialog-header:active {
+      cursor: grabbing; /* Change cursor when actively dragging */
     }
     
     .dialog-title {
@@ -118,11 +121,6 @@ export class PromptView extends MessageHandler {
       font-size: 14px;
       color: #333;
       margin: 0;
-    }
-    
-    .dialog-controls {
-      display: flex;
-      gap: 4px;
     }
     
     .prompt-container {
@@ -237,6 +235,7 @@ export class PromptView extends MessageHandler {
     
     // Add document click listener
     document.addEventListener('click', this.handleDocumentClick, true);
+    
     // Add global mouse event listeners for dragging
     document.addEventListener('mousemove', this.handleDrag);
     document.addEventListener('mouseup', this.handleDragEnd);
@@ -251,8 +250,29 @@ export class PromptView extends MessageHandler {
     document.removeEventListener('mouseup', this.handleDragEnd);
   }
   
+  
+  handleHeaderClick(event) {
+    // Only toggle if we weren't dragging
+    if (!this.isDragging && !this._wasDragging) {
+      // Toggle between minimized and maximized when header is clicked
+      if (this.isMinimized) {
+        this.maximize();
+      } else {
+        this.minimize();
+      }
+      // Prevent other click handlers from firing
+      event.stopPropagation();
+    }
+    
+    // Reset drag flag after click is processed
+    this._wasDragging = false;
+  }
+  
   // Drag event handlers
   handleDragStart(event) {
+    // Ignore non-left button clicks
+    if (event.button !== 0) return;
+    
     // Get current position
     const rect = this.getBoundingClientRect();
     
@@ -262,7 +282,7 @@ export class PromptView extends MessageHandler {
       y: event.clientY - rect.top
     };
     
-    // Remove transform and set initial absolute position
+    // Add dragging class to disable transitions during drag
     this.classList.add('dragging');
     
     // Set position before marking as dragging to avoid jumps
@@ -307,31 +327,33 @@ export class PromptView extends MessageHandler {
     this.style.top = `${y}px`;
     this.style.left = `${x}px`;
     
+    // Set flag to prevent click handler from firing
+    this._wasDragging = true;
+    
     event.preventDefault();
   }
   
-  handleDragEnd() {
+  handleDragEnd(event) {
     if (!this.isDragging) return;
-    
-    // Store final position before changing drag state
-    let finalPosition;
-    if (this.isMinimized) {
-      finalPosition = { ...this.minimizedPosition };
-    } else {
-      finalPosition = { ...this.maximizedPosition };
-    }
     
     // Update dragging state
     this.isDragging = false;
     
-    // Keep the dragging class to maintain absolute positioning
-    // but add a specific class for no-longer-dragging state
+    // Keep dragged state
     this.classList.remove('dragging');
     this.classList.add('dragged');
     
-    // Ensure position is maintained
-    this.style.top = `${finalPosition.y}px`;
-    this.style.left = `${finalPosition.x}px`;
+    // Store position
+    const finalX = parseFloat(this.style.left);
+    const finalY = parseFloat(this.style.top);
+    
+    if (this.isMinimized) {
+      this.minimizedPosition = { x: finalX, y: finalY };
+      this.hasBeenDraggedMinimized = true;
+    } else {
+      this.maximizedPosition = { x: finalX, y: finalY };
+      this.hasBeenDraggedMaximized = true;
+    }
   }
   
   
@@ -376,9 +398,6 @@ export class PromptView extends MessageHandler {
       this.classList.add('minimized');
       this.classList.remove('maximized');
       
-      // Remove dragging class but keep dragged if previously moved
-      this.classList.remove('dragging');
-      
       // Only apply custom position if we've dragged this state before
       if (this.hasBeenDraggedMinimized) {
         // Apply position directly
@@ -400,40 +419,29 @@ export class PromptView extends MessageHandler {
       
       // Only apply custom position if we've dragged this state before
       if (this.hasBeenDraggedMaximized) {
-        // Apply position directly without timeout
+        // Apply position directly
         this.style.top = `${this.maximizedPosition.y}px`;
         this.style.left = `${this.maximizedPosition.x}px`;
         
         // Use 'dragged' class for previously dragged dialogs
-        // This keeps absolute positioning but without active drag state
         this.classList.add('dragged');
       } else {
         // Reset to center position
         this.style.top = '';
         this.style.left = '';
-        this.classList.remove('dragging', 'dragged');
+        this.classList.remove('dragged');
       }
     }
-  }
-  
-  toggleMinimized() {
-    this.isMinimized = !this.isMinimized;
-    this.updateDialogClass();
-    this.requestUpdate();
+    
+    // Remove dragging class if we're not actively dragging
+    if (!this.isDragging) {
+      this.classList.remove('dragging');
+    }
   }
   
   maximize() {
     if (this.isMinimized) {
       this.isMinimized = false;
-      
-      // If this is the first maximization and we haven't dragged,
-      // position in center of screen
-      if (!this.hasBeenDragged) {
-        // We'll let CSS handle initial positioning
-        this.style.top = '';
-        this.style.left = '';
-      }
-      
       this.updateDialogClass();
       this.requestUpdate();
     }
@@ -453,15 +461,10 @@ export class PromptView extends MessageHandler {
   render() {
     return html`
       <div class="dialog-container" @click=${this.handleDialogClick}>
-        <div class="dialog-header" @mousedown=${this.handleDragStart}>
+        <div class="dialog-header" 
+          @mousedown=${this.handleDragStart}
+          @click=${this.handleHeaderClick}>
           <h3 class="dialog-title">AI Assistant</h3>
-          <div class="dialog-controls">
-            <md-filled-icon-button 
-              icon="${this.isMinimized ? 'fullscreen' : 'fullscreen_exit'}"
-              @click=${this.toggleMinimized}
-              title="${this.isMinimized ? 'Maximize' : 'Minimize'}"
-            ></md-filled-icon-button>
-          </div>
         </div>
         
         <div class="prompt-container">
