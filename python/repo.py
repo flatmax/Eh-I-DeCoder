@@ -1,5 +1,6 @@
 import git
 import os
+import re
 from eh_i_decoder.base_wrapper import BaseWrapper
 
 
@@ -166,4 +167,96 @@ class Repo(BaseWrapper):
         except Exception as e:
             error_msg = {"error": f"Error saving file {file_path}: {e}"}
             self.log(f"save_file_content returning error: {error_msg}")
+            return error_msg
+            
+    def search_files(self, query, word=False, regex=False):
+        """Search for content in repository files
+        
+        Args:
+            query (str): The search string or pattern
+            word (bool): If True, search for whole word matches
+            regex (bool): If True, treat query as a regular expression
+            
+        Returns:
+            dict: A dictionary with results or error information
+        """
+        self.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"search_files returning error: {error_msg}")
+            return error_msg
+            
+        try:
+            results = []
+            repo_root = self.repo.working_tree_dir
+            
+            # Prepare the search pattern based on parameters
+            if regex:
+                try:
+                    if word:
+                        # For word+regex, we'll add word boundary assertions
+                        pattern = re.compile(r'\b' + query + r'\b')
+                    else:
+                        pattern = re.compile(query)
+                except re.error as e:
+                    return {"error": f"Invalid regular expression: {e}"}
+            else:
+                if word:
+                    # For word-only search, prepare for whole word matching
+                    pattern = None  # We'll handle this separately
+                else:
+                    # For plain text search, escape regex special chars
+                    pattern = re.compile(re.escape(query))
+            
+            # Walk through all files in the repository
+            for root, _, files in os.walk(repo_root):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    
+                    # Skip binary files, .git directory, and very large files
+                    rel_path = os.path.relpath(full_path, repo_root)
+                    if (rel_path.startswith('.git/') or 
+                        os.path.getsize(full_path) > 1024 * 1024):  # Skip files > 1MB
+                        continue
+                    
+                    try:
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            lines = f.readlines()
+                    except UnicodeDecodeError:
+                        # Skip binary files that couldn't be decoded as utf-8
+                        continue
+                    
+                    file_matches = []
+                    for line_num, line in enumerate(lines, 1):
+                        if regex or not word:
+                            # Use regex pattern for both regex mode and plain text mode
+                            if pattern.search(line):
+                                file_matches.append({
+                                    "line_num": line_num,
+                                    "line": line.rstrip('\n')
+                                })
+                        else:
+                            # For word-only search, do manual word boundary checking
+                            words = re.findall(r'\b\w+\b', line)
+                            if query in words:
+                                file_matches.append({
+                                    "line_num": line_num,
+                                    "line": line.rstrip('\n')
+                                })
+                    
+                    if file_matches:
+                        results.append({
+                            "file": rel_path,
+                            "matches": file_matches
+                        })
+            
+            self.log(f"search_files found {len(results)} files with matches")
+            # Return the results directly without nesting them in a "results" key
+            # This matches the structure expected by the frontend
+            return results
+            
+        except Exception as e:
+            error_msg = {"error": f"Error during search: {e}"}
+            self.log(f"search_files returning error: {error_msg}")
             return error_msg

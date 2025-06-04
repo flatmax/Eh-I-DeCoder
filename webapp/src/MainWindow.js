@@ -11,6 +11,7 @@ import '@material/web/tabs/tabs.js';
 import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import './CommandsTab.js';
+import './FindInFiles.js';
 import '../prompt-view.js';
 import '../repo-tree.js';
 import '../merge-editor.js';
@@ -56,6 +57,9 @@ export class MainWindow extends JRPCClient {
     this.activeTabIndex = 0; // Default to Repository tab (index 0)
     this.sidebarWidth = 280; // Default sidebar width in pixels
     this.repoName = null; // Repository name for browser tab title
+    
+    // Bind methods
+    this.handleOpenFile = this.handleOpenFile.bind(this);
   }
   
   static styles = css`
@@ -443,10 +447,16 @@ export class MainWindow extends JRPCClient {
                 ${this.sidebarExpanded ? "Repository" : html`<md-icon>source</md-icon>`}
               </md-primary-tab>
               <md-primary-tab 
-                aria-label="Commands Tab Tab" 
-                title=${this.sidebarExpanded ? "Commands Tab" : ""}
+                aria-label="Search Tab" 
+                title=${this.sidebarExpanded ? "Search" : ""}
               >
-                ${this.sidebarExpanded ? "Commands Tab" : html`<md-icon>tune</md-icon>`}
+                ${this.sidebarExpanded ? "Search" : html`<md-icon>search</md-icon>`}
+              </md-primary-tab>
+              <md-primary-tab 
+                aria-label="Commands Tab" 
+                title=${this.sidebarExpanded ? "Commands" : ""}
+              >
+                ${this.sidebarExpanded ? "Commands" : html`<md-icon>tune</md-icon>`}
               </md-primary-tab>
               <md-primary-tab 
                 aria-label="Settings Tab" 
@@ -468,19 +478,27 @@ export class MainWindow extends JRPCClient {
                 </div>
               </div>
               
-              <!-- Commands Tab Tab Panel -->
+              <!-- Search Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
                 'active': this.activeTabIndex === 1
               })} style="${this.activeTabIndex === 1 ? 'display: flex;' : 'display: none;'}">
+                <find-in-files .serverURI=${this.serverURI} @open-file=${this.handleOpenFile}></find-in-files>
+              </div>
+              
+              <!-- Commands Tab Panel -->
+              <div class=${classMap({
+                'tab-panel': true,
+                'active': this.activeTabIndex === 2
+              })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
                 <files-and-settings .serverURI=${this.serverURI}></files-and-settings>
               </div>
               
               <!-- Settings Tab Panel -->
               <div class=${classMap({
                 'tab-panel': true,
-                'active': this.activeTabIndex === 2
-              })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
+                'active': this.activeTabIndex === 3
+              })} style="${this.activeTabIndex === 3 ? 'display: flex;' : 'display: none;'}">
                 <!-- Server Status Section -->
                 <div class="connection-status">
                   <span class=${classMap(ledClasses)}></span>
@@ -803,5 +821,37 @@ export class MainWindow extends JRPCClient {
     if (handle) {
       handle.classList.remove('active');
     }
+  }
+  
+  /**
+   * Handle open file events from the search results
+   * @param {CustomEvent} e - Event containing file path and optional line number
+   */
+  handleOpenFile(e) {
+    if (!e || !e.detail) return;
+    
+    const { filePath, lineNumber } = e.detail;
+    console.log(`Opening file: ${filePath}${lineNumber ? ` at line ${lineNumber}` : ''}`);
+    
+    // Find merge editor component
+    const mergeEditor = this.shadowRoot.querySelector('merge-editor');
+    if (!mergeEditor) {
+      console.error('Merge editor not found');
+      return;
+    }
+    
+    // Load the file in the editor
+    mergeEditor.loadFileContent(filePath);
+    
+    // If a line number was specified, scroll to it after loading
+    if (lineNumber && typeof lineNumber === 'number') {
+      // Give time for the editor to load
+      setTimeout(() => {
+        mergeEditor.scrollToLine(lineNumber);
+      }, 500);
+    }
+    
+    // Ensure the editor is visible
+    this.showMergeEditor = true;
   }
 }

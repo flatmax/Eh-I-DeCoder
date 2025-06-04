@@ -76,6 +76,57 @@ export class MergeEditor extends JRPCClient {
     return this.workingContent;
   }
   
+  /**
+   * Scrolls to a specific line in the editor
+   * @param {number} lineNumber - The line number to scroll to
+   */
+  scrollToLine(lineNumber) {
+    if (!this.mergeView || !lineNumber) return;
+    
+    console.log(`Scrolling to line ${lineNumber}`);
+    
+    try {
+      // Get the editor view based on whether we're in unified or side-by-side mode
+      const view = this.unifiedView ? this.mergeView : this.mergeView.b;
+      
+      if (!view) return;
+      
+      // Make sure line number is within bounds
+      const line = Math.min(lineNumber, view.state.doc.lines);
+      
+      // Get the position for the specified line
+      const pos = view.state.doc.line(line).from;
+      
+      // Create a selection at that position
+      const selection = {
+        anchor: pos,
+        head: pos
+      };
+      
+      // Update the editor state to create the selection and scroll to it
+      view.dispatch({
+        selection,
+        effects: EditorView.scrollIntoView(selection, {
+          y: 'center',
+          margin: 50
+        })
+      });
+      
+      // Also highlight the line for better visibility
+      setTimeout(() => {
+        const lineElement = view.dom.querySelector(`.cm-line:nth-child(${lineNumber})`);
+        if (lineElement) {
+          lineElement.classList.add('highlighted-line');
+          setTimeout(() => {
+            lineElement.classList.remove('highlighted-line');
+          }, 3000); // Remove highlight after 3 seconds
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error scrolling to line:', error);
+    }
+  }
+  
   // Reset unsaved changes flag
   resetChangeTracking() {
     this.hasUnsavedChanges = false;
