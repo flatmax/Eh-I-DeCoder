@@ -88,24 +88,53 @@ export class MergeEditor extends JRPCClient {
     this.updateMergeView();
   }
 
-  // Navigate to next chunk in the diff view
+  // Navigate to next chunk in the diff view and center it
   goToNextChunk() {
     if (!this.mergeView) return;
+    
     if (!this.unifiedView && this.mergeView.b) {
-      goToNextChunk(this.mergeView.b);
+      const view = this.mergeView.b;
+      goToNextChunk(view);
+      
+      // Center the current cursor position
+      this._centerActiveSelection(view);
     } else if (this.unifiedView) {
-      goToNextChunk(this.mergeView);
+      const view = this.mergeView;
+      goToNextChunk(view);
+      
+      // Center the current cursor position
+      this._centerActiveSelection(view);
     }
   }
   
-  // Navigate to previous chunk in the diff view
+  // Navigate to previous chunk in the diff view and center it
   goToPreviousChunk() {
     if (!this.mergeView) return;
+    
     if (!this.unifiedView && this.mergeView.b) {
-      goToPreviousChunk(this.mergeView.b);
+      const view = this.mergeView.b;
+      goToPreviousChunk(view);
+      
+      // Center the current cursor position
+      this._centerActiveSelection(view);
     } else if (this.unifiedView) {
-      goToPreviousChunk(this.mergeView);
+      const view = this.mergeView;
+      goToPreviousChunk(view);
+      
+      // Center the current cursor position
+      this._centerActiveSelection(view);
     }
+  }
+  
+  // Helper method to center the current selection/cursor in view
+  _centerActiveSelection(view) {
+    const selection = view.state.selection.main;
+    // Use scrollIntoView with 'center' alignment option
+    view.dispatch({
+      effects: EditorView.scrollIntoView(selection, {
+        y: "center"
+      })
+    });
   }
   
   // Set up polling for changes
