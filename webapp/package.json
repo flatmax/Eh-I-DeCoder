@@ -12,6 +12,7 @@
     "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch"
   },
   "dependencies": {
+    "@codemirror/lang-cpp": "^6.0.2",
     "@codemirror/lang-css": "^6.2.1",
     "@codemirror/lang-html": "^6.4.6",
     "@codemirror/lang-javascript": "^6.2.1",

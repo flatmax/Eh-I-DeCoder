@@ -13,6 +13,7 @@ import {html as htmlLang} from '@codemirror/lang-html';
 import {css as cssLang} from '@codemirror/lang-css';
 import {json} from '@codemirror/lang-json';
 import {markdown} from '@codemirror/lang-markdown';
+import {cpp} from '@codemirror/lang-cpp';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
@@ -268,6 +269,11 @@ export class MergeEditor extends JRPCClient {
       case 'md':
       case 'markdown':
         return markdown();
+      case 'c':
+      case 'h':
+      case 'cpp':
+      case 'hpp':
+        return cpp();
       default:
         return [];
     }
