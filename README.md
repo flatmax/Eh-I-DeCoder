@@ -24,7 +24,7 @@ This is a web-based interface for the [Aider](https://github.com/Aider-AI/aider)
 ## Requirements
 
 ### Backend
-- Python 3.8+
+- Python 3.8+ (I'm currently decoding with v3.12)
 - Aider and its dependencies (installed automatically)
 
 ### Frontend
