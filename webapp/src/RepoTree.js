@@ -124,7 +124,7 @@ export class RepoTree extends FileTree {
     return 'clean';
   }
   
-  // Handle file click to open the file in merge editor
+  // Handle file click to open the file in a new tab with merge editor
   async handleFileClick(path, isFile) {
     if (!isFile) return; // Only handle file clicks, not directory clicks
     
@@ -132,20 +132,17 @@ export class RepoTree extends FileTree {
       // Check file git status for logging purposes
       const gitStatus = this.getFileGitStatus(path);
       
-      // Always show in merge editor regardless of git status
-      console.log(`Opening file in merge editor: ${path} (${gitStatus})`);
+      // Dispatch event to open file in new tab
+      console.log(`Requesting to open file in new tab: ${path} (${gitStatus})`);
       
-      // Find the MergeEditor component in MainWindow
-      const mainWindow = document.querySelector('main-window');
-      if (mainWindow && mainWindow.shadowRoot) {
-        const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-        if (mergeEditor) {
-          await mergeEditor.loadFileContent(path);
-        } else {
-          console.warn('MergeEditor component not found');
-        }
-      }
+      // Create a custom event to be handled by MainWindow
+      const openFileEvent = new CustomEvent('open-file', {
+        bubbles: true, // Allow event to bubble up through the DOM
+        composed: true, // Allow event to cross shadow DOM boundary
+        detail: { filePath: path }
+      });
       
+      this.dispatchEvent(openFileEvent);
     } catch (error) {
       console.error('Error handling file click:', error);
       // Don't fall back to super.handleFileClick even on error

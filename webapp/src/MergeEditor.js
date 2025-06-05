@@ -54,8 +54,14 @@ export class MergeEditor extends JRPCClient {
   
   disconnectedCallback() {
     super.disconnectedCallback();
+    
+    // Clean up merge view
     if (this.mergeView) {
-      this.mergeView.destroy();
+      try {
+        this.mergeView.destroy();
+      } catch (e) {
+        console.warn('Error destroying merge view:', e);
+      }
       this.mergeView = null;
     }
     
@@ -64,6 +70,8 @@ export class MergeEditor extends JRPCClient {
       clearInterval(this.changeDetectionInterval);
       this.changeDetectionInterval = null;
     }
+    
+    console.log('MergeEditor disconnected and cleaned up');
   }
   
   // Get current content from the active editor
@@ -426,6 +434,17 @@ export class MergeEditor extends JRPCClient {
   
   remoteIsUp() {
     console.log('MergeEditor::remoteIsUp');
+  }
+
+  setupDone() {
+    // This method being called indicates that the remote is setup and ready for calls e.g. await this.call
+    console.log('MergeEditor::setupDone');
+    // If we have a filePath already set (from parent component), load it
+    if (this.filePath && !this.currentFilePath) {
+      console.log(`MergeEditor connected with initial filePath: ${this.filePath}`);
+      // Use setTimeout to ensure the component is fully connected before loading
+      this.loadFileContent(this.filePath);
+    }
   }
   
   async loadFileContent(filePath, lineNumber = null) {

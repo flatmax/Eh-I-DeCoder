@@ -29,7 +29,10 @@ export class MainWindow extends JRPCClient {
     sidebarExpanded: { type: Boolean, state: true },
     activeTabIndex: { type: Number, state: true },
     sidebarWidth: { type: Number, state: true },
-    repoName: { type: String, state: true }
+    repoName: { type: String, state: true },
+    // Tab management
+    editorTabs: { type: Array, state: true },
+    activeEditorTab: { type: Number, state: true }
   };
   
   constructor() {
@@ -58,8 +61,14 @@ export class MainWindow extends JRPCClient {
     this.sidebarWidth = 280; // Default sidebar width in pixels
     this.repoName = null; // Repository name for browser tab title
     
+    // Editor tabs management
+    this.editorTabs = []; // Array of {id, filePath, lineNumber}
+    this.activeEditorTab = -1; // Index of active editor tab
+    
     // Bind methods
     this.handleOpenFile = this.handleOpenFile.bind(this);
+    this.closeEditorTab = this.closeEditorTab.bind(this);
+    this.switchEditorTab = this.switchEditorTab.bind(this);
   }
   
   static styles = css`
@@ -67,6 +76,78 @@ export class MainWindow extends JRPCClient {
       display: block;
       font-family: sans-serif;
       height: 100vh;
+      overflow: hidden;
+    }
+    
+    /* Editor Tabs Styles */
+    .editor-tabs {
+      display: flex;
+      background-color: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+      overflow-x: auto;
+      white-space: nowrap;
+      height: 36px;
+    }
+    
+    .editor-tab {
+      display: flex;
+      align-items: center;
+      padding: 0 16px 0 12px;
+      height: 36px;
+      border-right: 1px solid #ddd;
+      cursor: pointer;
+      background-color: #f0f0f0;
+      position: relative;
+      min-width: 100px;
+      max-width: 200px;
+    }
+    
+    .editor-tab.active {
+      background-color: white;
+      border-bottom: 2px solid #1976d2;
+    }
+    
+    .editor-tab-content {
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      gap: 8px;
+    }
+    
+    .editor-tab-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    
+    .editor-tab-close {
+      width: 16px;
+      height: 16px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      margin-left: 4px;
+      color: #666;
+    }
+    
+    .editor-tab-close:hover {
+      background-color: rgba(0, 0, 0, 0.1);
+      color: #333;
+    }
+    
+    .editor-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .editor-container {
+      position: relative;
+      flex: 1;
       overflow: hidden;
     }
     .container {
@@ -519,7 +600,7 @@ export class MainWindow extends JRPCClient {
                 'active': this.activeTabIndex === 0
               })} style="${this.activeTabIndex === 0 ? 'display: flex;' : 'display: none;'}">
                 <div class="file-tree-container">
-                  <repo-tree .serverURI=${this.serverURI}></repo-tree>
+                  <repo-tree .serverURI=${this.serverURI} @open-file=${this.handleOpenFile}></repo-tree>
                 </div>
               </div>
               
@@ -595,7 +676,41 @@ export class MainWindow extends JRPCClient {
         <!-- Main Content Area -->
         <div class="main-content">
           ${this.showMergeEditor ? 
-            html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
+            html`
+              <div class="editor-content">
+                <!-- Editor Tabs Bar -->
+                <div class="editor-tabs">
+                  ${this.editorTabs.map((tab, index) => html`
+                    <div 
+                      class="editor-tab ${index === this.activeEditorTab ? 'active' : ''}" 
+                      @click=${() => this.switchEditorTab(index)}
+                    >
+                      <div class="editor-tab-content">
+                        <div class="editor-tab-title" title="${tab.filePath}">${tab.title}</div>
+                        <div class="editor-tab-close" @click=${(e) => this.closeEditorTab(index, e)}>×</div>
+                      </div>
+                    </div>
+                  `)}
+                </div>
+                
+                <!-- Editor Containers -->
+                <div class="editor-container">
+                  ${this.editorTabs.map((tab, index) => html`
+                    <merge-editor 
+                      .serverURI=${this.serverURI}
+                      style="display: ${index === this.activeEditorTab ? 'flex' : 'none'}; height: 100%;"
+                      .filePath=${tab.filePath}
+                    ></merge-editor>
+                  `)}
+                  
+                  ${this.editorTabs.length === 0 ? html`
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">
+                      No files open. Click a file in the repository to open it.
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            ` : ''}
         </div>
         
         <!-- Floating Prompt View Dialog -->
@@ -718,10 +833,15 @@ export class MainWindow extends JRPCClient {
         repoTree.serverURI = this.serverURI;
       }
       
-      const mergeEditor = this.shadowRoot.querySelector('merge-editor');
-      if (mergeEditor && mergeEditor.serverURI !== this.serverURI) {
-        console.log('Updating MergeEditor server URI to:', this.serverURI);
-        mergeEditor.serverURI = this.serverURI;
+      // Update all merge editors
+      const mergeEditors = this.shadowRoot.querySelectorAll('merge-editor');
+      if (mergeEditors) {
+        mergeEditors.forEach(editor => {
+          if (editor.serverURI !== this.serverURI) {
+            console.log('Updating MergeEditor server URI to:', this.serverURI);
+            editor.serverURI = this.serverURI;
+          }
+        });
       }
       
       const CommandsTab = this.shadowRoot.querySelector('files-and-settings');
@@ -879,34 +999,127 @@ export class MainWindow extends JRPCClient {
   }
   
   /**
-   * Handle open file events from the search results
+   * Handle open file events from the search results or file tree
    * @param {CustomEvent} e - Event containing file path and optional line number
    */
   handleOpenFile(e) {
     if (!e || !e.detail) return;
     
     const { filePath, lineNumber } = e.detail;
-    console.log(`Opening file: ${filePath}${lineNumber ? ` at line ${lineNumber}` : ''}`);
+    console.log(`Opening file in new tab: ${filePath}${lineNumber ? ` at line ${lineNumber}` : ''}`);
     
-    // Find merge editor component
-    const mergeEditor = this.shadowRoot.querySelector('merge-editor');
-    if (!mergeEditor) {
-      console.error('Merge editor not found');
-      return;
-    }
+    // Check if file is already open in a tab
+    const existingTabIndex = this.editorTabs.findIndex(tab => tab.filePath === filePath);
     
-    // Load the file in the editor
-    mergeEditor.loadFileContent(filePath);
-    
-    // If a line number was specified, scroll to it after loading
-    if (lineNumber && typeof lineNumber === 'number') {
-      // Give time for the editor to load
-      setTimeout(() => {
-        mergeEditor.scrollToLine(lineNumber);
-      }, 500);
+    if (existingTabIndex >= 0) {
+      // File already open, switch to that tab
+      this.switchEditorTab(existingTabIndex);
+      
+      // Update line number if provided
+      if (lineNumber !== undefined) {
+        const mergeEditor = this.getEditorForTab(existingTabIndex);
+        if (mergeEditor) {
+          setTimeout(() => {
+            mergeEditor.scrollToLine(lineNumber);
+          }, 100);
+        }
+      }
+    } else {
+      // Create a new tab for this file
+      const newTab = {
+        id: Date.now(), // Unique ID for the tab
+        filePath,
+        lineNumber,
+        title: this.getFileNameFromPath(filePath)
+      };
+      
+      // Add the new tab
+      this.editorTabs = [...this.editorTabs, newTab];
+      
+      // Switch to the new tab
+      this.switchEditorTab(this.editorTabs.length - 1);
     }
     
     // Ensure the editor is visible
     this.showMergeEditor = true;
+  }
+  
+  /**
+   * Get filename from a path
+   * @param {string} path - Full file path
+   * @return {string} - Just the file name
+   */
+  getFileNameFromPath(path) {
+    if (!path) return 'Untitled';
+    const parts = path.split('/');
+    return parts[parts.length - 1];
+  }
+  
+  /**
+   * Switch to a specific editor tab
+   * @param {number} index - Tab index to activate
+   */
+  switchEditorTab(index) {
+    if (index >= 0 && index < this.editorTabs.length) {
+      this.activeEditorTab = index;
+      this.requestUpdate();
+    }
+  }
+  
+  /**
+   * Close an editor tab
+   * @param {number} index - Tab index to close
+   * @param {Event} e - Click event (to stop propagation)
+   */
+  closeEditorTab(index, e) {
+    if (e) {
+      e.stopPropagation(); // Prevent triggering tab switch
+    }
+    
+    if (index >= 0 && index < this.editorTabs.length) {
+      // Remove the tab
+      const newTabs = [...this.editorTabs];
+      newTabs.splice(index, 1);
+      this.editorTabs = newTabs;
+      
+      // Adjust active tab index
+      if (this.activeEditorTab === index) {
+        // If we closed the active tab
+        if (index < newTabs.length) {
+          // Switch to the tab that's now at this position
+          this.activeEditorTab = index;
+        } else if (newTabs.length > 0) {
+          // Switch to the last tab
+          this.activeEditorTab = newTabs.length - 1;
+        } else {
+          // No tabs left
+          this.activeEditorTab = -1;
+        }
+      } else if (this.activeEditorTab > index) {
+        // If active tab was after the closed one, decrement index
+        this.activeEditorTab--;
+      }
+      
+      this.requestUpdate();
+    }
+  }
+  
+  /**
+   * Get the MergeEditor component for the specified tab
+   * @param {number} index - Tab index
+   * @return {MergeEditor|null} - The editor component or null if not found
+   */
+  getEditorForTab(index) {
+    if (index < 0 || index >= this.editorTabs.length) {
+      return null;
+    }
+    
+    // We need to find the editor by index since they don't have unique IDs in the DOM
+    const editors = this.shadowRoot.querySelectorAll('merge-editor');
+    if (editors && editors[index]) {
+      return editors[index];
+    }
+    
+    return null;
   }
 }
