@@ -51,20 +51,6 @@ export class CommandsTab extends LitElement {
         <div class="section-title">Commands</div>
         <commands-buttons .serverURI=${this.serverURI}></commands-buttons>
       </div>
-      
-      <div class="section">
-        <div class="section-title">Settings</div>
-        <div class="settings-placeholder">
-          Settings panel will be implemented here
-        </div>
-      </div>
-      
-      <div class="section">
-        <div class="section-title">Files</div>
-        <div class="settings-placeholder">
-          Additional file management tools will be implemented here
-        </div>
-      </div>
     `;
   }
 }
