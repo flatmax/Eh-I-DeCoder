@@ -321,4 +321,17 @@ export class MessageHandler extends JRPCClient {
     this.requestUpdate();
     return true;
   }
+
+  /**
+   * Stop the current running process by sending a KeyboardInterrupt
+   */
+  async stopRunning() {
+    try {
+      console.log('Sending stop signal to CoderWrapper...');
+      await this.call['CoderWrapper.stop']();
+      console.log('Stop signal sent successfully');
+    } catch (error) {
+      console.error('Error sending stop signal:', error);
+    }
+  }
 }

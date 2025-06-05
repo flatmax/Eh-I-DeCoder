@@ -499,6 +499,16 @@ export class PromptView extends MessageHandler {
                 ${this.isProcessing ? 'Processing...' : this.coderType}
               </md-filled-button>
               
+              ${this.isProcessing ? html`
+                <md-filled-button 
+                  id="stopButton" 
+                  @click=${this.stopRunning}
+                  style="background-color: #d32f2f;"
+                >
+                  Stop
+                </md-filled-button>
+              ` : ''}
+              
               <div class="voice-input-container">
                 ${this.showVoiceInput ? html`
                   <speech-to-text

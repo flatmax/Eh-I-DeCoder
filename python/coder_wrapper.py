@@ -1,4 +1,6 @@
 import asyncio
+import os
+import signal
 import threading
 import traceback
 from datetime import datetime
@@ -107,6 +109,38 @@ class CoderWrapper(BaseWrapper):
             edit_format
         ))
 
+    def stop(self):
+        """Stop the current running operation by raising KeyboardInterrupt"""
+        self.log("Stop requested - interrupting coder operation only")
+        
+        # Use a custom event to signal threads to stop
+        # This will not affect the main server
+        if hasattr(self, '_current_run_thread') and self._current_run_thread:
+            self.log(f"Sending interrupt to thread: {self._current_run_thread.name}")
+            # Raise exception in the coder thread using ctypes
+            import ctypes
+            thread_id = self._current_run_thread.ident
+            if thread_id:
+                # This raises KeyboardInterrupt in the target thread
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(thread_id), 
+                    ctypes.py_object(KeyboardInterrupt)
+                )
+                if res > 1:
+                    # If more than one thread was affected, undo it
+                    ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread_id), None)
+                    self.log("Failed to interrupt thread (affected multiple threads)")
+                    return {"status": "error", "message": "Failed to interrupt thread"}
+                else:
+                    self.log("Interrupt signal sent to thread")
+                    return {"status": "interrupt_sent_to_thread"}
+            else:
+                self.log("No thread ID available")
+                return {"status": "error", "message": "No thread ID available"}
+        else:
+            self.log("No active thread to interrupt")
+            return {"status": "error", "message": "No active thread to interrupt"}
+        
     def signal_completion(self):
         """Signal that command processing is complete"""
         self.log("Signaling command completion to webapp")
@@ -153,10 +187,19 @@ class CoderWrapper(BaseWrapper):
                 
                 # Signal completion even on error to reset the UI
                 self.signal_completion()
+            finally:
+                # Clear the thread reference when done
+                if hasattr(self, '_current_run_thread') and self._current_run_thread == threading.current_thread():
+                    self._current_run_thread = None
+                    self.log(f"Thread reference cleared for '{thread_name}'")
 
         # Create and start a daemon thread to run the task
         thread = threading.Thread(target=task_to_run_in_thread, name="CoderRunThread")
         thread.daemon = True  # Allows the main program to exit even if this thread is running
+        
+        # Store the thread reference for later interruption
+        self._current_run_thread = thread
+        
         thread.start()
         
         self.log(f"Thread '{thread.name}' launched for coder.run, run_wrapper returning immediately.")
