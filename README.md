@@ -43,7 +43,6 @@ pip install -e .
 
 This will install:
 - Aider and all its dependencies
-- The JSON-RPC library
 - The `aider-server` console script
 
 #### Troubleshooting
