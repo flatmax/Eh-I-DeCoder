@@ -6,10 +6,13 @@ aider_server.py - JSON-RPC server for the Aider AI coding assistant
 import argparse
 import asyncio
 from datetime import datetime
+import signal
 import sys
 import os
 from pathlib import Path
 import threading
+import logging
+from asyncio import Event
 
 # Add local jrpc-oo to path if needed
 if os.path.exists('./jrpc-oo'):
@@ -37,7 +40,25 @@ def parse_args():
     # Return both the parsed args (containing port) and the remaining args for Aider
     return args, unknown_args
 
+# Setup custom sys.exit handler
+original_sigint_handler = None  # Will be set in main_starter_async
+
 async def main_starter_async():
+    # Store the original SIGINT handler
+    global original_sigint_handler
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    
+    # Create shutdown event
+    shutdown_event = Event()
+    
+    # Define SIGINT handler that will trigger shutdown
+    def sigint_handler(sig, frame):
+        print("\nSIGINT received, initiating shutdown... please wait")
+        shutdown_event.set()
+    
+    # Set our custom SIGINT handler
+    signal.signal(signal.SIGINT, sigint_handler)
+    
     # Parse command line arguments for the server and get remaining args for Aider
     args, aider_args = parse_args()
     # Initialize the server
@@ -120,12 +141,17 @@ async def main_starter_async():
         await jrpc_server.start()
         
         try:
-            # Keep server running indefinitely
-            await asyncio.Future()
-        except KeyboardInterrupt:
-            print("Server stopped by user")
+            # Wait until shutdown event is set
+            print("Server running. Press Ctrl+C to exit.")
+            await shutdown_event.wait()
+            print("Shutdown event triggered, stopping server...")
+        except Exception as e:
+            print(f"Error in server main loop: {e}")
         finally:
+            print("Stopping JSON-RPC server...")
             await jrpc_server.stop()
+            # Restore original signal handler and sys.exit when shutting down
+            signal.signal(signal.SIGINT, original_sigint_handler)
     except OSError as e:
         if e.errno == 98:  # Address already in use
             print(f"ERROR: Port {args.port} is already in use. Try a different port.")
@@ -139,10 +165,18 @@ async def main_starter_async():
 def main_starter():
     """Entry point for the aider-server command"""
     try:
+        # Set up basic logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(), logging.FileHandler('/tmp/aider_server.log')]
+        )
+        
         exit_code = asyncio.run(main_starter_async())
         return exit_code if exit_code else 0
     except Exception as e:
         print(f"Unhandled exception: {e}")
+        # Restore original sys.exit in case of exception
         return 3  # Exit code for unhandled exceptions
 
 if __name__ == "__main__":

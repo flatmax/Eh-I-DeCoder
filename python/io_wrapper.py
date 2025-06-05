@@ -351,7 +351,7 @@ class IOWrapper(BaseWrapper):
             self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](formatted_message, False, 'command'))
             self.log("streamWrite call initiated with role='command'")
         except Exception as e:
-            err_msg = f"Error sending command output to webapp: {e}"
+            err_msg = f"Error sending command output to webapp (if you're exiting, ctl-c again please): {e}"
             self.log(f"{err_msg}\n{type(e)}")
             print(err_msg)
     
