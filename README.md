@@ -2,10 +2,10 @@
 
 ## What is Eh-I-DeCoder?
 
-**Eh-I-DeCoder** is a multi-faceted AI coding assistant that draws inspiration from several concepts:
+**Eh-I-DeCoder** is a trimmed down AI coding assistant that draws inspiration from several concepts:
 
 ### 1. AI IDE Coder - The Web-Based Development Environment
-A modern, web-based AI IDE that brings the power of AI pair programming directly to your browser. No more switching between terminals and editors - everything you need for AI-assisted development in one intuitive interface.
+A modern, web-based AI IDE that brings the power of AI pair programming directly to your browser.
 
 ### 2. "Eh ¿ De Coder" - The Debugging Detective
 *"What the f*** just happened here?"* - When your AI coding assistant does something unexpected or seemingly crazy, Eh-I-DeCoder helps you decode what it did. Whether you need to guide the AI to fix its changes or understand the modifications well enough to fix them yourself, this tool provides the transparency and control you need.
@@ -72,7 +72,7 @@ npm install
 
 ## Running the Application
 
-You need to start both the backend and frontend components:
+You need to start both the backend and frontend components. All arguments are passed through to Aider, so you can use any configuration options that Aider supports:
 
 ### 1. Start the Backend Server
 
@@ -103,7 +103,6 @@ cd python
 python ./aider_server.py
 ```
 
-All arguments are passed through to Aider, so you can use any configuration options that Aider supports.
 
 ### 2. Start the Frontend
 ```bash
@@ -114,13 +113,14 @@ cd webapp
 npm start
 ```
 
-The web application will be accessible at the URL shown in your terminal (typically http://localhost:8000 or similar).
+The web application will be accessible at the URL shown in your terminal (default is http://localhost:8999).
 
 ## Usage
 
-1. Connect to the backend server using the interface
+1. Connect to the backend server using the interface (refresh the browser if necessary)
 2. Use the prompt view to interact with Aider
-3. Upload files to the context as needed
+3. Click to add files to the context as needed
+4. So many other features...
 
 ## Additional Information
 
