@@ -3,6 +3,7 @@ import {classMap} from 'lit/directives/class-map.js';
 import {FileTree} from './FileTree.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
+import '@material/web/fab/fab.js';
 
 export class RepoTree extends FileTree {
   static properties = {
@@ -234,9 +235,6 @@ export class RepoTree extends FileTree {
             <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
               <md-icon class="material-symbols-outlined">unfold_less</md-icon>
             </md-icon-button>
-            <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
-              <md-icon class="material-symbols-outlined">refresh</md-icon>
-            </md-icon-button>
           </div>
         </div>
         
@@ -246,12 +244,35 @@ export class RepoTree extends FileTree {
             html`<div class="error">${this.error}</div>` :
             html`<div class="file-tree">${this.renderTreeNode(this.treeData)}</div>`
         }
+        
+        <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.loadFileTree()}>
+          <md-icon slot="icon">refresh</md-icon>
+        </md-fab>
       </div>
     `;
   }
   
   static styles = css`
     ${FileTree.styles}
+    
+    .file-tree-container {
+      position: relative;
+      min-height: 200px; /* Ensure container has enough height */
+    }
+    
+    .refresh-fab {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      z-index: 100;
+    }
+    
+    .small-fab {
+      --md-fab-container-width: 36px;
+      --md-fab-container-height: 36px;
+      --md-fab-icon-size: 22px;
+      transform: scale(0.75);
+    }
     
     .branch-row {
       display: flex;
