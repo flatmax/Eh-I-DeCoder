@@ -268,6 +268,29 @@ export class RepoTree extends FileTree {
     }
   }
   
+  // Handle discard changes action from context menu
+  async handleDiscardChanges() {
+    const path = this.contextMenuPath;
+    if (!path) return;
+    
+    // Hide the context menu
+    this.contextMenuVisible = false;
+    
+    try {
+      console.log(`Discarding changes to file: ${path}`);
+      
+      // Call Repo.discard_changes API
+      const response = await this.call['Repo.discard_changes'](path);
+      console.log('Discard response:', response);
+      
+      // Refresh the file tree to show updated status
+      setTimeout(() => this.loadFileTree(), 300);
+    } catch (error) {
+      console.error('Error discarding changes:', error);
+      alert(`Failed to discard changes: ${error.message}`);
+    }
+  }
+  
   // Handle file context menu
   handleContextMenu(event, path, isFile) {
     // Only show context menu for files, not directories
@@ -360,6 +383,15 @@ export class RepoTree extends FileTree {
               <span class="context-menu-text">Stage File</span>
             </div>
           `}
+          
+          ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'modified' ? html`
+            <div class="context-menu-item" @click=${this.handleDiscardChanges}>
+              <span class="context-menu-icon">
+                <md-icon class="material-symbols-outlined">restore</md-icon>
+              </span>
+              <span class="context-menu-text">Discard Changes</span>
+            </div>
+          ` : ''}
         </div>
       ` : ''}
     `;

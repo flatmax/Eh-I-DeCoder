@@ -229,6 +229,36 @@ class Repo(BaseWrapper):
             self.log(f"unstage_file returning error: {error_msg}")
             return error_msg
             
+    def discard_changes(self, file_path):
+        """Discard changes to a specific file in the repository by checking it out from HEAD"""
+        self.log(f"discard_changes called for {file_path}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"discard_changes returning error: {error_msg}")
+            return error_msg
+            
+        try:
+            # Check if file is modified
+            modified_files = [item.a_path for item in self.repo.index.diff(None)]
+            if file_path not in modified_files:
+                error_msg = {"error": f"File {file_path} has no changes to discard"}
+                self.log(f"discard_changes returning error: {error_msg}")
+                return error_msg
+                
+            # Discard the changes by checking out from HEAD or index
+            self.log(f"Discarding changes to file: {file_path}")
+            # This will restore the file to its state in the index (if it's there) or HEAD
+            self.repo.git.restore(file_path)
+            
+            self.log(f"Changes to file {file_path} discarded successfully")
+            return {"status": "success", "message": f"Changes to file {file_path} discarded successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error discarding changes to file {file_path}: {e}"}
+            self.log(f"discard_changes returning error: {error_msg}")
+            return error_msg
+            
     def commit_file(self, file_path, commit_message):
         """Commit a specific file to the repository"""
         self.log(f"commit_file called for {file_path} with message: {commit_message}")
