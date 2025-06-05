@@ -117,7 +117,3 @@ The web application will be accessible at the URL shown in your terminal (defaul
 2. Use the prompt view to interact with Aider
 3. Click to add files to the context as needed
 4. So many other features...
-
-## Additional Information
-
-For more details about the backend functionality, refer to the README in the `python` directory.
