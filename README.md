@@ -16,7 +16,7 @@ A modern, web-based AI IDE that brings the power of AI pair programming directly
 
 ---
 
-This is a web-based interface for the [Aider](https://github.com/Aider-AI/aider) AI pair programming tool. The application consists of two components:
+The application consists of two components:
 
 1. **Python Backend**: A JSON-RPC-OO server that interfaces with Aider
 2. **Web Frontend**: A user-friendly interface to interact with Aider
