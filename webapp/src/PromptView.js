@@ -4,7 +4,9 @@
 import {LitElement, html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
+import '@material/web/iconbutton/icon-button.js';
 import '@material/web/textfield/filled-text-field.js';
+import '@material/web/icon/icon.js';
 import '../assistant-card.js';
 import '../user-card.js';
 import './SpeechToText.js';
@@ -183,6 +185,12 @@ export class PromptView extends MessageHandler {
       gap: 10px;
       height: 100%;
       min-width: 120px;
+    }
+    
+    .button-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
     
     :host(.minimized) .controls-column {
@@ -491,23 +499,25 @@ export class PromptView extends MessageHandler {
               style="width: 100%;"
             ></md-filled-text-field>
             <div class="controls-column">
-              <md-filled-button 
-                id="sendButton" 
-                @click=${this.sendPromptUI}
-                ?disabled=${this.isProcessing}
-              >
-                ${this.isProcessing ? 'Processing...' : this.coderType}
-              </md-filled-button>
-              
-              ${this.isProcessing ? html`
+              <div class="button-row">
                 <md-filled-button 
-                  id="stopButton" 
-                  @click=${this.stopRunning}
-                  style="background-color: #d32f2f;"
+                  id="sendButton" 
+                  @click=${this.sendPromptUI}
+                  ?disabled=${this.isProcessing}
                 >
-                  Stop
+                  ${this.isProcessing ? 'Processing...' : this.coderType}
                 </md-filled-button>
-              ` : ''}
+                
+                ${this.isProcessing ? html`
+                  <md-icon-button 
+                    id="stopButton" 
+                    @click=${this.stopRunning}
+                    style="background-color: #d32f2f; color: white;"
+                  >
+                    <md-icon>stop</md-icon>
+                  </md-icon-button>
+                ` : ''}
+              </div>
               
               <div class="voice-input-container">
                 ${this.showVoiceInput ? html`
