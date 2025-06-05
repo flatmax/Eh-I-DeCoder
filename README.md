@@ -28,7 +28,7 @@ This is a web-based interface for the [Aider](https://github.com/Aider-AI/aider)
 - Aider and its dependencies (installed automatically)
 
 ### Frontend
-- Node.js and npm
+- npm
 
 ## Setup
 
