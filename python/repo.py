@@ -169,6 +169,101 @@ class Repo(BaseWrapper):
             self.log(f"save_file_content returning error: {error_msg}")
             return error_msg
             
+    def stage_file(self, file_path):
+        """Stage a specific file in the repository"""
+        self.log(f"stage_file called for {file_path}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"stage_file returning error: {error_msg}")
+            return error_msg
+            
+        try:
+            # Construct the full path
+            full_path = os.path.join(self.repo.working_tree_dir, file_path)
+            
+            # Check if file exists
+            if not os.path.exists(full_path):
+                error_msg = {"error": f"File {file_path} does not exist"}
+                self.log(f"stage_file returning error: {error_msg}")
+                return error_msg
+                
+            # Stage the file
+            self.log(f"Staging file: {file_path}")
+            self.repo.git.add(file_path)
+            
+            self.log(f"File {file_path} staged successfully")
+            return {"status": "success", "message": f"File {file_path} staged successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error staging file {file_path}: {e}"}
+            self.log(f"stage_file returning error: {error_msg}")
+            return error_msg
+    
+    def unstage_file(self, file_path):
+        """Unstage a specific file in the repository"""
+        self.log(f"unstage_file called for {file_path}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"unstage_file returning error: {error_msg}")
+            return error_msg
+            
+        try:
+            # Check if file is staged
+            staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
+            if file_path not in staged_files:
+                error_msg = {"error": f"File {file_path} is not staged"}
+                self.log(f"unstage_file returning error: {error_msg}")
+                return error_msg
+                
+            # Unstage the file (restore index)
+            self.log(f"Unstaging file: {file_path}")
+            self.repo.git.restore('--staged', file_path)
+            
+            self.log(f"File {file_path} unstaged successfully")
+            return {"status": "success", "message": f"File {file_path} unstaged successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error unstaging file {file_path}: {e}"}
+            self.log(f"unstage_file returning error: {error_msg}")
+            return error_msg
+            
+    def commit_file(self, file_path, commit_message):
+        """Commit a specific file to the repository"""
+        self.log(f"commit_file called for {file_path} with message: {commit_message}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"commit_file returning error: {error_msg}")
+            return error_msg
+            
+        try:
+            # Construct the full path
+            full_path = os.path.join(self.repo.working_tree_dir, file_path)
+            
+            # Check if file exists
+            if not os.path.exists(full_path):
+                error_msg = {"error": f"File {file_path} does not exist"}
+                self.log(f"commit_file returning error: {error_msg}")
+                return error_msg
+                
+            # Stage the file
+            self.log(f"Staging file: {file_path}")
+            self.repo.git.add(file_path)
+            
+            # Commit the staged changes
+            self.log(f"Committing file with message: {commit_message}")
+            commit_result = self.repo.git.commit('-m', commit_message)
+            
+            self.log(f"File {file_path} committed successfully: {commit_result}")
+            return {"status": "success", "message": f"File {file_path} committed successfully", "details": commit_result}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error committing file {file_path}: {e}"}
+            self.log(f"commit_file returning error: {error_msg}")
+            return error_msg
+            
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files
         

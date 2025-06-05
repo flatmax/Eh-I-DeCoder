@@ -326,7 +326,8 @@ export class FileTree extends JRPCClient {
     } else {
       // File or empty directory
       return html`
-        <div class=${classMap(nodeClasses)}>
+        <div class=${classMap(nodeClasses)}
+             @contextmenu=${(event) => this.handleContextMenu(event, nodePath, node.isFile)}>
           ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
                                @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
           <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>

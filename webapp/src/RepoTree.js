@@ -21,6 +21,8 @@ export class RepoTree extends FileTree {
     this.stagedFiles = [];
     this.untrackedFiles = [];
     this.addedFiles = [];
+    this.contextMenuPath = null;
+    this.contextMenuVisible = false;
   }
   
   connectedCallback() {
@@ -218,6 +220,97 @@ export class RepoTree extends FileTree {
     }
   }
   
+  // Handle stage file action from context menu
+  async handleStageFile() {
+    const path = this.contextMenuPath;
+    if (!path) return;
+    
+    // Hide the context menu
+    this.contextMenuVisible = false;
+    
+    try {
+      // Show loading indicator or toast message here if needed
+      console.log(`Staging file: ${path}`);
+      
+      // Call Repo.stage_file API
+      const response = await this.call['Repo.stage_file'](path);
+      console.log('Stage response:', response);
+      
+      // Refresh the file tree to show updated status
+      setTimeout(() => this.loadFileTree(), 300);
+    } catch (error) {
+      console.error('Error staging file:', error);
+      alert(`Failed to stage file: ${error.message}`);
+    }
+  }
+  
+  // Handle unstage file action from context menu
+  async handleUnstageFile() {
+    const path = this.contextMenuPath;
+    if (!path) return;
+    
+    // Hide the context menu
+    this.contextMenuVisible = false;
+    
+    try {
+      // Show loading indicator or toast message here if needed
+      console.log(`Unstaging file: ${path}`);
+      
+      // Call Repo.unstage_file API
+      const response = await this.call['Repo.unstage_file'](path);
+      console.log('Unstage response:', response);
+      
+      // Refresh the file tree to show updated status
+      setTimeout(() => this.loadFileTree(), 300);
+    } catch (error) {
+      console.error('Error unstaging file:', error);
+      alert(`Failed to unstage file: ${error.message}`);
+    }
+  }
+  
+  // Handle file context menu
+  handleContextMenu(event, path, isFile) {
+    // Only show context menu for files, not directories
+    if (!isFile) return;
+
+    // Prevent default browser context menu
+    event.preventDefault();
+    
+    // Set the path for the selected file
+    this.contextMenuPath = path;
+    this.contextMenuVisible = true;
+    
+    // Position context menu immediately to avoid flickering
+    const x = event.clientX;
+    const y = event.clientY;
+    
+    // Force immediate update and then position the menu
+    this.requestUpdate().then(() => {
+      this.updateComplete.then(() => {
+        const contextMenu = this.shadowRoot.querySelector('.context-menu');
+        if (contextMenu) {
+          // Position context menu at mouse position
+          contextMenu.style.left = `${x}px`;
+          contextMenu.style.top = `${y}px`;
+          
+          // Add event listener for clicks outside the menu
+          requestAnimationFrame(() => {
+            const closeMenu = (e) => {
+              // Check if click is outside the context menu
+              if (!contextMenu.contains(e.target)) {
+                this.contextMenuVisible = false;
+                this.requestUpdate();
+                document.removeEventListener('click', closeMenu);
+              }
+            };
+            
+            document.addEventListener('click', closeMenu);
+          });
+        }
+      });
+    });
+  }
+  
   render() {
     return html`
       <div class="file-tree-container">
@@ -249,6 +342,26 @@ export class RepoTree extends FileTree {
           <md-icon slot="icon">refresh</md-icon>
         </md-fab>
       </div>
+      
+      ${this.contextMenuVisible ? html`
+        <div class="context-menu">
+          ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'staged' ? html`
+            <div class="context-menu-item" @click=${this.handleUnstageFile}>
+              <span class="context-menu-icon">
+                <md-icon class="material-symbols-outlined">remove_circle</md-icon>
+              </span>
+              <span class="context-menu-text">Unstage File</span>
+            </div>
+          ` : html`
+            <div class="context-menu-item" @click=${this.handleStageFile}>
+              <span class="context-menu-icon">
+                <md-icon class="material-symbols-outlined">add_circle</md-icon>
+              </span>
+              <span class="context-menu-text">Stage File</span>
+            </div>
+          `}
+        </div>
+      ` : ''}
     `;
   }
   
@@ -258,6 +371,45 @@ export class RepoTree extends FileTree {
     .file-tree-container {
       position: relative;
       min-height: 200px; /* Ensure container has enough height */
+    }
+    
+    /* Context Menu Styles */
+    .context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 4px;
+      padding: 4px 0;
+      z-index: 1000;
+      min-width: 180px;
+    }
+    
+    .context-menu-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .context-menu-item:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .context-menu-icon {
+      margin-right: 8px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .context-menu-icon md-icon {
+      font-size: 18px;
+      --md-icon-size: 18px;
+    }
+    
+    .context-menu-text {
+      font-size: 14px;
     }
     
     .refresh-fab {
