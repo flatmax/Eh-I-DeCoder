@@ -17,10 +17,7 @@ export class MessageHandler extends JRPCClient {
     this.messageHistory = [];
     this.isProcessing = false;
     this.serverURI = "";  // Will be set from parent component
-    this.messageHistory = [
-      { role: 'user', content: '' },
-      { role: 'assistant', content: '' }
-    ];
+    this.messageHistory = [];
   }
 
   connectedCallback() {
