@@ -321,6 +321,51 @@ export class MainWindow extends JRPCClient {
     
     // Schedule reconnect
     this.scheduleReconnect();
+    
+    // Add keyboard shortcut listener
+    document.addEventListener('keydown', this._handleKeyboardShortcuts.bind(this));
+  }
+  
+  /**
+   * Handle keyboard shortcuts globally
+   */
+  _handleKeyboardShortcuts(event) {
+    // Ctrl+Shift+F: Focus search input
+    if (event.ctrlKey && event.shiftKey && event.key === 'F') {
+      event.preventDefault(); // Prevent default browser behavior
+      this._focusSearchInput();
+    }
+  }
+  
+  /**
+   * Focus the search input in FindInFiles
+   */
+  _focusSearchInput() {
+    // Switch to the search tab (index 1)
+    this.activeTabIndex = 1;
+    this.requestUpdate();
+    
+    // Wait for the DOM update to complete
+    this.updateComplete.then(() => {
+      // Find the search input inside FindInFiles component
+      const findInFiles = this.shadowRoot.querySelector('find-in-files');
+      if (findInFiles) {
+        // Wait for FindInFiles component to update
+        findInFiles.updateComplete.then(() => {
+          // Find the Material Design text field component
+          const textField = findInFiles.shadowRoot.querySelector('md-outlined-text-field');
+          if (textField) {
+            // Focus the text field
+            textField.focus();
+            console.log('Search input focused');
+          } else {
+            console.warn('md-outlined-text-field not found in FindInFiles');
+          }
+        });
+      } else {
+        console.warn('FindInFiles component not found');
+      }
+    });
   }
   
   /**
@@ -758,6 +803,16 @@ export class MainWindow extends JRPCClient {
     this.requestUpdate();
     
     this.scheduleReconnect();
+  }
+
+  /**
+   * LitElement lifecycle method - called when element is removed from DOM
+   */
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    
+    // Remove keyboard shortcut listener when component is removed
+    document.removeEventListener('keydown', this._handleKeyboardShortcuts.bind(this));
   }
 
   /**
