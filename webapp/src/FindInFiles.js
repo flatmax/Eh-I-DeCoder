@@ -131,6 +131,7 @@ export class FindInFiles extends JRPCClient {
               label="Search in files..."
               .value=${this.searchQuery || ''} 
               @input=${e => this.searchQuery = e.target.value}
+              @keydown=${e => e.key === 'Enter' && this.handleSearch(e)}
               ?disabled=${this.isSearching}
               style="flex-grow: 1;"
             ></md-outlined-text-field>
@@ -210,7 +211,6 @@ export class FindInFiles extends JRPCClient {
           ${repeat(this.searchResults, result => result.file, result => html`
             <div class="file-result">
               <div class="file-header" @click=${() => this.handleOpenFile(result.file)}>
-                <span class="material-symbols-outlined">description</span>
                 <span class="file-path">${result.file}</span>
                 <span class="match-count">${result.matches.length}</span>
               </div>
