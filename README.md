@@ -68,7 +68,7 @@ npm install
 
 ## Running the Application
 
-You need to start both the backend and frontend components. All arguments are passed through to Aider, so you can use any configuration options that Aider supports:
+You need to start both the backend and frontend components. All backend (aider-server) arguments are passed through to Aider, so you can use any configuration options that Aider supports:
 
 ### 1. Start the Backend Server
 
