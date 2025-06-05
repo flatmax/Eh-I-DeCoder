@@ -1,6 +1,9 @@
 import git
 import os
 import re
+import asyncio
+import time
+import threading
 from eh_i_decoder.base_wrapper import BaseWrapper
 
 
@@ -13,6 +16,10 @@ class Repo(BaseWrapper):
 
         self.repo_path = repo_path or '.'
         self.repo = None
+        self._git_change_callbacks = []
+        self._git_monitor_thread = None
+        self._git_monitor_running = False
+        self._git_monitor_interval = 2  # seconds
         self._initialize_repo()
     
     def _initialize_repo(self):
@@ -24,12 +31,40 @@ class Repo(BaseWrapper):
             self.log(f"Git directory: {self.repo.git_dir}")
             self.log(f"Working directory: {self.repo.working_dir}")
             self.log(f"Repository root: {self.repo.working_tree_dir}")
+            
+            # Start the git monitor after initializing the repository
+            self.start_git_monitor()
         except git.exc.InvalidGitRepositoryError:
             self.log(f"No Git repository found at: {self.repo_path} or in parent directories")
             self.repo = None
         except Exception as e:
             self.log(f"Error initializing Git repository: {e}")
             self.repo = None
+    
+    def register_git_change_callback(self, callback_name):
+        """Register a callback to be called when git state changes
+        
+        Args:
+            callback_name (str): The name of the JSON-RPC method to call,
+                                e.g., 'RepoTree.loadFileTree'
+        """
+        self.log(f"Registering git change callback: {callback_name}")
+        if callback_name not in self._git_change_callbacks:
+            self._git_change_callbacks.append(callback_name)
+            return {"status": "success", "message": f"Callback '{callback_name}' registered"}
+        return {"status": "info", "message": f"Callback '{callback_name}' already registered"}
+    
+    def unregister_git_change_callback(self, callback_name):
+        """Unregister a previously registered git change callback
+        
+        Args:
+            callback_name (str): The name of the JSON-RPC method to call
+        """
+        self.log(f"Unregistering git change callback: {callback_name}")
+        if callback_name in self._git_change_callbacks:
+            self._git_change_callbacks.remove(callback_name)
+            return {"status": "success", "message": f"Callback '{callback_name}' unregistered"}
+        return {"status": "info", "message": f"Callback '{callback_name}' not found"}
     
     def get_repo_name(self):
         """Get the name of the repository (top-level directory name)"""
@@ -403,6 +438,145 @@ class Repo(BaseWrapper):
                 return []
             # For other errors, re-raise to fall back to Python implementation
             raise
+    
+    def start_git_monitor(self, interval=None):
+        """Start monitoring the git repository for changes"""
+        if interval is not None:
+            self._git_monitor_interval = interval
+            
+        if not self.repo:
+            self.log("Cannot start git monitor: No git repository available")
+            return {"error": "No git repository available"}
+            
+        if self._git_monitor_thread and self._git_monitor_thread.is_alive():
+            self.log("Git monitor is already running")
+            return {"status": "info", "message": "Git monitor already running"}
+            
+        self.log(f"Starting git monitor with interval {self._git_monitor_interval}s")
+        self._git_monitor_running = True
+        self._git_monitor_thread = threading.Thread(
+            target=self._git_monitor_loop, 
+            daemon=True,
+            name="GitMonitorThread"
+        )
+        self._git_monitor_thread.start()
+        return {"status": "success", "message": "Git monitor started"}
+            
+    def stop_git_monitor(self):
+        """Stop the git repository monitor"""
+        if not self._git_monitor_running:
+            self.log("Git monitor is not running")
+            return {"status": "info", "message": "Git monitor not running"}
+            
+        self.log("Stopping git monitor")
+        self._git_monitor_running = False
+        if self._git_monitor_thread:
+            # The thread will exit on its next iteration
+            self._git_monitor_thread = None
+        return {"status": "success", "message": "Git monitor stopped"}
+    
+    def _git_monitor_loop(self):
+        """Background thread function to monitor git status"""
+        self.log("Git monitor thread started")
+        
+        # Track repository state with these variables
+        last_head_commit = None
+        last_index_hash = None
+        last_working_tree_hash = None
+        
+        try:
+            while self._git_monitor_running and self.repo:
+                try:
+                    # Get current repository state
+                    current_head = self.repo.head.commit.hexsha if not self.repo.head.is_detached else None
+                    
+                    # Generate a hash of the index state
+                    index_hash = self._hash_git_index()
+                    
+                    # Generate a hash of the working tree state
+                    working_tree_hash = self._hash_git_working_tree()
+                    
+                    # Check if state has changed
+                    if (current_head != last_head_commit or 
+                        index_hash != last_index_hash or 
+                        working_tree_hash != last_working_tree_hash):
+                        
+                        self.log("Git state change detected")
+                        
+                        # Update the last known state
+                        last_head_commit = current_head
+                        last_index_hash = index_hash
+                        last_working_tree_hash = working_tree_hash
+                        
+                        # Call the notification function
+                        self._notify_git_change_from_monitor()
+                    
+                except Exception as e:
+                    self.log(f"Error in git monitor loop: {e}")
+                
+                # Sleep before next check
+                time.sleep(self._git_monitor_interval)
+                
+        except Exception as e:
+            self.log(f"Git monitor thread error: {e}")
+        finally:
+            self.log("Git monitor thread exiting")
+    
+    def _hash_git_index(self):
+        """Generate a hash representing the current state of the git index"""
+        if not self.repo:
+            return None
+        
+        try:
+            # Get a hash of staged files and their state
+            staged = sorted([item.a_path for item in self.repo.index.diff("HEAD")])
+            return hash(str(staged))
+        except Exception as e:
+            self.log(f"Error hashing git index: {e}")
+            return None
+    
+    def _hash_git_working_tree(self):
+        """Generate a hash representing the current state of the working tree"""
+        if not self.repo:
+            return None
+        
+        try:
+            # Get a hash of modified and untracked files
+            modified = sorted([item.a_path for item in self.repo.index.diff(None)])
+            untracked = sorted(self.repo.untracked_files)
+            return hash(str(modified) + str(untracked))
+        except Exception as e:
+            self.log(f"Error hashing git working tree: {e}")
+            return None
+    
+    def _notify_git_change_from_monitor(self):
+        """Notify all registered callbacks that git state has changed (called from monitor thread)"""
+        if not self._git_change_callbacks:
+            return
+            
+        self.log(f"Notifying {len(self._git_change_callbacks)} git change callbacks")
+        
+        # Create a task in the main asyncio loop
+        self._safe_create_task(self._async_notify_git_change())
+    
+    async def _async_notify_git_change(self):
+        """Async method to notify all callbacks about git changes"""
+        for callback_name in self._git_change_callbacks:
+            self.log(f"Notifying callback: {callback_name}")
+            try:
+                # Parse the callback name to get the class and method
+                parts = callback_name.split('.')
+                if len(parts) == 2:
+                    class_name, method_name = parts
+                    # Call the method using the JSON-RPC mechanism
+                    self.log(f"Calling {class_name}.{method_name}")
+                    # Use an empty object as the parameter to avoid problems with parameter passing
+                    # await self.call[callback_name]({})
+                    self._safe_create_task(self.get_call()[callback_name]())
+                else:
+                    self.log(f"Invalid callback name format: {callback_name}")
+            except Exception as e:
+                self.log(f"Error calling callback {callback_name}: {e}")
     
     def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Fallback search implementation using Python when git grep fails"""

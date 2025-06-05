@@ -30,12 +30,38 @@ export class RepoTree extends FileTree {
     this.addClass?.(this);
   }
   
-  remoteIsUp() {
-    console.log('RepoTree::remoteIsUp');
-    // Add a timeout before loading to ensure connection is fully established
-    setTimeout(() => {
-      this.loadFileTree();
-    }, 500);
+  setupDone() {
+    console.log('RepoTree::setupDone');
+    // Register for git change notifications
+    this.registerForGitChanges();
+    // Then load the file tree
+    this.loadFileTree();
+  }
+  
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    // Unregister from git change notifications when component is removed
+    this.unregisterFromGitChanges();
+  }
+  
+  async registerForGitChanges() {
+    try {
+      console.log('Registering for git change notifications');
+      const response = await this.call['Repo.register_git_change_callback']('RepoTree.loadFileTree');
+      console.log('Git change registration response:', response);
+    } catch (error) {
+      console.error('Error registering for git changes:', error);
+    }
+  }
+  
+  async unregisterFromGitChanges() {
+    try {
+      console.log('Unregistering from git change notifications');
+      const response = await this.call['Repo.unregister_git_change_callback']('RepoTree.loadFileTree');
+      console.log('Git change unregistration response:', response);
+    } catch (error) {
+      console.error('Error unregistering from git changes:', error);
+    }
   }
   
   async loadGitStatus() {
@@ -82,6 +108,11 @@ export class RepoTree extends FileTree {
   }
   
   async loadFileTree(scrollPosition = null) {
+    // Handle empty object parameter (from git change notifications)
+    if (scrollPosition && typeof scrollPosition === 'object' && Object.keys(scrollPosition).length === 0) {
+      scrollPosition = null;
+    }
+    
     // Save current scroll position if not provided
     if (scrollPosition === null) {
       const fileTreeContainer = this.shadowRoot?.querySelector('.file-tree-container');
