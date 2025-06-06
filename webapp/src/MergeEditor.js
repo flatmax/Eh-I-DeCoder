@@ -1,15 +1,9 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {EditorView, keymap} from '@codemirror/view';
-import {extractResponseData} from './Utils.js';
-import {EditorState} from '@codemirror/state';
-import {basicSetup} from 'codemirror';
-import {MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
-import {search} from '@codemirror/search';
-import {diffTheme, commonEditorTheme} from './editor/EditorThemes.js';
-import {createCommonKeymap} from './editor/EditorKeymap.js';
-import {getLanguageExtension} from './editor/LanguageExtensions.js';
 import {LineHighlight} from './editor/LineHighlight.js';
+import {MergeViewManager} from './editor/MergeViewManager.js';
+import {FileContentLoader} from './editor/FileContentLoader.js';
+import {ChangeTracker} from './editor/ChangeTracker.js';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
@@ -20,7 +14,6 @@ export class MergeEditor extends JRPCClient {
     error: { type: String, state: true },
     serverURI: { type: String },
     hasUnsavedChanges: { type: Boolean, state: true },
-    originalContent: { type: String, state: true },
     unifiedView: { type: Boolean, state: true },
     currentFilePath: { type: String, state: true }
   };
@@ -32,48 +25,53 @@ export class MergeEditor extends JRPCClient {
     this.workingContent = '';
     this.loading = false;
     this.error = null;
-    this.mergeView = null;
     this.hasUnsavedChanges = false;
-    this.originalContent = '';
     this.unifiedView = false;
     this.currentFilePath = '';
+    
+    // Initialize managers
     this.lineHighlight = null;
+    this.mergeViewManager = null;
+    this.fileContentLoader = null;
+    this.changeTracker = null;
     
     // Bind methods to this instance
-    this.checkForChanges = this.checkForChanges.bind(this);
     this.toggleViewMode = this.toggleViewMode.bind(this);
+    this.onChangeTracked = this.onChangeTracked.bind(this);
   }
   
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    
+    // Initialize managers
     this.lineHighlight = new LineHighlight(this.shadowRoot);
+    this.mergeViewManager = new MergeViewManager(this.shadowRoot, this.filePath);
+    this.fileContentLoader = new FileContentLoader(this);
+    this.changeTracker = new ChangeTracker(this.onChangeTracked);
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this.mergeView) {
-      this.mergeView.destroy();
-      this.mergeView = null;
-    }
     
-    // Clean up interval
-    if (this.changeDetectionInterval) {
-      clearInterval(this.changeDetectionInterval);
-      this.changeDetectionInterval = null;
+    // Clean up managers
+    if (this.mergeViewManager) {
+      this.mergeViewManager.destroy();
     }
+    if (this.changeTracker) {
+      this.changeTracker.cleanup();
+    }
+  }
+
+  onChangeTracked(hasChanges) {
+    this.hasUnsavedChanges = hasChanges;
+    this.requestUpdate();
   }
   
   // Get current content from the active editor
   getCurrentContent() {
-    if (!this.mergeView) return this.workingContent;
-    
-    if (this.unifiedView) {
-      return this.mergeView.state.doc.toString();
-    } else if (this.mergeView.b) {
-      return this.mergeView.b.state.doc.toString();
-    }
-    return this.workingContent;
+    if (!this.mergeViewManager) return this.workingContent;
+    return this.mergeViewManager.getCurrentContent(this.unifiedView) || this.workingContent;
   }
   
   /**
@@ -81,20 +79,12 @@ export class MergeEditor extends JRPCClient {
    * @param {number} lineNumber - The line number to scroll to
    */
   scrollToLine(lineNumber) {
-    if (!this.mergeView || !lineNumber) return;
+    if (!this.mergeViewManager || !lineNumber) return;
     
-    // Determine which view to use based on mode
-    const view = this.unifiedView ? this.mergeView : this.mergeView.b;
-    if (!view) return;
-    
-    this.lineHighlight.scrollToLine(view, lineNumber);
-  }
-  
-  // Reset unsaved changes flag
-  resetChangeTracking() {
-    this.hasUnsavedChanges = false;
-    this.originalContent = this.getCurrentContent();
-    this.requestUpdate();
+    const view = this.mergeViewManager.scrollToLine(lineNumber, this.unifiedView);
+    if (view) {
+      this.lineHighlight.scrollToLine(view, lineNumber);
+    }
   }
   
   // Toggle between unified and side-by-side view
@@ -105,64 +95,15 @@ export class MergeEditor extends JRPCClient {
 
   // Navigate to next chunk in the diff view and center it
   goToNextChunk() {
-    if (!this.mergeView) return;
-    
-    if (!this.unifiedView && this.mergeView.b) {
-      const view = this.mergeView.b;
-      goToNextChunk(view);
-      this._centerActiveSelection(view);
-    } else if (this.unifiedView) {
-      const view = this.mergeView;
-      goToNextChunk(view);
-      this._centerActiveSelection(view);
+    if (this.mergeViewManager) {
+      this.mergeViewManager.goToNextChunk(this.unifiedView);
     }
   }
   
   // Navigate to previous chunk in the diff view and center it
   goToPreviousChunk() {
-    if (!this.mergeView) return;
-    
-    if (!this.unifiedView && this.mergeView.b) {
-      const view = this.mergeView.b;
-      goToPreviousChunk(view);
-      this._centerActiveSelection(view);
-    } else if (this.unifiedView) {
-      const view = this.mergeView;
-      goToPreviousChunk(view);
-      this._centerActiveSelection(view);
-    }
-  }
-  
-  // Helper method to center the current selection/cursor in view
-  _centerActiveSelection(view) {
-    const selection = view.state.selection.main;
-    view.dispatch({
-      effects: EditorView.scrollIntoView(selection, {
-        y: "center"
-      })
-    });
-  }
-  
-  // Set up polling for changes
-  setupChangeDetection() {
-    // Clean up any existing interval
-    if (this.changeDetectionInterval) {
-      clearInterval(this.changeDetectionInterval);
-    }
-    
-    // Check for changes every second
-    this.changeDetectionInterval = setInterval(this.checkForChanges, 1000);
-  }
-  
-  // Check if content has changed from original
-  checkForChanges() {
-    if (!this.mergeView || !this.mergeView.b) return;
-    
-    const currentContent = this.getCurrentContent();
-    
-    if (currentContent !== this.originalContent) {
-      this.hasUnsavedChanges = true;
-      this.requestUpdate();
+    if (this.mergeViewManager) {
+      this.mergeViewManager.goToPreviousChunk(this.unifiedView);
     }
   }
   
@@ -173,21 +114,11 @@ export class MergeEditor extends JRPCClient {
       // Get the current content from the editor
       const content = this.getCurrentContent();
       
-      // Save the file via the Repo API
-      console.log(`Saving changes to file: ${this.filePath}`);
-      const response = await this.call['Repo.save_file_content'](this.filePath, content);
-      
-      // Check response
-      if (response.error) {
-        console.error('Error saving file:', response.error);
-        this.error = `Failed to save file: ${response.error}`;
-        this.requestUpdate();
-        return;
-      }
+      // Save the file via the FileContentLoader
+      await this.fileContentLoader.saveFileContent(this.filePath, content);
       
       // Update tracking state
-      this.resetChangeTracking();
-      console.log('File saved successfully');
+      this.changeTracker.resetChangeTracking(content);
       
     } catch (error) {
       console.error('Error saving file:', error);
@@ -200,7 +131,7 @@ export class MergeEditor extends JRPCClient {
     if (!filePath) return;
     
     // Check if this is the same file that's already loaded
-    if (filePath === this.currentFilePath && this.mergeView) {
+    if (filePath === this.currentFilePath && this.mergeViewManager?.mergeView) {
       console.log(`File ${filePath} already loaded`);
       // If a line number is provided, just scroll to that line
       if (lineNumber !== null) {
@@ -218,25 +149,16 @@ export class MergeEditor extends JRPCClient {
       this.filePath = filePath;
       this.currentFilePath = filePath;
       
-      console.log(`Loading file content for: ${filePath}`);
-      
-      // Get HEAD version and working directory version
-      const headResponse = await this.call['Repo.get_file_content'](filePath, 'HEAD');
-      const workingResponse = await this.call['Repo.get_file_content'](filePath, 'working');
-      
-      // Extract content from responses (handle UUID wrapper)
-      this.headContent = this.extractContent(headResponse);
-      this.workingContent = this.extractContent(workingResponse);
+      // Load file content
+      const { headContent, workingContent } = await this.fileContentLoader.loadFileContent(filePath);
+      this.headContent = headContent;
+      this.workingContent = workingContent;
       
       // Reset change tracking whenever we load a new file
-      this.hasUnsavedChanges = false;
-      this.originalContent = this.workingContent;
+      this.changeTracker.resetChangeTracking(this.workingContent);
       
-      console.log('File content loaded:', {
-        filePath,
-        headLength: this.headContent.length,
-        workingLength: this.workingContent.length
-      });
+      // Update merge view manager with new file path
+      this.mergeViewManager.filePath = filePath;
       
       // Update the merge view
       this.updateMergeView();
@@ -255,94 +177,24 @@ export class MergeEditor extends JRPCClient {
     }
   }
   
-  extractContent(response) {
-    return extractResponseData(response, '');
-  }
-  
   updateMergeView() {
     const container = this.shadowRoot.querySelector('.merge-container');
-    if (!container) return;
-    
-    // Destroy existing merge view
-    if (this.mergeView) {
-      this.mergeView.destroy();
-      this.mergeView = null;
-    }
-    
-    // Clear container
-    container.innerHTML = '';
+    if (!container || !this.mergeViewManager) return;
     
     if (!this.headContent && !this.workingContent) return;
     
     try {
-      // Create search configuration with panel at top
-      const searchConfig = search({
-        top: true // This places the search panel at the top instead of bottom
-      });
-      
-      // Common keyboard shortcuts
-      const commonKeymap = createCommonKeymap(this);
-      
-      if (this.unifiedView) {
-        // Create unified view (single editor with the unifiedMergeView extension)
-        this.mergeView = new EditorView({
-          doc: this.workingContent,
-          extensions: [
-            basicSetup,
-            searchConfig,
-            getLanguageExtension(this.filePath),
-            ...commonEditorTheme,
-            keymap.of(commonKeymap),
-            unifiedMergeView({
-              original: this.headContent,
-              highlightChanges: true,
-              gutter: true,
-              mergeControls: true
-            })
-          ],
-          parent: container,
-          root: this.shadowRoot
-        });
-      } else {
-        // Create side-by-side MergeView
-        this.mergeView = new MergeView({
-          a: {
-            doc: this.headContent,
-            extensions: [
-              basicSetup,
-              searchConfig,
-              getLanguageExtension(this.filePath),
-              EditorState.readOnly.of(true), // Make left pane read-only
-              ...commonEditorTheme
-            ]
-          },
-          b: {
-            doc: this.workingContent,
-            extensions: [
-              basicSetup,
-              searchConfig,
-              getLanguageExtension(this.filePath),
-              ...commonEditorTheme,
-              keymap.of(commonKeymap)
-            ]
-          },
-          // Enhanced merge view options
-          revertControls: true,
-          highlightChanges: true,
-          gutter: true,
-          lineNumbers: true,
-          parent: container,
-          root: this.shadowRoot
-        });
-      }
-      
-      console.log(`MergeView created successfully (mode: ${this.unifiedView ? 'unified' : 'side-by-side'})`);
+      this.mergeViewManager.createMergeView(
+        container, 
+        this.headContent, 
+        this.workingContent, 
+        this.unifiedView, 
+        this
+      );
 
-      // Store original content for comparison
-      this.originalContent = this.workingContent;
+      // Set up change tracking
+      this.changeTracker.setupChangeDetection(() => this.getCurrentContent());
       
-      // Set up polling for changes
-      this.setupChangeDetection();
     } catch (error) {
       console.error('Error creating MergeView:', error);
       this.error = `Failed to create merge view: ${error.message}`;
