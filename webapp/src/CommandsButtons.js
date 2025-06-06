@@ -8,6 +8,7 @@ import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/chips/chip-set.js';
 import '@material/web/chips/assist-chip.js';
 import '@material/web/icon/icon.js';
+import {extractResponseData} from './Utils.js';
 
 export class CommandsButtons extends JRPCClient {
   static properties = {
@@ -90,34 +91,19 @@ export class CommandsButtons extends JRPCClient {
       const commandsData = await this.call['Commands.get_commands']();
       
       // Process and sort commands
-      if (typeof commandsData === 'object' && !Array.isArray(commandsData)) {
-        // Get the keys (should be a single remote UUID)
-        const keys = Object.keys(commandsData);
-        
-        if (keys.length > 0) {
-          // Get the first key (remote UUID)
-          const remoteId = keys[0];
-          
-          // Get the commands array from this key
-          const commandsArray = commandsData[remoteId];
-          
-          if (Array.isArray(commandsArray)) {
-            // Convert array of strings to array of objects with name property
-            // and filter out /add, /drop, and /ls commands
-            this.commands = commandsArray
-              .filter(cmdName => !('/add' === cmdName || '/drop' === cmdName || '/ls' === cmdName))
-              .map(cmdName => {
-                return { name: cmdName, description: `Aider command: ${cmdName}` };
-              })
-              .sort((a, b) => a.name.localeCompare(b.name));
-          } else {
-            this.error = "Expected an array of commands";
-          }
-        } else {
-          this.error = "No commands found";
-        }
+      const commandsArray = extractResponseData(commandsData, [], true);
+      
+      if (Array.isArray(commandsArray)) {
+        // Convert array of strings to array of objects with name property
+        // and filter out /add, /drop, and /ls commands
+        this.commands = commandsArray
+          .filter(cmdName => !('/add' === cmdName || '/drop' === cmdName || '/ls' === cmdName))
+          .map(cmdName => {
+            return { name: cmdName, description: `Aider command: ${cmdName}` };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
       } else {
-        this.error = "Unexpected command data format";
+        this.error = "Expected an array of commands";
       }
     } catch (error) {
       console.error('Error loading commands:', error);

@@ -1,6 +1,7 @@
 import { html, css, LitElement } from 'lit';
 import { JRPCClient } from '@flatmax/jrpc-oo';
 import { repeat } from 'lit/directives/repeat.js';
+import { extractResponseData } from './Utils.js';
 
 // Import Material Design Web Components
 import '@material/web/button/filled-button.js';
@@ -63,26 +64,8 @@ export class FindInFiles extends JRPCClient {
         this.searchError = response.error;
         console.error('Search error:', response.error);
       } else {
-        // Extract search results, handling both direct array responses
-        // and UUID-wrapped objects (similar to FileTree component)
-        if (typeof response === 'object' && !Array.isArray(response)) {
-          // Check if this is a result with a 'results' property
-          if (response.results) {
-            this.searchResults = response.results;
-          } else {
-            // Check if this is a UUID-wrapped object
-            const keys = Object.keys(response);
-            if (keys.length > 0) {
-              this.searchResults = Array.isArray(response[keys[0]]) ? response[keys[0]] : [];
-            } else {
-              this.searchResults = [];
-            }
-          }
-        } else if (Array.isArray(response)) {
-          this.searchResults = response;
-        } else {
-          this.searchResults = [];
-        }
+        // Extract search results using the utility function
+        this.searchResults = extractResponseData(response, [], true);
         
         console.log(`Found matches in ${this.searchResults.length} files`);
       }

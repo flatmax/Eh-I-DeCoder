@@ -3,6 +3,7 @@ import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
+import {extractResponseData} from './Utils.js';
 
 export class FileTree extends JRPCClient {
   static properties = {
@@ -108,31 +109,14 @@ export class FileTree extends JRPCClient {
       // Get all files in the repository
       const allFilesResponse = await this.call['EditBlockCoder.get_all_relative_files']();
       
-      // Extract the array from the response object (which has a UUID key)
-      let all_files = [];
-      if (typeof allFilesResponse === 'object' && !Array.isArray(allFilesResponse)) {
-        // Get the first key (UUID) and extract the array
-        const keys = Object.keys(allFilesResponse);
-        if (keys.length > 0) {
-          all_files = allFilesResponse[keys[0]] || [];
-        }
-      } else if (Array.isArray(allFilesResponse)) {
-        all_files = allFilesResponse;
-      }
+      // Extract file arrays using the utility function
+      const all_files = extractResponseData(allFilesResponse, [], true);
       
       // Get files that are already added to the chat context
       const addedFilesResponse = await this.call['EditBlockCoder.get_inchat_relative_files']();
       
       // Handle the same structure for added files
-      let added_files = [];
-      if (typeof addedFilesResponse === 'object' && !Array.isArray(addedFilesResponse)) {
-        const keys = Object.keys(addedFilesResponse);
-        if (keys.length > 0) {
-          added_files = addedFilesResponse[keys[0]] || [];
-        }
-      } else if (Array.isArray(addedFilesResponse)) {
-        added_files = addedFilesResponse;
-      }
+      const added_files = extractResponseData(addedFilesResponse, [], true);
       
       // Store added files for highlighting
       this.addedFiles = added_files;

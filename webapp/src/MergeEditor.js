@@ -1,6 +1,7 @@
 import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView, keymap} from '@codemirror/view';
+import {extractResponseData} from './Utils.js';
 import {EditorState, EditorSelection} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
 import {MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
@@ -484,17 +485,7 @@ export class MergeEditor extends JRPCClient {
   }
   
   extractContent(response) {
-    if (typeof response === 'string') {
-      return response;
-    } else if (typeof response === 'object' && !Array.isArray(response)) {
-      // Handle UUID wrapper
-      const keys = Object.keys(response);
-      if (keys.length > 0) {
-        const content = response[keys[0]];
-        return typeof content === 'string' ? content : content?.content || '';
-      }
-    }
-    return '';
+    return extractResponseData(response, '');
   }
   
   getLanguageExtension(filePath) {

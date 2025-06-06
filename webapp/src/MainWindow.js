@@ -4,6 +4,7 @@
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
+import {extractResponseData} from './Utils.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
@@ -377,18 +378,7 @@ export class MainWindow extends JRPCClient {
       const response = await this.call['Repo.get_repo_name']();
       
       // Extract the repository name from the response
-      let repoName = null;
-      
-      if (typeof response === 'string') {
-        // Direct string response
-        repoName = response;
-      } else if (typeof response === 'object' && !Array.isArray(response)) {
-        // UUID-wrapped response
-        const keys = Object.keys(response);
-        if (keys.length > 0) {
-          repoName = response[keys[0]];
-        }
-      }
+      const repoName = extractResponseData(response);
       
       if (repoName && !repoName.error) {
         this.repoName = repoName;
