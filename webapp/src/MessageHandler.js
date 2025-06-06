@@ -33,12 +33,6 @@ export class MessageHandler extends JRPCClient {
     this.requestUpdate();
   }
 
-  /**
-   * Called when remote server is up
-   */
-  remoteIsUp() {
-    console.log('MessageHandler::remoteIsUp');
-  }
 
   /**
    * Handle confirmation request from IOWrapper
@@ -184,12 +178,6 @@ export class MessageHandler extends JRPCClient {
 
     this._handleChunk(chunk, final, role);
 
-    // If final is true, prepare for the next message and refresh file tree
-    if (final) {
-      // Refresh the file tree to update git status and context
-      this._refreshFileTree();
-    }
-    
     // Request an immediate update
     this.requestUpdate();
     
@@ -222,30 +210,6 @@ export class MessageHandler extends JRPCClient {
     
     // Force a re-render by creating a new array
     this.messageHistory = [...this.messageHistory];
-  }
-  
-  /**
-   * Refresh the file tree to update git status and context
-   */
-  _refreshFileTree() {
-    try {
-      // Find the MainWindow component
-      const mainWindow = document.querySelector('main-window');
-      if (mainWindow && mainWindow.shadowRoot) {
-        // Find the RepoTree component
-        const repoTree = mainWindow.shadowRoot.querySelector('repo-tree');
-        if (repoTree && typeof repoTree.loadFileTree === 'function') {
-          console.log('Refreshing RepoTree file tree after final chunk');
-          repoTree.loadFileTree();
-        } else {
-          console.warn('RepoTree component not found or loadFileTree method not available');
-        }
-      } else {
-        console.warn('MainWindow component not found');
-      }
-    } catch (error) {
-      console.error('Error refreshing file tree:', error);
-    }
   }
   
   /**

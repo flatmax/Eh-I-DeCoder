@@ -183,40 +183,7 @@ export class RepoTree extends FileTree {
     }
   }
   
-  // New method specifically for checkbox clicks
-  async handleCheckboxClick(event, path) {
-    // Stop propagation to prevent the parent div's click handler from being called
-    event.stopPropagation();
-    
-    try {
-      // Save current scroll position
-      const fileTreeContainer = this.shadowRoot.querySelector('.file-tree-container');
-      const scrollTop = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
-      
-      const isAdded = this.addedFiles.includes(path);
-      
-      if (isAdded) {
-        // If the file is already added, drop it
-        await this.call['EditBlockCoder.drop_rel_fname'](path);
-        
-        // Remove from addedFiles
-        this.addedFiles = this.addedFiles.filter(f => f !== path);
-      } else {
-        // If the file is not added, add it
-        await this.call['EditBlockCoder.add_rel_fname'](path);
-        
-        // Add to addedFiles
-        this.addedFiles = [...this.addedFiles, path];
-      }
-      
-      // Refresh the tree to ensure consistency, but preserve scroll position
-      setTimeout(() => this.loadFileTree(scrollTop), 300);
-      
-      this.requestUpdate();
-    } catch (error) {
-      console.error(`Error ${isAdded ? 'dropping' : 'adding'} file:`, error);
-    }
-  }
+  // Use handleCheckboxClick from parent FileTree class
   
   // Override to add git status classes
   getAdditionalNodeClasses(node, nodePath) {
