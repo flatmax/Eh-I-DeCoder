@@ -3,9 +3,42 @@ import os
 import re
 import asyncio
 import time
-import threading
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from eh_i_decoder.base_wrapper import BaseWrapper
 from eh_i_decoder.logger import Logger
+
+
+class GitChangeHandler(FileSystemEventHandler):
+    """File system event handler that triggers on Git repository changes"""
+    
+    def __init__(self, repo_instance):
+        super().__init__()
+        self.repo = repo_instance
+        self.last_event_time = 0
+        self.debounce_interval = 0.5  # seconds
+    
+    def on_any_event(self, event):
+        # Ignore events in .git directory except for index and HEAD changes
+        if ".git" in event.src_path:
+            important_git_files = [
+                os.path.join(self.repo.repo.git_dir, "index"),
+                os.path.join(self.repo.repo.git_dir, "HEAD"),
+                os.path.join(self.repo.repo.git_dir, "refs")
+            ]
+            
+            is_important = any(path in event.src_path for path in important_git_files)
+            if not is_important:
+                return
+        
+        # Debounce events to avoid multiple rapid notifications
+        current_time = time.time()
+        if current_time - self.last_event_time < self.debounce_interval:
+            return
+            
+        self.last_event_time = current_time
+        self.repo.log(f"Git change detected: {event.src_path}")
+        self.repo._notify_git_change()
 
 
 class Repo(BaseWrapper):
@@ -17,9 +50,8 @@ class Repo(BaseWrapper):
         self.repo_path = repo_path or '.'
         self.repo = None
         self._git_change_callbacks = []
-        self._git_monitor_thread = None
-        self._git_monitor_running = False
-        self._git_monitor_interval = 2  # seconds
+        self._observer = None
+        self._event_handler = None
         self._initialize_repo()
     
     def _initialize_repo(self):
@@ -441,116 +473,49 @@ class Repo(BaseWrapper):
     
     def start_git_monitor(self, interval=None):
         """Start monitoring the git repository for changes"""
-        if interval is not None:
-            self._git_monitor_interval = interval
-            
         if not self.repo:
             self.log("Cannot start git monitor: No git repository available")
             return {"error": "No git repository available"}
             
-        if self._git_monitor_thread and self._git_monitor_thread.is_alive():
+        if self._observer and self._observer.is_alive():
             self.log("Git monitor is already running")
             return {"status": "info", "message": "Git monitor already running"}
             
-        self.log(f"Starting git monitor with interval {self._git_monitor_interval}s")
-        self._git_monitor_running = True
-        self._git_monitor_thread = threading.Thread(
-            target=self._git_monitor_loop, 
-            daemon=True,
-            name="GitMonitorThread"
-        )
-        self._git_monitor_thread.start()
+        self.log(f"Starting git monitor using watchdog")
+        
+        # Create the event handler and file system observer
+        self._event_handler = GitChangeHandler(self)
+        self._observer = Observer()
+        
+        # Schedule monitoring for both the git directory and working tree
+        working_tree_path = self.repo.working_tree_dir
+        git_dir_path = self.repo.git_dir
+        
+        # Monitor the working directory
+        self._observer.schedule(self._event_handler, working_tree_path, recursive=True)
+        
+        # Also monitor the .git directory for index changes
+        self._observer.schedule(self._event_handler, git_dir_path, recursive=False)
+        
+        # Start the observer
+        self._observer.start()
         return {"status": "success", "message": "Git monitor started"}
             
     def stop_git_monitor(self):
         """Stop the git repository monitor"""
-        if not self._git_monitor_running:
+        if not self._observer or not self._observer.is_alive():
             self.log("Git monitor is not running")
             return {"status": "info", "message": "Git monitor not running"}
             
         self.log("Stopping git monitor")
-        self._git_monitor_running = False
-        if self._git_monitor_thread:
-            # The thread will exit on its next iteration
-            self._git_monitor_thread = None
+        self._observer.stop()
+        self._observer.join(timeout=1.0)
+        self._observer = None
+        self._event_handler = None
         return {"status": "success", "message": "Git monitor stopped"}
     
-    def _git_monitor_loop(self):
-        """Background thread function to monitor git status"""
-        self.log("Git monitor thread started")
-        
-        # Track repository state with these variables
-        last_head_commit = None
-        last_index_hash = None
-        last_working_tree_hash = None
-        
-        try:
-            while self._git_monitor_running and self.repo:
-                try:
-                    # Get current repository state
-                    current_head = self.repo.head.commit.hexsha if not self.repo.head.is_detached else None
-                    
-                    # Generate a hash of the index state
-                    index_hash = self._hash_git_index()
-                    
-                    # Generate a hash of the working tree state
-                    working_tree_hash = self._hash_git_working_tree()
-                    
-                    # Check if state has changed
-                    if (current_head != last_head_commit or 
-                        index_hash != last_index_hash or 
-                        working_tree_hash != last_working_tree_hash):
-                        
-                        self.log("Git state change detected")
-                        
-                        # Update the last known state
-                        last_head_commit = current_head
-                        last_index_hash = index_hash
-                        last_working_tree_hash = working_tree_hash
-                        
-                        # Call the notification function
-                        self._notify_git_change_from_monitor()
-                    
-                except Exception as e:
-                    self.log(f"Error in git monitor loop: {e}")
-                
-                # Sleep before next check
-                time.sleep(self._git_monitor_interval)
-                
-        except Exception as e:
-            self.log(f"Git monitor thread error: {e}")
-        finally:
-            self.log("Git monitor thread exiting")
-    
-    def _hash_git_index(self):
-        """Generate a hash representing the current state of the git index"""
-        if not self.repo:
-            return None
-        
-        try:
-            # Get a hash of staged files and their state
-            staged = sorted([item.a_path for item in self.repo.index.diff("HEAD")])
-            return hash(str(staged))
-        except Exception as e:
-            self.log(f"Error hashing git index: {e}")
-            return None
-    
-    def _hash_git_working_tree(self):
-        """Generate a hash representing the current state of the working tree"""
-        if not self.repo:
-            return None
-        
-        try:
-            # Get a hash of modified and untracked files
-            modified = sorted([item.a_path for item in self.repo.index.diff(None)])
-            untracked = sorted(self.repo.untracked_files)
-            return hash(str(modified) + str(untracked))
-        except Exception as e:
-            self.log(f"Error hashing git working tree: {e}")
-            return None
-    
-    def _notify_git_change_from_monitor(self):
-        """Notify all registered callbacks that git state has changed (called from monitor thread)"""
+    def _notify_git_change(self):
+        """Notify all registered callbacks that git state has changed"""
         if not self._git_change_callbacks:
             return
             

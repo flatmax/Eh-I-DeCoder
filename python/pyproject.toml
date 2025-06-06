@@ -12,7 +12,8 @@ license = "MIT"
 dependencies = [
     "aider-chat @ git+https://github.com/Aider-AI/aider.git",
     "jrpc-oo @ git+https://github.com/flatmax/jrpc-oo.git",
-    "GitPython"
+    "GitPython",
+    "watchdog"
 ]
 
 [project.scripts]
