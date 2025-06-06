@@ -114,45 +114,35 @@ export class CommandsButtons extends JRPCClient {
     }
   }
 
+  /**
+   * Find the PromptView component through various lookup strategies
+   * @returns {Element|null} The prompt-view element or null if not found
+   */
   findPromptView() {
-    // Try multiple approaches to find the PromptView component
-    
-    // First, try to find it in the main window's shadow DOM
+    // Try to find the prompt view in the main window
     let mainWindow = document.querySelector('main-window');
-    if (mainWindow && mainWindow.shadowRoot) {
+    if (mainWindow?.shadowRoot) {
       let promptView = mainWindow.shadowRoot.querySelector('prompt-view');
-      if (promptView) {
-        return promptView;
-      }
+      if (promptView) return promptView;
     }
     
-    // Second, try to traverse up the DOM tree to find the main window
-    let current = this;
-    while (current) {
-      if (current.tagName === 'MAIN-WINDOW') {
-        let promptView = current.shadowRoot?.querySelector('prompt-view');
-        if (promptView) {
-          return promptView;
+    // Try traversing up from current component to find host elements
+    let element = this;
+    let maxDepth = 10; // Prevent infinite loops
+    
+    while (element && maxDepth-- > 0) {
+      // If we're in a shadow root, get its host
+      if (element.getRootNode && element.getRootNode().host) {
+        element = element.getRootNode().host;
+        
+        // Check if this host element is main-window
+        if (element.tagName === 'MAIN-WINDOW') {
+          const promptView = element.shadowRoot?.querySelector('prompt-view');
+          if (promptView) return promptView;
+          break;
         }
-        break;
-      }
-      
-      // Move up to the host of the shadow root
-      if (current.getRootNode && current.getRootNode().host) {
-        current = current.getRootNode().host;
       } else {
         break;
-      }
-    }
-    
-    // Third, try to find it through the document
-    const allMainWindows = document.querySelectorAll('main-window');
-    for (const mw of allMainWindows) {
-      if (mw.shadowRoot) {
-        const pv = mw.shadowRoot.querySelector('prompt-view');
-        if (pv) {
-          return pv;
-        }
       }
     }
     
