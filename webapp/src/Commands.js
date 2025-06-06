@@ -23,13 +23,7 @@ export class Commands extends JRPCClient {
     this.addClass?.(this);
   }
   
-  /**
-   * Called when remote server is up
-   */
-  remoteIsUp() {
-    console.log('Commands::remoteIsUp');
-  }
-  
+
   /**
    * Method to display command output received from the CommandsWrapper
    * Called by CommandsWrapper via JRPC

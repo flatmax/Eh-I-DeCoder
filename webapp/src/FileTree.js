@@ -30,12 +30,10 @@ export class FileTree extends JRPCClient {
     this.addClass?.(this);
   }
   
-  remoteIsUp() {
-    console.log('FileTree::remoteIsUp');
+  setupDone() {
+    console.log('FileTree::setupDone');
     // Add a timeout before loading file tree to ensure connection is fully established
-    setTimeout(() => {
-      this.loadFileTree();
-    }, 500);
+    this.loadFileTree();
   }
   
   // Expand all directories in the tree

@@ -74,12 +74,10 @@ export class CommandsButtons extends JRPCClient {
   /**
    * Called when remote server is up
    */
-  remoteIsUp() {
-    console.log('CommandsButtons::remoteIsUp');
+  setupDone() {
+    console.log('CommandsButtons::setupDone');
     // Add a timeout before loading commands to ensure connection is fully established
-    setTimeout(() => {
-      this.loadCommands();
-    }, 500); // 500ms delay
+    this.loadCommands();
   }
 
   async loadCommands() {

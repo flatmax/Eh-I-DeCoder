@@ -423,11 +423,7 @@ export class MergeEditor extends JRPCClient {
       this.requestUpdate();
     }
   }
-  
-  remoteIsUp() {
-    console.log('MergeEditor::remoteIsUp');
-  }
-  
+
   async loadFileContent(filePath, lineNumber = null) {
     if (!filePath) return;
     
