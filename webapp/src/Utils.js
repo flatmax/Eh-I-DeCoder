@@ -3,6 +3,41 @@
  */
 
 /**
+ * Updates all child components of the specified type with a new property value
+ * 
+ * @param {LitElement} component - The parent component containing the shadow DOM
+ * @param {string} selector - CSS selector to find child components
+ * @param {string} property - Property name to update
+ * @param {any} value - Value to set on the property
+ * @returns {Promise} - Promise that resolves when update is complete
+ */
+export function updateChildComponents(component, selector, property, value) {
+  // Skip if no shadow root
+  if (!component || !component.shadowRoot) {
+    console.warn('Cannot update child components: no shadow root');
+    return Promise.resolve();
+  }
+
+  // Return promise from updateComplete to allow chaining
+  return component.updateComplete.then(() => {
+    const childComponents = component.shadowRoot.querySelectorAll(selector);
+    
+    if (childComponents.length === 0) {
+      console.debug(`No child components found matching selector: ${selector}`);
+      return;
+    }
+    
+    console.debug(`Updating ${childComponents.length} ${selector} components with ${property}=${value}`);
+    
+    childComponents.forEach(child => {
+      if (child[property] !== value) {
+        child[property] = value;
+      }
+    });
+  });
+}
+
+/**
  * Extracts data from a JSON-RPC response that might be wrapped in a UUID object
  * 
  * JRPC responses from Python can be wrapped with a UUID as the top-level key:

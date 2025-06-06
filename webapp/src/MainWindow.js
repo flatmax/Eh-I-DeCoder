@@ -4,7 +4,7 @@
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
-import {extractResponseData} from './Utils.js';
+import {extractResponseData, updateChildComponents} from './Utils.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
@@ -686,39 +686,18 @@ export class MainWindow extends JRPCClient {
     this.connectionStatus = 'connecting';
     this.requestUpdate();
     
-    // Wait for the DOM update to complete before accessing child components
-    this.updateComplete.then(() => {
-      console.log('updateComplete ', this.serverURI)
-      // Find child components and update their server URIs
-      const promptView = this.shadowRoot.querySelector('prompt-view');
-      if (promptView && promptView.serverURI !== this.serverURI) {
-        console.log('Updating PromptView server URI to:', this.serverURI);
-        promptView.serverURI = this.serverURI;
-      }
-      
-      const fileTree = this.shadowRoot.querySelector('file-tree');
-      if (fileTree && fileTree.serverURI !== this.serverURI) {
-        console.log('Updating FileTree server URI to:', this.serverURI);
-        fileTree.serverURI = this.serverURI;
-      }
-      
-      const repoTree = this.shadowRoot.querySelector('repo-tree');
-      if (repoTree && repoTree.serverURI !== this.serverURI) {
-        console.log('Updating RepoTree server URI to:', this.serverURI);
-        repoTree.serverURI = this.serverURI;
-      }
-      
-      const mergeEditor = this.shadowRoot.querySelector('merge-editor');
-      if (mergeEditor && mergeEditor.serverURI !== this.serverURI) {
-        console.log('Updating MergeEditor server URI to:', this.serverURI);
-        mergeEditor.serverURI = this.serverURI;
-      }
-      
-      const CommandsTab = this.shadowRoot.querySelector('files-and-settings');
-      if (CommandsTab && CommandsTab.serverURI !== this.serverURI) {
-        console.log('Updating CommandsTab server URI to:', this.serverURI);
-        CommandsTab.serverURI = this.serverURI;
-      }
+    console.log('Updating child components with server URI:', this.serverURI);
+    
+    // Update all components that need serverURI using the utility function
+    Promise.all([
+      updateChildComponents(this, 'prompt-view', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'file-tree', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'repo-tree', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'merge-editor', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'files-and-settings', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'find-in-files', 'serverURI', this.serverURI)
+    ]).then(() => {
+      console.log('All child components updated with server URI');
     });
     
     super.serverChanged();
