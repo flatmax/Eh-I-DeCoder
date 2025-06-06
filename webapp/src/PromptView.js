@@ -18,7 +18,7 @@ export class PromptView extends MessageHandler {
     ...MessageHandler.properties,
     inputValue: { type: String, state: true },
     showVoiceInput: { type: Boolean, state: true },
-    isMinimized: { type: Boolean, state: true },
+    isMinimized: { type: Boolean, state: false },
     coderType: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
@@ -30,13 +30,17 @@ export class PromptView extends MessageHandler {
     super();
     this.inputValue = '';
     this.showVoiceInput = true;
-    this.isMinimized = true;
+    this.isMinimized = false;
     this.coderType = 'Send';
     
     // Drag state
     this.isDragging = false;
-    this.position = { x: 0, y: 0 };
-    this.hasBeenDragged = false;
+    // Position it at 1/6 from the left of the screen and at the top
+    this.position = { 
+      x: window.innerWidth / 6, 
+      y: 20 // Position near the top with a small margin
+    };
+    this.hasBeenDragged = true;
     this.dragOffset = { x: 0, y: 0 };
     
     // Bind event handlers to maintain context
@@ -235,6 +239,11 @@ export class PromptView extends MessageHandler {
   connectedCallback() {
     super.connectedCallback();
     this.updateDialogClass();
+    
+    // Apply initial position
+    if (this.hasBeenDragged) {
+      this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
+    }
     
     // Add document click listener
     document.addEventListener('click', this.handleDocumentClick, true);
