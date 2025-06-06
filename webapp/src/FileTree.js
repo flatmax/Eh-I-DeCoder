@@ -5,6 +5,49 @@ import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import {extractResponseData} from './Utils.js';
 
+/**
+ * Represents a node in the file tree (either a file or directory)
+ */
+class TreeNode {
+  /**
+   * Create a new tree node
+   * @param {string} name - The name of this node (filename or directory name)
+   * @param {string} path - The full path to this node
+   * @param {boolean} isFile - Whether this node represents a file (true) or directory (false)
+   */
+  constructor(name, path, isFile) {
+    this.name = name;
+    this.path = path;
+    this.isFile = isFile;
+    this.children = isFile ? null : new Map(); // Only directories have children
+  }
+  
+  /**
+   * Add a child node to this directory
+   * @param {string} name - Child node name
+   * @param {TreeNode} node - Child node to add
+   */
+  addChild(name, node) {
+    if (this.isFile) throw new Error("Cannot add children to a file node");
+    this.children.set(name, node);
+  }
+  
+  /**
+   * Get sorted children of this node
+   * @returns {TreeNode[]} Sorted array of child nodes (directories first, then alphabetical)
+   */
+  getSortedChildren() {
+    if (!this.children) return [];
+    
+    return Array.from(this.children.values())
+      .sort((a, b) => {
+        // Sort directories first, then by name
+        if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+  }
+}
+
 export class FileTree extends JRPCClient {
   static properties = {
     files: { type: Array, state: true },
@@ -22,7 +65,7 @@ export class FileTree extends JRPCClient {
     this.addedFiles = [];
     this.loading = false;
     this.error = null;
-    this.treeData = {};
+    this.treeData = new TreeNode('root', '', false);
     this.expandedDirs = {}; // Track which directories are expanded
   }
   
@@ -70,18 +113,20 @@ export class FileTree extends JRPCClient {
   }
   
   // Recursive helper to set expanded state for all directories
-  _setAllExpandedState(node, expanded, path = '') {
+  _setAllExpandedState(node, expanded) {
     if (!node) return;
     
-    const nodePath = path ? `${path}/${node.name}` : node.name;
-    
-    if (!node.isFile && node.children && Object.keys(node.children).length > 0) {
+    // For non-root directories
+    if (node.name !== 'root' && !node.isFile) {
       // Set expanded state for this directory
-      this.expandedDirs[nodePath] = expanded;
-      
+      this.expandedDirs[node.path] = expanded;
+    }
+    
+    // If this is a directory with children, process them recursively
+    if (!node.isFile && node.children && node.children.size > 0) {
       // Process all children recursively
-      Object.values(node.children).forEach(child => {
-        this._setAllExpandedState(child, expanded, nodePath);
+      node.children.forEach(child => {
+        this._setAllExpandedState(child, expanded);
       });
     }
   }
@@ -171,31 +216,36 @@ export class FileTree extends JRPCClient {
       paths = [];
     }
     
-    const root = { name: 'root', children: {}, isFile: false };
+    // Create the root node
+    const root = new TreeNode('root', '', false);
     
+    // Process each path and add it to the tree
     paths.forEach(path => {
       if (!path) return; // Skip empty paths
       
-      const parts = path.split('/');
-      let current = root;
+      const parts = path.split('/').filter(part => part); // Filter out empty parts
       
-      parts.forEach((part, i) => {
-        if (!part) return; // Skip empty parts
+      let currentNode = root;
+      let currentPath = '';
+      
+      // For each path segment
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isLastPart = i === parts.length - 1;
         
-        if (!current.children) {
-          current.children = {};
+        // Update the current path
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        
+        // Check if this node already exists
+        if (!currentNode.children.has(part)) {
+          // Create and add the new node
+          const newNode = new TreeNode(part, currentPath, isLastPart);
+          currentNode.addChild(part, newNode);
         }
         
-        if (!current.children[part]) {
-          current.children[part] = {
-            name: part,
-            path: parts.slice(0, i + 1).join('/'),
-            children: {},
-            isFile: i === parts.length - 1
-          };
-        }
-        current = current.children[part];
-      });
+        // Move to the next node
+        currentNode = currentNode.children.get(part);
+      }
     });
     
     return root;
@@ -266,9 +316,10 @@ export class FileTree extends JRPCClient {
   renderTreeNode(node, path = '') {
     if (!node) return html``; // Handle null/undefined nodes
     
-    const nodePath = path ? `${path}/${node.name}` : node.name;
+    // For TreeNode objects, the path is already stored in the node
+    const nodePath = node.path;
     const isAdded = node.isFile && this.addedFiles.includes(nodePath);
-    const hasChildren = node.children && Object.keys(node.children).length > 0;
+    const hasChildren = !node.isFile && node.children && node.children.size > 0;
     
     // Get basic node classes
     const nodeClasses = {
@@ -283,13 +334,7 @@ export class FileTree extends JRPCClient {
       // Root node - just render its children
       return html`
         <div class="tree-root">
-          ${node.children ? Object.values(node.children)
-            .sort((a, b) => {
-              // Sort directories first, then by name
-              if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-              return a.name.localeCompare(b.name);
-            })
-            .map(child => this.renderTreeNode(child)) : ''}
+          ${node.getSortedChildren().map(child => this.renderTreeNode(child))}
         </div>
       `;
     }
@@ -304,16 +349,13 @@ export class FileTree extends JRPCClient {
           this.expandedDirs[nodePath] = e.target.open;
         }}>
           <summary class=${classMap(nodeClasses)}>
+            <md-icon class="material-symbols-outlined">
+              ${isOpen ? 'folder_open' : 'folder'}
+            </md-icon>
             <span>${node.name}</span>
           </summary>
           <div class="children-container">
-            ${node.children ? Object.values(node.children)
-              .sort((a, b) => {
-                // Sort directories first, then by name
-                if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-                return a.name.localeCompare(b.name);
-              })
-              .map(child => this.renderTreeNode(child, nodePath)) : ''}
+            ${node.getSortedChildren().map(child => this.renderTreeNode(child))}
           </div>
         </details>
       `;
@@ -324,6 +366,7 @@ export class FileTree extends JRPCClient {
              @contextmenu=${(event) => this.handleContextMenu(event, nodePath, node.isFile)}>
           ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
                                @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
+          <md-icon class="material-symbols-outlined">description</md-icon>
           <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
           ${this.renderAdditionalIndicators(node, nodePath)}
         </div>
@@ -405,6 +448,17 @@ export class FileTree extends JRPCClient {
       font-size: 18px;
       font-family: 'Material Symbols Outlined';
       display: inline-flex;
+      flex-shrink: 0;
+      --md-icon-size: 18px;
+      color: #616161;
+    }
+    
+    .directory md-icon {
+      color: #FFA000;  /* Amber color for folders */
+    }
+    
+    .file md-icon {
+      color: #2196F3;  /* Blue color for files */
     }
     
     .file-checkbox {
