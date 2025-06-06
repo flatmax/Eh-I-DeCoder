@@ -5,8 +5,8 @@ import '@material/web/tabs/primary-tab.js';
 import '@material/web/iconbutton/filled-icon-button.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/textfield/filled-text-field.js';
-import './CommandsTab.js';
-import './FindInFiles.js';
+import '../commands-tab.js';
+import '../find-in-files.js';
 import '../prompt-view.js';
 import '../repo-tree.js';
 
@@ -287,7 +287,7 @@ export class AppSidebar extends LitElement {
             'tab-panel': true,
             'active': this.activeTabIndex === 2
           })} style="${this.activeTabIndex === 2 ? 'display: flex;' : 'display: none;'}">
-            <files-and-settings .serverURI=${this.serverURI}></files-and-settings>
+            <commands-tab .serverURI=${this.serverURI}></commands-tab>
           </div>
           
           <!-- Settings Tab Panel -->
@@ -337,5 +337,3 @@ export class AppSidebar extends LitElement {
     `;
   }
 }
-
-customElements.define('app-sidebar', AppSidebar);

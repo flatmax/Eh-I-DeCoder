@@ -27,25 +27,23 @@ export default {
     // without a full page reload, preserving application state.
     hmrPlugin({
       // `include` specifies which files should be monitored for HMR.
-      // It's crucial to include your LitElement component files here.
-      // - 'src/**/*.js': Catches all JavaScript files within the 'src' directory.
-      // - 'src/**/*.ts': Include if you are using TypeScript files in 'src'.
-      // - '*.js': Catches top-level JavaScript files like 'prompt-view.js', 'merge-editor.js', etc.
-      // - '*.html': Include if you have separate HTML files for templates or components.
+      // Only include files within the src directory to avoid full page reloads
+      // from top-level entry files like main-window.js
       include: [
         'src/**/*.js',
-        'src/**/*.ts', // Include if you use TypeScript
-        '*.js',        // For top-level JS files like prompt-view.js
-        '*.html'       // For index.html or any other HTML templates
+        'src/**/*.ts' // Include if you use TypeScript
       ],
 
       // `presets` provide pre-configured HMR logic for specific frameworks/libraries.
       // `presets.lit` offers optimized HMR for LitElement (and Lit).
       presets: [presets.lit],
 
-      // Optional: You can exclude specific files or directories from HMR if needed.
-      // For example, to prevent HMR on test files:
-      // exclude: ['test/**/*']
+      // Exclude top-level files and other patterns that should trigger full reloads
+      exclude: [
+        '*.js',        // Exclude top-level JS files like main-window.js
+        '*.html',      // Exclude HTML files
+        'test/**/*'    // Exclude test files
+      ]
     }),
   ],
 

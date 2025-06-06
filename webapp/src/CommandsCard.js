@@ -28,5 +28,3 @@ export class CommandsCard extends CardMarkdown {
     `
   ];
 }
-
-customElements.define('commands-card', CommandsCard);

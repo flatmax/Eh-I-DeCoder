@@ -8,7 +8,7 @@ import {updateChildComponents} from './Utils.js';
 import {ConnectionMixin} from './mixins/ConnectionMixin.js';
 import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 import {ResizeMixin} from './mixins/ResizeMixin.js';
-import './AppSidebar.js';
+import '../app-sidebar.js';
 import '../prompt-view.js';
 import '../merge-editor.js';
 
@@ -209,5 +209,3 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.showMergeEditor = true;
   }
 }
-
-customElements.define('main-window', MainWindow);

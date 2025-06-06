@@ -238,5 +238,3 @@ export class MergeEditor extends JRPCClient {
   
   static styles = mergeEditorStyles;
 }
-
-customElements.define('merge-editor', MergeEditor);

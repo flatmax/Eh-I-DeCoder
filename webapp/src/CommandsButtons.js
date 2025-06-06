@@ -228,5 +228,3 @@ export class CommandsButtons extends JRPCClient {
     `;
   }
 }
-
-customElements.define('commands-buttons', CommandsButtons);

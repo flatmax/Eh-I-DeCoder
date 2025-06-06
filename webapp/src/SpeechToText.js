@@ -284,5 +284,3 @@ export class SpeechToText extends LitElement {
     `;
   }
 }
-
-customElements.define('speech-to-text', SpeechToText);

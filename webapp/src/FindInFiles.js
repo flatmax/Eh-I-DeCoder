@@ -445,5 +445,3 @@ export class FindInFiles extends JRPCClient {
     }
   `;
 }
-
-customElements.define('find-in-files', FindInFiles);

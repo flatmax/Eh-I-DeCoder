@@ -9,8 +9,8 @@ import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
 import '../assistant-card.js';
 import '../user-card.js';
-import './SpeechToText.js';
-import './CommandsCard.js';
+import '../speech-to-text.js';
+import '../commands-card.js';
 import { MessageHandler } from './MessageHandler.js';
 
 export class PromptView extends MessageHandler {

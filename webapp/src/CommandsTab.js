@@ -54,5 +54,3 @@ export class CommandsTab extends LitElement {
     `;
   }
 }
-
-customElements.define('files-and-settings', CommandsTab);

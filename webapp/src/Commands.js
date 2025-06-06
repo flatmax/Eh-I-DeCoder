@@ -45,5 +45,3 @@ export class Commands extends JRPCClient {
     return "output displayed"; // Return a response to confirm receipt
   }
 }
-
-customElements.define('aider-commands', Commands);
