@@ -84,135 +84,53 @@ export class MergeEditor extends JRPCClient {
    * @param {number} lineNumber - The line number to scroll to
    */
   scrollToLine(lineNumber) {
-    console.log(`MergeEditor: scrollToLine called with lineNumber=${lineNumber} (type: ${typeof lineNumber})`);
+    if (!this.mergeView || !lineNumber) return;
     
-    if (!this.mergeView) {
-      console.warn("MergeEditor: Cannot scroll, mergeView is not initialized");
-      return;
+    // Convert string to integer if needed
+    if (typeof lineNumber === 'string') {
+      lineNumber = parseInt(lineNumber, 10);
     }
     
-    if (!lineNumber) {
-      console.warn("MergeEditor: Cannot scroll, lineNumber is falsy:", lineNumber);
-      return;
-    }
+    // Determine which view to use based on mode
+    const view = this.unifiedView ? this.mergeView : this.mergeView.b;
+    if (!view || !view.state) return;
     
-    // Use progressive retry mechanism with increasing delays
-    this._retryScrollToLine(lineNumber, 1);
-  }
-  
-  /**
-   * Retry scrolling to line with progressive backoff
-   * @param {number} lineNumber - The line number to scroll to
-   * @param {number} attempt - Current attempt number
-   */
-  _retryScrollToLine(lineNumber, attempt) {
-    const maxAttempts = 5;
-    const delay = Math.min(attempt * 200, 1000); // Increasing delay, max 1000ms
-    
-    setTimeout(() => {
-      try {
-        const result = this._executeScrollToLine(lineNumber);
-        if (!result && attempt < maxAttempts) {
-          console.log(`MergeEditor: Scroll attempt ${attempt} failed, retrying...`);
-          this._retryScrollToLine(lineNumber, attempt + 1);
-        }
-      } catch (error) {
-        console.error(`MergeEditor: Scroll attempt ${attempt} error:`, error);
-        if (attempt < maxAttempts) {
-          this._retryScrollToLine(lineNumber, attempt + 1);
-        }
-      }
-    }, delay);
-  }
-  
-  _executeScrollToLine(lineNumber) {
     try {
-      // Get the editor view based on whether we're in unified or side-by-side mode
-      const view = this.unifiedView ? this.mergeView : this.mergeView.b;
+      // Get document line count and clamp line number
+      const lineCount = view.state.doc.lines;
+      const line = Math.min(lineNumber, lineCount);
       
-      if (!view) {
-        console.warn(`MergeEditor: Cannot scroll, no view available in ${this.unifiedView ? 'unified' : 'side-by-side'} mode`);
-        return false;
-      }
+      // Get position of the line
+      const pos = view.state.doc.line(line).from;
       
-      console.log(`MergeEditor: Using ${this.unifiedView ? 'unified' : 'side-by-side'} view`, view);
-      
-      // Check if editor state is ready
-      if (!view.state || !view.state.doc) {
-        console.warn('MergeEditor: Editor state not ready yet');
-        return false;
-      }
-      
-      // Make sure line number is within bounds
-      const totalLines = view.state.doc.lines;
-      console.log(`MergeEditor: Document has ${totalLines} lines, requested line ${lineNumber}`);
-      
-      if (totalLines === 0) {
-        console.warn('MergeEditor: Document appears to be empty');
-        return false;
-      }
-      
-      const line = Math.min(lineNumber, totalLines);
-      console.log(`MergeEditor: Using line number ${line} (after bounds check)`);
-      
-      // Get the position for the specified line
-      const lineObj = view.state.doc.line(line);
-      if (!lineObj) {
-        console.warn(`MergeEditor: Couldn't get line object for line ${line}`);
-        return false;
-      }
-      
-      console.log(`MergeEditor: Line object:`, { 
-        from: lineObj.from, 
-        to: lineObj.to, 
-        text: lineObj.text.slice(0, 50) + (lineObj.text.length > 50 ? '...' : '') 
-      });
-      
-      const pos = lineObj.from;
-      
-      // Create a selection at that position
-      const selection = EditorSelection.create([EditorSelection.range(pos, pos)]);
-      
-      // First set the selection 
+      // Dispatch command to scroll and select the line
       view.dispatch({
-        selection,
-        scrollIntoView: true
+        selection: EditorSelection.create([EditorSelection.range(pos, pos)]),
+        scrollIntoView: true,
+        effects: EditorView.scrollIntoView(pos, { y: "center" })
       });
       
-      // Then force scroll again with explicit center positioning
-      view.dispatch({
-        effects: EditorView.scrollIntoView(pos, {
-          y: 'center',
-          margin: 150,
-          behavior: 'smooth'
-        })
-      });
+      // Focus the editor
+      view.focus();
       
-      console.log(`MergeEditor: Scrolled to position ${pos} for line ${line}`);
-      
-      // Add highlight effect with stronger styling
-      this._highlightLine(view, line);
-      
-      return true;
+      // Add visual highlight to the line
+      this._addHighlightStyle();
+      const lineElement = this._findLineElement(view, line);
+      if (lineElement) {
+        lineElement.classList.add('line-highlight-effect');
+        setTimeout(() => {
+          lineElement.classList.remove('line-highlight-effect');
+        }, 3000);
+      }
     } catch (error) {
-      console.error('MergeEditor: Error scrolling to line:', error);
-      console.error('MergeEditor: Error details:', { 
-        stack: error.stack,
-        lineNumber,
-        hasView: !!this.mergeView,
-        unified: this.unifiedView
-      });
-      return false;
+      console.error('Error scrolling to line:', error);
     }
   }
   
   /**
-   * Highlight a specific line for visual emphasis
-   * @param {EditorView} view - The editor view
-   * @param {number} lineNum - Line number to highlight
+   * Add highlight style to the shadow DOM if not already present
    */
-  _highlightLine(view, lineNum) {
-    // Add a class to the document for highlighted line styling
+  _addHighlightStyle() {
     if (!this.shadowRoot.querySelector('style.highlight-styles')) {
       const style = document.createElement('style');
       style.className = 'highlight-styles';
@@ -220,7 +138,7 @@ export class MergeEditor extends JRPCClient {
         .line-highlight-effect {
           background-color: rgba(255, 255, 0, 0.3) !important;
           outline: 2px solid gold !important;
-          animation: pulse-highlight 2s infinite;
+          animation: pulse-highlight 1.5s ease-in-out;
         }
         @keyframes pulse-highlight {
           0%, 100% { background-color: rgba(255, 255, 0, 0.3); }
@@ -229,85 +147,33 @@ export class MergeEditor extends JRPCClient {
       `;
       this.shadowRoot.appendChild(style);
     }
-    
+  }
+  
+  /**
+   * Find the DOM element for a specific line
+   * @param {EditorView} view - The editor view
+   * @param {number} lineNum - Line number to find
+   * @return {HTMLElement|null} The line element or null if not found
+   */
+  _findLineElement(view, lineNum) {
     try {
-      // Get the position in the document for this line
+      // Get line info
       const line = view.state.doc.line(lineNum);
       
-      // Find all visible elements in the editor view
-      const domInfo = view.coordsAtPos(line.from);
-      if (!domInfo) {
-        console.warn(`MergeEditor: Couldn't get coordinates for line ${lineNum}`);
-        return;
-      }
-      
-      // Use the DOM coordinates to find the line element
-      // First try with posAtCoords (most accurate)
-      const pos = view.posAtCoords({x: domInfo.left + 5, y: domInfo.top + 5});
-      if (pos) {
-        // Get the DOM node at this position
-        const posDOM = view.domAtPos(pos);
-        if (posDOM && posDOM.node) {
-          // Find the line element (going up the DOM tree if needed)
-          let lineElement = posDOM.node;
-          while (lineElement && !lineElement.classList?.contains('cm-line')) {
-            lineElement = lineElement.parentElement;
-          }
-          
-          if (lineElement) {
-            console.log(`MergeEditor: Found line element at line ${lineNum}`, lineElement);
-            lineElement.classList.add('line-highlight-effect');
-            
-            // Ensure the element is visible
-            lineElement.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center'
-            });
-            
-            // Remove highlight after 5 seconds
-            setTimeout(() => {
-              lineElement.classList.remove('line-highlight-effect');
-            }, 5000);
-            return;
-          }
+      // Find the DOM element using the line's position
+      const posDOM = view.domAtPos(line.from);
+      if (posDOM && posDOM.node) {
+        // Find the line element by walking up the DOM tree
+        let lineElement = posDOM.node;
+        while (lineElement && !lineElement.classList?.contains('cm-line')) {
+          lineElement = lineElement.parentElement;
         }
+        return lineElement;
       }
-      
-      // Fallback: Try to find the right line using DOM structure
-      // This works by finding all lines and selecting the one closest to our line number
-      const allLines = Array.from(view.dom.querySelectorAll('.cm-line'));
-      
-      // If we have a good number of lines, try to estimate which one is ours
-      if (allLines.length > 0) {
-        const estimatedIndex = Math.min(Math.floor(lineNum * allLines.length / view.state.doc.lines), allLines.length - 1);
-        const lineElement = allLines[estimatedIndex];
-        
-        if (lineElement) {
-          console.log(`MergeEditor: Found line element (fallback) around line ${lineNum}`, lineElement);
-          lineElement.classList.add('line-highlight-effect');
-          
-          lineElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-          
-          setTimeout(() => {
-            lineElement.classList.remove('line-highlight-effect');
-          }, 5000);
-          return;
-        }
-      }
-      
-      console.warn(`MergeEditor: Couldn't find any suitable element for line ${lineNum}`);
     } catch (error) {
-      console.error('MergeEditor: Error highlighting line:', error);
-      console.error('MergeEditor: Error details:', { 
-        stack: error.stack,
-        lineNum,
-        hasView: !!view,
-        docLines: view?.state?.doc?.lines || 'unknown'
-      });
+      console.error('Error finding line element:', error);
     }
+    return null;
   }
   
   // Reset unsaved changes flag
