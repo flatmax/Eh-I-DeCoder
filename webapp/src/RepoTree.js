@@ -32,47 +32,20 @@ export class RepoTree extends FileTree {
   
   setupDone() {
     console.log('RepoTree::setupDone');
-    // Register for git change notifications
-    this.registerForGitChanges();
-    // Then load the file tree
+    // Load the file tree
     this.loadFileTree();
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
-    // Unregister from git change notifications when component is removed
-    this.unregisterFromGitChanges();
   }
   
-  async registerForGitChanges() {
-    try {
-      console.log('Registering for git change notifications');
-      const response = await this.call['Repo.register_git_change_callback']('RepoTree.loadFileTree');
-      console.log('Git change registration response:', response);
-    } catch (error) {
-      console.error('Error registering for git changes:', error);
-    }
-  }
-  
-  async unregisterFromGitChanges() {
-    try {
-      console.log('Unregistering from git change notifications');
-      const response = await this.call['Repo.unregister_git_change_callback']('RepoTree.loadFileTree');
-      console.log('Git change unregistration response:', response);
-    } catch (error) {
-      console.error('Error unregistering from git changes:', error);
-    }
-  }
-  
-  async loadGitStatus() {
+  loadGitStatus(statusResponse) {
     try {
       // Don't set loading state here to avoid UI updates that affect scroll
       this.error = null;
       
-      // Get Git status from the Repo class - fix the call syntax
-      console.log('Calling Repo.get_status...');
-      const statusResponse = await this.call['Repo.get_status']();
-      console.log('Raw status response:', statusResponse);
+      console.log('Processing git status data');
       
       // Extract the status from the response object (which has a UUID key)
       let status = {};
@@ -119,8 +92,16 @@ export class RepoTree extends FileTree {
       scrollPosition = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
     }
     
-    // Load Git status first (without affecting loading state)
-    await this.loadGitStatus();
+    // Get Git status first
+    try {
+      console.log('Calling Repo.get_status...');
+      const statusResponse = await this.call['Repo.get_status']();
+      console.log('Raw status response:', statusResponse);
+      this.loadGitStatus(statusResponse);
+    } catch (error) {
+      console.error('Error fetching git status:', error);
+      this.error = `Failed to load Git status: ${error.message}`;
+    }
     
     // Then load the file tree with preserved scroll position
     await super.loadFileTree(scrollPosition);

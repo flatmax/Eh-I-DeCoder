@@ -73,30 +73,6 @@ class Repo(BaseWrapper):
             self.log(f"Error initializing Git repository: {e}")
             self.repo = None
     
-    def register_git_change_callback(self, callback_name):
-        """Register a callback to be called when git state changes
-        
-        Args:
-            callback_name (str): The name of the JSON-RPC method to call,
-                                e.g., 'RepoTree.loadFileTree'
-        """
-        self.log(f"Registering git change callback: {callback_name}")
-        if callback_name not in self._git_change_callbacks:
-            self._git_change_callbacks.append(callback_name)
-            return {"status": "success", "message": f"Callback '{callback_name}' registered"}
-        return {"status": "info", "message": f"Callback '{callback_name}' already registered"}
-    
-    def unregister_git_change_callback(self, callback_name):
-        """Unregister a previously registered git change callback
-        
-        Args:
-            callback_name (str): The name of the JSON-RPC method to call
-        """
-        self.log(f"Unregistering git change callback: {callback_name}")
-        if callback_name in self._git_change_callbacks:
-            self._git_change_callbacks.remove(callback_name)
-            return {"status": "success", "message": f"Callback '{callback_name}' unregistered"}
-        return {"status": "info", "message": f"Callback '{callback_name}' not found"}
     
     def get_repo_name(self):
         """Get the name of the repository (top-level directory name)"""
@@ -515,33 +491,8 @@ class Repo(BaseWrapper):
         return {"status": "success", "message": "Git monitor stopped"}
     
     def _notify_git_change(self):
-        """Notify all registered callbacks that git state has changed"""
-        if not self._git_change_callbacks:
-            return
-            
-        self.log(f"Notifying {len(self._git_change_callbacks)} git change callbacks")
-        
-        # Create a task in the main asyncio loop
-        self._safe_create_task(self._async_notify_git_change())
-    
-    async def _async_notify_git_change(self):
-        """Async method to notify all callbacks about git changes"""
-        for callback_name in self._git_change_callbacks:
-            self.log(f"Notifying callback: {callback_name}")
-            try:
-                # Parse the callback name to get the class and method
-                parts = callback_name.split('.')
-                if len(parts) == 2:
-                    class_name, method_name = parts
-                    # Call the method using the JSON-RPC mechanism
-                    self.log(f"Calling {class_name}.{method_name}")
-                    # Use an empty object as the parameter to avoid problems with parameter passing
-                    # await self.call[callback_name]({})
-                    self._safe_create_task(self.get_call()[callback_name]())
-                else:
-                    self.log(f"Invalid callback name format: {callback_name}")
-            except Exception as e:
-                self.log(f"Error calling callback {callback_name}: {e}")
+        """Log that git state has changed but don't perform callbacks"""
+        self.log("Git state changed (no callbacks registered)")
     
     def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Fallback search implementation using Python when git grep fails"""
