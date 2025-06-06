@@ -22,10 +22,8 @@ export class PromptView extends MessageHandler {
     coderType: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
-    minimizedPosition: { type: Object, state: true },
-    maximizedPosition: { type: Object, state: true },
-    hasBeenDraggedMinimized: { type: Boolean, state: true },
-    hasBeenDraggedMaximized: { type: Boolean, state: true }
+    position: { type: Object, state: true }, // Single position state
+    hasBeenDragged: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -37,10 +35,8 @@ export class PromptView extends MessageHandler {
     
     // Drag state
     this.isDragging = false;
-    this.minimizedPosition = { x: 0, y: 0 };
-    this.maximizedPosition = { x: 0, y: 0 };
-    this.hasBeenDraggedMinimized = false;
-    this.hasBeenDraggedMaximized = false;
+    this.position = { x: 0, y: 0 };
+    this.hasBeenDragged = false;
     this.dragOffset = { x: 0, y: 0 };
     
     // Bind event handlers to maintain context
@@ -65,10 +61,14 @@ export class PromptView extends MessageHandler {
       height: 120px;
     }
     
-    /* When minimized and moved by user */
-    :host(.minimized.dragged) {
-      bottom: auto;
-      right: auto;
+    /* When moved by user */
+    :host(.dragged) {
+      position: fixed !important;
+      bottom: auto !important;
+      right: auto !important;
+      top: auto !important;
+      left: 0 !important;
+      /* Position is handled by translate3d transform for better performance */
     }
     
     :host(.maximized) {
@@ -82,12 +82,7 @@ export class PromptView extends MessageHandler {
     
     :host(.dragging) {
       transition: none;
-    }
-    
-    :host(.dragging.maximized),
-    :host(.dragged.maximized) {
       position: absolute;
-      transform: none !important;
     }
     
     .dialog-container {
@@ -244,18 +239,25 @@ export class PromptView extends MessageHandler {
     // Add document click listener
     document.addEventListener('click', this.handleDocumentClick, true);
     
-    // Add global mouse event listeners for dragging
-    document.addEventListener('mousemove', this.handleDrag);
-    document.addEventListener('mouseup', this.handleDragEnd);
+    // Add global mouse event listeners for dragging with proper binding
+    this._boundDragHandler = this.handleDrag.bind(this);
+    this._boundDragEndHandler = this.handleDragEnd.bind(this);
+    
+    document.addEventListener('mousemove', this._boundDragHandler);
+    document.addEventListener('mouseup', this._boundDragEndHandler);
+    
+    console.log('PromptView connected, drag handlers attached');
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
     
-    // Remove all event listeners
+    // Remove all event listeners using the properly stored bound handlers
     document.removeEventListener('click', this.handleDocumentClick, true);
-    document.removeEventListener('mousemove', this.handleDrag);
-    document.removeEventListener('mouseup', this.handleDragEnd);
+    document.removeEventListener('mousemove', this._boundDragHandler);
+    document.removeEventListener('mouseup', this._boundDragEndHandler);
+    
+    console.log('PromptView disconnected, drag handlers removed');
   }
   
   
@@ -278,8 +280,8 @@ export class PromptView extends MessageHandler {
   
   // Drag event handlers
   handleDragStart(event) {
-    // Ignore non-left button clicks
-    if (event.button !== 0) return;
+    // Ignore non-left button clicks or if already dragging
+    if (event.button !== 0 || this.isDragging) return;
     
     // Get current position
     const rect = this.getBoundingClientRect();
@@ -290,29 +292,26 @@ export class PromptView extends MessageHandler {
       y: event.clientY - rect.top
     };
     
+    // Store initial position
+    this.position = { 
+      x: rect.left, 
+      y: rect.top 
+    };
+    
     // Add dragging class to disable transitions during drag
     this.classList.add('dragging');
+    this.style.cursor = 'grabbing';
     
-    // Set position before marking as dragging to avoid jumps
-    const initialX = rect.left;
-    const initialY = rect.top;
-    
-    // Apply position immediately
-    this.style.top = `${initialY}px`;
-    this.style.left = `${initialX}px`;
-    
-    // Update stored position based on current state
-    if (this.isMinimized) {
-      this.minimizedPosition = { x: initialX, y: initialY };
-    } else {
-      this.maximizedPosition = { x: initialX, y: initialY };
-    }
-    
-    // Mark as dragging after positioning is set
+    // Mark as dragging
     this.isDragging = true;
+    
+    // Update position with translate3d for hardware acceleration
+    this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
     
     // Prevent default to avoid text selection
     event.preventDefault();
+    
+    console.log('Drag start:', this.position);
   }
   
   handleDrag(event) {
@@ -322,23 +321,25 @@ export class PromptView extends MessageHandler {
     const x = event.clientX - this.dragOffset.x;
     const y = event.clientY - this.dragOffset.y;
     
-    // Update position based on current state
-    if (this.isMinimized) {
-      this.minimizedPosition = { x, y };
-      this.hasBeenDraggedMinimized = true;
-    } else {
-      this.maximizedPosition = { x, y };
-      this.hasBeenDraggedMaximized = true;
-    }
+    // Update position state
+    this.position = { x, y };
     
-    // Apply position
-    this.style.top = `${y}px`;
-    this.style.left = `${x}px`;
+    // Apply position using translate3d for hardware acceleration
+    this.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    
+    // Mark as dragged
+    this.hasBeenDragged = true;
     
     // Set flag to prevent click handler from firing
     this._wasDragging = true;
     
+    // Prevent default behavior
     event.preventDefault();
+    
+    // Debug
+    if (event.clientX % 100 < 1) {
+      console.log('Dragging to:', x, y);
+    }
   }
   
   handleDragEnd(event) {
@@ -347,21 +348,15 @@ export class PromptView extends MessageHandler {
     // Update dragging state
     this.isDragging = false;
     
-    // Keep dragged state
+    // Reset cursor
+    this.style.cursor = '';
+    
+    // Keep dragged state and final position
     this.classList.remove('dragging');
     this.classList.add('dragged');
     
-    // Store position
-    const finalX = parseFloat(this.style.left);
-    const finalY = parseFloat(this.style.top);
-    
-    if (this.isMinimized) {
-      this.minimizedPosition = { x: finalX, y: finalY };
-      this.hasBeenDraggedMinimized = true;
-    } else {
-      this.maximizedPosition = { x: finalX, y: finalY };
-      this.hasBeenDraggedMaximized = true;
-    }
+    console.log('Drag ended at:', this.position.x, this.position.y);
+    console.log('Final transform:', this.style.transform);
   }
   
   
@@ -400,40 +395,25 @@ export class PromptView extends MessageHandler {
       // Update minimized/maximized classes
       this.classList.add('minimized');
       this.classList.remove('maximized');
-      
-      // Only apply custom position if we've dragged this state before
-      if (this.hasBeenDraggedMinimized) {
-        // Apply position directly
-        this.style.top = `${this.minimizedPosition.y}px`;
-        this.style.left = `${this.minimizedPosition.x}px`;
-        
-        // Use 'dragged' class for previously dragged dialogs
-        this.classList.add('dragged');
-      } else {
-        // Reset to default bottom-right position
-        this.style.top = '';
-        this.style.left = '';
-        this.classList.remove('dragged');
-      }
     } else {
       // Update maximized/minimized classes
       this.classList.add('maximized');
       this.classList.remove('minimized');
-      
-      // Only apply custom position if we've dragged this state before
-      if (this.hasBeenDraggedMaximized) {
-        // Apply position directly
-        this.style.top = `${this.maximizedPosition.y}px`;
-        this.style.left = `${this.maximizedPosition.x}px`;
-        
-        // Use 'dragged' class for previously dragged dialogs
-        this.classList.add('dragged');
-      } else {
-        // Reset to center position
-        this.style.top = '';
-        this.style.left = '';
-        this.classList.remove('dragged');
-      }
+    }
+    
+    // Apply dragged state if needed
+    if (this.hasBeenDragged) {
+      this.classList.add('dragged');
+      // Ensure transform is applied (might get cleared by CSS)
+      requestAnimationFrame(() => {
+        if (this.position && this.position.x !== undefined && this.position.y !== undefined) {
+          this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
+          console.log('Updating position in rAF:', this.position);
+        }
+      });
+    } else {
+      this.classList.remove('dragged');
+      this.style.transform = '';
     }
     
     // Remove dragging class if we're not actively dragging
@@ -445,6 +425,13 @@ export class PromptView extends MessageHandler {
   maximize() {
     if (this.isMinimized) {
       this.isMinimized = false;
+      
+      // Reset position when switching to maximized view
+      // if we haven't dragged it yet
+      if (!this.hasBeenDragged) {
+        this.style.transform = '';
+      }
+      
       this.updateDialogClass();
       this.requestUpdate();
     }
@@ -453,6 +440,13 @@ export class PromptView extends MessageHandler {
   minimize() {
     if (!this.isMinimized) {
       this.isMinimized = true;
+      
+      // Reset position when switching to minimized view
+      // if we haven't dragged it yet
+      if (!this.hasBeenDragged) {
+        this.style.transform = '';
+      }
+      
       this.updateDialogClass();
       this.requestUpdate();
     }
