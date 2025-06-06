@@ -88,10 +88,22 @@ class CoderWrapper(BaseWrapper):
         # Initialize base class
         super().__init__()
         
-        # Store the original method
+        # Store the original methods
         self.original_run = coder.run
-        # Replace with our wrapper method
+        self.original_add_rel_fname = getattr(coder, 'add_rel_fname', None)
+        self.original_drop_rel_fname = getattr(coder, 'drop_rel_fname', None)
+        
+        # Replace with our wrapper methods
         coder.run = self.run_wrapper
+        
+        # Only wrap methods if they exist in the coder instance
+        if self.original_add_rel_fname:
+            self.log("Wrapping add_rel_fname method")
+            coder.add_rel_fname = self.add_rel_fname_wrapper
+            
+        if self.original_drop_rel_fname:
+            self.log("Wrapping drop_rel_fname method")
+            coder.drop_rel_fname = self.drop_rel_fname_wrapper
         
         # Register for coder type changes
         from aider.coders.base_coder import Coder
@@ -108,6 +120,32 @@ class CoderWrapper(BaseWrapper):
             coder_type, 
             edit_format
         ))
+    
+    def add_rel_fname_wrapper(self, filename):
+        """Wrapper for coder's add_rel_fname method to notify RepoTree after adding file"""
+        self.log(f"add_rel_fname_wrapper called for {filename}")
+        
+        # Call original method and store result
+        result = self.original_add_rel_fname(filename)
+        
+        # Notify RepoTree to refresh its file list
+        self.log(f"Notifying RepoTree about file addition: {filename}")
+        self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+        
+        return result
+    
+    def drop_rel_fname_wrapper(self, filename):
+        """Wrapper for coder's drop_rel_fname method to notify RepoTree after dropping file"""
+        self.log(f"drop_rel_fname_wrapper called for {filename}")
+        
+        # Call original method and store result
+        result = self.original_drop_rel_fname(filename)
+        
+        # Notify RepoTree to refresh its file list
+        self.log(f"Notifying RepoTree about file removal: {filename}")
+        self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+        
+        return result
 
     def stop(self):
         """Stop the current running operation by raising KeyboardInterrupt"""
