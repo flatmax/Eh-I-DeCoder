@@ -2,19 +2,14 @@ import {html, css, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import {EditorView, keymap} from '@codemirror/view';
 import {extractResponseData} from './Utils.js';
-import {EditorState, EditorSelection} from '@codemirror/state';
+import {EditorState} from '@codemirror/state';
 import {basicSetup} from 'codemirror';
 import {MergeView, unifiedMergeView, goToNextChunk, goToPreviousChunk} from '@codemirror/merge';
-import {defaultKeymap, indentWithTab} from '@codemirror/commands';
-import {oneDark} from '@codemirror/theme-one-dark';
-import {search, searchKeymap} from '@codemirror/search';
-import {javascript} from '@codemirror/lang-javascript';
-import {python} from '@codemirror/lang-python';
-import {html as htmlLang} from '@codemirror/lang-html';
-import {css as cssLang} from '@codemirror/lang-css';
-import {json} from '@codemirror/lang-json';
-import {markdown} from '@codemirror/lang-markdown';
-import {cpp} from '@codemirror/lang-cpp';
+import {search} from '@codemirror/search';
+import {diffTheme, commonEditorTheme} from './editor/EditorThemes.js';
+import {createCommonKeymap} from './editor/EditorKeymap.js';
+import {getLanguageExtension} from './editor/LanguageExtensions.js';
+import {LineHighlight} from './editor/LineHighlight.js';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
@@ -42,6 +37,7 @@ export class MergeEditor extends JRPCClient {
     this.originalContent = '';
     this.unifiedView = false;
     this.currentFilePath = '';
+    this.lineHighlight = null;
     
     // Bind methods to this instance
     this.checkForChanges = this.checkForChanges.bind(this);
@@ -51,6 +47,7 @@ export class MergeEditor extends JRPCClient {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    this.lineHighlight = new LineHighlight(this.shadowRoot);
   }
   
   disconnectedCallback() {
@@ -86,94 +83,11 @@ export class MergeEditor extends JRPCClient {
   scrollToLine(lineNumber) {
     if (!this.mergeView || !lineNumber) return;
     
-    // Convert string to integer if needed
-    if (typeof lineNumber === 'string') {
-      lineNumber = parseInt(lineNumber, 10);
-    }
-    
     // Determine which view to use based on mode
     const view = this.unifiedView ? this.mergeView : this.mergeView.b;
-    if (!view || !view.state) return;
+    if (!view) return;
     
-    try {
-      // Get document line count and clamp line number
-      const lineCount = view.state.doc.lines;
-      const line = Math.min(lineNumber, lineCount);
-      
-      // Get position of the line
-      const pos = view.state.doc.line(line).from;
-      
-      // Dispatch command to scroll and select the line
-      view.dispatch({
-        selection: EditorSelection.create([EditorSelection.range(pos, pos)]),
-        scrollIntoView: true,
-        effects: EditorView.scrollIntoView(pos, { y: "center" })
-      });
-      
-      // Focus the editor
-      view.focus();
-      
-      // Add visual highlight to the line
-      this._addHighlightStyle();
-      const lineElement = this._findLineElement(view, line);
-      if (lineElement) {
-        lineElement.classList.add('line-highlight-effect');
-        setTimeout(() => {
-          lineElement.classList.remove('line-highlight-effect');
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Error scrolling to line:', error);
-    }
-  }
-  
-  /**
-   * Add highlight style to the shadow DOM if not already present
-   */
-  _addHighlightStyle() {
-    if (!this.shadowRoot.querySelector('style.highlight-styles')) {
-      const style = document.createElement('style');
-      style.className = 'highlight-styles';
-      style.textContent = `
-        .line-highlight-effect {
-          background-color: rgba(255, 255, 0, 0.3) !important;
-          outline: 2px solid gold !important;
-          animation: pulse-highlight 1.5s ease-in-out;
-        }
-        @keyframes pulse-highlight {
-          0%, 100% { background-color: rgba(255, 255, 0, 0.3); }
-          50% { background-color: rgba(255, 255, 0, 0.5); }
-        }
-      `;
-      this.shadowRoot.appendChild(style);
-    }
-  }
-  
-  /**
-   * Find the DOM element for a specific line
-   * @param {EditorView} view - The editor view
-   * @param {number} lineNum - Line number to find
-   * @return {HTMLElement|null} The line element or null if not found
-   */
-  _findLineElement(view, lineNum) {
-    try {
-      // Get line info
-      const line = view.state.doc.line(lineNum);
-      
-      // Find the DOM element using the line's position
-      const posDOM = view.domAtPos(line.from);
-      if (posDOM && posDOM.node) {
-        // Find the line element by walking up the DOM tree
-        let lineElement = posDOM.node;
-        while (lineElement && !lineElement.classList?.contains('cm-line')) {
-          lineElement = lineElement.parentElement;
-        }
-        return lineElement;
-      }
-    } catch (error) {
-      console.error('Error finding line element:', error);
-    }
-    return null;
+    this.lineHighlight.scrollToLine(view, lineNumber);
   }
   
   // Reset unsaved changes flag
@@ -196,14 +110,10 @@ export class MergeEditor extends JRPCClient {
     if (!this.unifiedView && this.mergeView.b) {
       const view = this.mergeView.b;
       goToNextChunk(view);
-      
-      // Center the current cursor position
       this._centerActiveSelection(view);
     } else if (this.unifiedView) {
       const view = this.mergeView;
       goToNextChunk(view);
-      
-      // Center the current cursor position
       this._centerActiveSelection(view);
     }
   }
@@ -215,14 +125,10 @@ export class MergeEditor extends JRPCClient {
     if (!this.unifiedView && this.mergeView.b) {
       const view = this.mergeView.b;
       goToPreviousChunk(view);
-      
-      // Center the current cursor position
       this._centerActiveSelection(view);
     } else if (this.unifiedView) {
       const view = this.mergeView;
       goToPreviousChunk(view);
-      
-      // Center the current cursor position
       this._centerActiveSelection(view);
     }
   }
@@ -230,7 +136,6 @@ export class MergeEditor extends JRPCClient {
   // Helper method to center the current selection/cursor in view
   _centerActiveSelection(view) {
     const selection = view.state.selection.main;
-    // Use scrollIntoView with 'center' alignment option
     view.dispatch({
       effects: EditorView.scrollIntoView(selection, {
         y: "center"
@@ -354,36 +259,6 @@ export class MergeEditor extends JRPCClient {
     return extractResponseData(response, '');
   }
   
-  getLanguageExtension(filePath) {
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'js':
-      case 'jsx':
-      case 'ts':
-      case 'tsx':
-        return javascript();
-      case 'py':
-        return python();
-      case 'html':
-      case 'htm':
-        return htmlLang();
-      case 'css':
-        return cssLang();
-      case 'json':
-        return json();
-      case 'md':
-      case 'markdown':
-        return markdown();
-      case 'c':
-      case 'h':
-      case 'cpp':
-      case 'hpp':
-        return cpp();
-      default:
-        return [];
-    }
-  }
-  
   updateMergeView() {
     const container = this.shadowRoot.querySelector('.merge-container');
     if (!container) return;
@@ -400,83 +275,13 @@ export class MergeEditor extends JRPCClient {
     if (!this.headContent && !this.workingContent) return;
     
     try {
-      // Create CSS theme specifically for diff highlighting
-      const diffTheme = EditorView.theme({
-        // Styles for inserted content (in right editor)
-        ".cm-diff-insert": {
-          backgroundColor: "rgba(0, 255, 0, 0.15)",
-        },
-        ".cm-diff-insert-line": {
-          backgroundColor: "rgba(0, 255, 0, 0.1)",
-          borderLeft: "3px solid rgba(0, 200, 0, 0.8)",
-        },
-        
-        // Styles for deleted content (in left editor)
-        ".cm-diff-delete": {
-          backgroundColor: "rgba(255, 0, 0, 0.15)",
-        },
-        ".cm-diff-delete-line": {
-          backgroundColor: "rgba(255, 0, 0, 0.1)",
-          borderLeft: "3px solid rgba(200, 0, 0, 0.8)",
-        },
-        
-        // Styles for modified chunks
-        ".cm-diff-chunk": {
-          backgroundColor: "rgba(180, 180, 255, 0.1)",
-        },
-        
-        // Gap styles
-        ".cm-merge-gap": {
-          backgroundColor: "#f5f5f5",
-          borderLeft: "1px solid #ddd",
-          borderRight: "1px solid #ddd",
-        },
-      });
-      
       // Create search configuration with panel at top
       const searchConfig = search({
         top: true // This places the search panel at the top instead of bottom
       });
       
       // Common keyboard shortcuts
-      const commonKeymap = [
-        // Save shortcut (Mod = Ctrl on Windows/Linux, Cmd on Mac)
-        {
-          key: "Mod-s",
-          run: () => {
-            this.saveChanges();
-            return true; // Prevent other keymap handlers
-          }
-        },
-        ...searchKeymap, // Add search keyboard shortcuts
-        // Next chunk navigation (Alt+n)
-        {
-          key: "Alt-n",
-          run: () => {
-            this.goToNextChunk();
-            return true;
-          }
-        },
-        // Previous chunk navigation (Alt+p)
-        {
-          key: "Alt-p",
-          run: () => {
-            this.goToPreviousChunk();
-            return true;
-          }
-        },
-        indentWithTab,
-        ...defaultKeymap
-      ];
-      
-      const commonEditorTheme = [
-        oneDark,
-        diffTheme,
-        EditorView.theme({
-          '&': { height: '100%' },
-          '.cm-scroller': { fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace' }
-        })
-      ];
+      const commonKeymap = createCommonKeymap(this);
       
       if (this.unifiedView) {
         // Create unified view (single editor with the unifiedMergeView extension)
@@ -485,7 +290,7 @@ export class MergeEditor extends JRPCClient {
           extensions: [
             basicSetup,
             searchConfig,
-            this.getLanguageExtension(this.filePath),
+            getLanguageExtension(this.filePath),
             ...commonEditorTheme,
             keymap.of(commonKeymap),
             unifiedMergeView({
@@ -506,7 +311,7 @@ export class MergeEditor extends JRPCClient {
             extensions: [
               basicSetup,
               searchConfig,
-              this.getLanguageExtension(this.filePath),
+              getLanguageExtension(this.filePath),
               EditorState.readOnly.of(true), // Make left pane read-only
               ...commonEditorTheme
             ]
@@ -516,7 +321,7 @@ export class MergeEditor extends JRPCClient {
             extensions: [
               basicSetup,
               searchConfig,
-              this.getLanguageExtension(this.filePath),
+              getLanguageExtension(this.filePath),
               ...commonEditorTheme,
               keymap.of(commonKeymap)
             ]
@@ -728,12 +533,6 @@ export class MergeEditor extends JRPCClient {
     color: #333;
   }
 
-  .merge-labels {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-  }
-
   .label {
     padding: 4px 8px;
     border-radius: 3px;
@@ -781,72 +580,44 @@ export class MergeEditor extends JRPCClient {
     color: #d32f2f;
   }
 
-  /* === BEGIN CodeMirror Base and MergeView Styles === */
-
-  /* Styles for MergeView layout (ensure side-by-side) */
-  /* CodeMirror's MergeView typically sets display:flex inline, but good to be sure */
+  /* CodeMirror styling */
   .merge-container :global(.cm-merge-view) {
-    display: flex !important; /* Ensure flex display */
-    flex-direction: row !important; /* Ensure side-by-side */
+    display: flex !important;
+    flex-direction: row !important;
     height: 100%;
     width: 100%;
   }
 
-  .merge-container :global(.cm-merge-view > .cm-editorPane) { /* Panes holding each editor */
+  .merge-container :global(.cm-merge-view > .cm-editorPane) {
     flex-grow: 1;
     flex-basis: 0;
-    overflow: hidden; /* Important */
+    overflow: hidden;
     height: 100%;
-    position: relative; /* CM might need this */
+    position: relative;
   }
 
-  .merge-container :global(.cm-merge-view > .cm-gutter) { /* The gutter between panes */
-    flex-grow: 0;
-    flex-shrink: 0;
-    /* You might need to style width, borders, background for the gutter here if not showing */
-    /* Example:
-    width: 10px;
-    border-left: 1px solid #ccc;
-    border-right: 1px solid #ccc;
-    background-color: #f0f0f0;
-    */
-  }
-
-  /* Essential styles from EditorView.baseTheme (these are illustrative, get the full set) */
   .merge-container :global(.cm-editor) {
     position: relative !important;
     box-sizing: border-box !important;
-    display: flex !important; /* CRITICAL for internal layout */
-    flex-direction: column !important; /* CRITICAL for internal layout */
-    height: 100%; /* Your theme already sets this for '&', which is .cm-editor */
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100%;
   }
 
   .merge-container :global(.cm-scroller) {
     flex-grow: 1 !important;
     overflow: auto !important;
     box-sizing: border-box !important;
-    position: relative !important; /* Often needed */
+    position: relative !important;
     outline: none !important;
-    font-family: Monaco, Menlo, "Ubuntu Mono", monospace; /* Your theme */
+    font-family: Monaco, Menlo, "Ubuntu Mono", monospace;
   }
 
   .merge-container :global(.cm-content) {
     box-sizing: border-box !important;
-    position: relative !important; /* Crucial for positioning lines, selections */
-    /* Add other .cm-content styles from baseTheme if needed */
+    position: relative !important;
   }
 
-  .merge-container :global(.cm-line) {
-     /* Add .cm-line styles from baseTheme if needed */
-  }
-
-  /* Add other necessary base styles: .cm-gutters, .cm-lineNumbers, .cm-activeLine, etc. */
-  /* The more complete these base styles are, the better CM will render. */
-
-  /* === END CodeMirror Base and MergeView Styles === */
-
-
-  /* Enhanced CodeMirror diff and merge view styling */
   .merge-container :global(.cm-merge-view .cm-merge-gap) {
     background: #f5f5f5;
     border-left: 1px solid #ddd;
@@ -854,7 +625,6 @@ export class MergeEditor extends JRPCClient {
     position: relative;
   }
   
-  /* Controls in the gap */
   .merge-container :global(.cm-merge-view .cm-merge-gap .cm-merge-controls) {
     position: sticky;
     top: 30px;
@@ -882,12 +652,10 @@ export class MergeEditor extends JRPCClient {
     background: #e6e6e6;
   }
   
-  /* Chunk styling */
   .merge-container :global(.cm-diff-chunk) {
     background: rgba(180, 180, 255, 0.1);
   }
   
-  /* Line styling */
   .merge-container :global(.cm-diff-insert-line) {
     background: rgba(0, 255, 0, 0.1);
     border-left: 3px solid rgba(0, 200, 0, 0.8);
@@ -898,7 +666,6 @@ export class MergeEditor extends JRPCClient {
     border-left: 3px solid rgba(200, 0, 0, 0.8);
   }
   
-  /* Character-level diff styling */
   .merge-container :global(.cm-diff-insert) {
     background: rgba(0, 255, 0, 0.15);
     border-radius: 2px;
@@ -908,14 +675,7 @@ export class MergeEditor extends JRPCClient {
     background: rgba(255, 0, 0, 0.15);
     border-radius: 2px;
   }
-  
-  /* Match the dark theme for better contrast */
-  .merge-container.theme-dark :global(.cm-diff-insert) {
-    background: rgba(0, 255, 0, 0.2);
-  }
-  
-  .merge-container.theme-dark :global(.cm-diff-delete) {
-    background: rgba(255, 0, 0, 0.2);
-  }
 `;
 }
+
+customElements.define('merge-editor', MergeEditor);
