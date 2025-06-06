@@ -5,6 +5,7 @@ import threading
 import traceback
 from datetime import datetime
 from eh_i_decoder.base_wrapper import BaseWrapper
+from eh_i_decoder.logger import Logger
 
 
 class CoderWrapper(BaseWrapper):
@@ -82,8 +83,7 @@ class CoderWrapper(BaseWrapper):
                 raise ValueError("No coder instance available, and none was provided")
         
         self.coder = coder
-        self.log_file = '/tmp/coder_wrapper.log'
-        self.log(f"CoderWrapper initialized with coder: {coder}")
+        Logger.info(f"CoderWrapper initialized with coder: {coder}")
         
         # Initialize base class
         super().__init__()

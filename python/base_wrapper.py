@@ -1,24 +1,26 @@
 import asyncio
 import threading
 from datetime import datetime
+from eh_i_decoder.logger import Logger
 
 class BaseWrapper:
     """Base class for wrappers that provides common functionality"""
     
     def __init__(self):
+        # Register this class instance with the logger
+        Logger.register_class(self)
+        
         # Try to get the main event loop reference
         self.main_loop = None
         try:
             self.main_loop = asyncio.get_running_loop()
-            self.log(f"Captured main event loop: {self.main_loop}")
+            Logger.info(f"Captured main event loop: {self.main_loop}")
         except RuntimeError:
-            self.log("No running event loop found during initialization")
+            Logger.info("No running event loop found during initialization")
     
     def log(self, message):
-        """Write a log message to the log file with timestamp"""
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        with open(self.log_file, 'a') as f:
-            f.write(f"[{timestamp}] {message}\n")
+        """Write a log message to the log file with timestamp (legacy method)"""
+        Logger.info(message)
 
     def _safe_create_task(self, coro):
         """Safely create an async task using main_loop if available"""

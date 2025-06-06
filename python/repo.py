@@ -5,13 +5,13 @@ import asyncio
 import time
 import threading
 from eh_i_decoder.base_wrapper import BaseWrapper
+from eh_i_decoder.logger import Logger
 
 
 class Repo(BaseWrapper):
     """Wrapper for Git repository operations using GitPython"""
     
     def __init__(self, repo_path=None):
-        self.log_file = '/tmp/repo.log'
         super().__init__()
 
         self.repo_path = repo_path or '.'

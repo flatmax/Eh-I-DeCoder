@@ -7,6 +7,7 @@ from datetime import datetime
 import concurrent.futures
 import threading
 from eh_i_decoder.base_wrapper import BaseWrapper
+from eh_i_decoder.logger import Logger
 
 # Enable tracemalloc for debugging
 tracemalloc.start()
@@ -16,8 +17,7 @@ class IOWrapper(BaseWrapper):
     
     def __init__(self, io_instance, port=8999):
         self.io = io_instance
-        self.log_file = '/tmp/io_wrapper.log'
-        self.log(f"IOWrapper initialized with io_instance: {io_instance}")
+        Logger.info(f"IOWrapper initialized with io_instance: {io_instance}")
         
         # Initialize base class
         super().__init__()

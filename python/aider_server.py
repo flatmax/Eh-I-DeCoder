@@ -11,7 +11,6 @@ import sys
 import os
 from pathlib import Path
 import threading
-import logging
 from asyncio import Event
 
 # Add local jrpc-oo to path if needed
@@ -165,12 +164,14 @@ async def main_starter_async():
 def main_starter():
     """Entry point for the aider-server command"""
     try:
-        # Set up basic logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[logging.StreamHandler(), logging.FileHandler('/tmp/aider_server.log')]
-        )
+        # Import and configure our centralized logger
+        from eh_i_decoder.logger import Logger
+        
+        # Configure the logger
+        Logger.configure(log_dir='/tmp', default_name='AiderServer')
+        
+        # Set up basic logging through our centralized logger
+        Logger.info("Starting aider-server")
         
         exit_code = asyncio.run(main_starter_async())
         return exit_code if exit_code else 0
