@@ -1,6 +1,7 @@
 import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {FileTree} from './FileTree.js';
+import {extractResponseData} from './Utils.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/fab/fab.js';
@@ -28,6 +29,7 @@ export class RepoTree extends FileTree {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    // No need to register callbacks, Repo will directly call loadGitStatus
   }
   
   setupDone() {
@@ -46,19 +48,31 @@ export class RepoTree extends FileTree {
       this.error = null;
       
       console.log('Processing git status data');
+      console.log('Raw status response:', statusResponse);
       
-      // Extract the status from the response object (which has a UUID key)
+      // Extract the status data properly
       let status = {};
-      if (typeof statusResponse === 'object' && !Array.isArray(statusResponse)) {
-        // Get the first key (UUID) and extract the status
-        const keys = Object.keys(statusResponse);
-        if (keys.length > 0) {
-          status = statusResponse[keys[0]] || {};
+      
+      // Handle the JSONRPC response format where data may be wrapped
+      if (statusResponse && typeof statusResponse === 'object') {
+        // Check if this is a direct response with known properties
+        if ('branch' in statusResponse || 'is_dirty' in statusResponse) {
+          status = statusResponse;
         }
-      } else {
-        status = statusResponse || {};
+        // Check if this is a wrapped response with a UUID key
+        else {
+          // This uses the same approach as extractResponseData
+          const keys = Object.keys(statusResponse);
+          for (const key of keys) {
+            if (statusResponse[key] && typeof statusResponse[key] === 'object') {
+              status = statusResponse[key];
+              break;
+            }
+          }
+        }
       }
       
+      console.log('Processed status:', status);
       this.gitStatus = status;
       
       // Extract file arrays for easier access
@@ -71,7 +85,8 @@ export class RepoTree extends FileTree {
         isDirty: status.is_dirty,
         modified: this.modifiedFiles.length,
         staged: this.stagedFiles.length,
-        untracked: this.untrackedFiles.length
+        untracked: this.untrackedFiles.length,
+        raw: status  // Log the full raw status object for debugging
       });
       
     } catch (error) {
@@ -313,6 +328,7 @@ export class RepoTree extends FileTree {
     });
   }
   
+
   render() {
     return html`
       <div class="file-tree-container">

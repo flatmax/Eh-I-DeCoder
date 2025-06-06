@@ -491,8 +491,18 @@ class Repo(BaseWrapper):
         return {"status": "success", "message": "Git monitor stopped"}
     
     def _notify_git_change(self):
-        """Log that git state has changed but don't perform callbacks"""
-        self.log("Git state changed (no callbacks registered)")
+        """Notify RepoTree component about git state changes"""
+        self.log("Git state changed, notifying RepoTree")
+        
+        try:
+            # Get the current git status
+            st = self.get_status()
+            
+            # Notify RepoTree using _safe_create_task
+            self._safe_create_task(self.get_call()['RepoTree.loadGitStatus'](st))
+            
+        except Exception as e:
+            self.log(f"Error in _notify_git_change: {e}")
     
     def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Fallback search implementation using Python when git grep fails"""

@@ -16,7 +16,7 @@ Once a class is added the class has :
 this.getRemotes to get the remotes in js
 self.get_remotes in py
 this.getCall to get the call object with the method names available for RPC
-self.get_call() or self.call in py
+self.get_call() (assume get_call exists) in py
 
 RPC usage :
 js promise : this.call['Class.method'](args)
