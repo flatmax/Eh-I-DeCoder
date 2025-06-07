@@ -9,10 +9,6 @@ import sys
 import os
 import threading
 from asyncio import Event
-
-# Add local jrpc-oo to path if needed
-if os.path.exists('./jrpc-oo'):
-    sys.path.insert(0, os.path.abspath('./jrpc-oo'))
 from jrpc_oo import JRPCServer
 
 from eh_i_decoder.io_wrapper import IOWrapper

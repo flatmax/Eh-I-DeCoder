@@ -69,7 +69,6 @@ class CoderWrapper(BaseWrapper):
             Coder._coder_change_callbacks.append(callback)
             return True
         return False
-    """Wrapper for Coder that provides non-blocking run method"""
     
     @classmethod
     def get_coder(cls):
