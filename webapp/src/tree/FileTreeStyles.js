@@ -79,6 +79,7 @@ export const fileTreeStyles = css`
     display: flex;
     align-items: center;
     gap: 2px;
+    order: 999;
   }
   
   .line-count md-icon {
