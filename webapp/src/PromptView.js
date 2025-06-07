@@ -1,7 +1,7 @@
 /**
  * PromptView component that provides the UI for interacting with the AI assistant
  */
-import {LitElement, html, css} from 'lit';
+import {html, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import '@material/web/button/filled-button.js';
 import '@material/web/iconbutton/icon-button.js';
@@ -12,6 +12,9 @@ import '../user-card.js';
 import '../speech-to-text.js';
 import '../commands-card.js';
 import { MessageHandler } from './MessageHandler.js';
+import { DragHandler } from './prompt/DragHandler.js';
+import { DialogStateManager } from './prompt/DialogStateManager.js';
+import { ScrollManager } from './prompt/ScrollManager.js';
 
 export class PromptView extends MessageHandler {
   static properties = {
@@ -22,7 +25,7 @@ export class PromptView extends MessageHandler {
     coderType: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
-    position: { type: Object, state: true }, // Single position state
+    position: { type: Object, state: true },
     hasBeenDragged: { type: Boolean, state: true }
   };
   
@@ -33,21 +36,18 @@ export class PromptView extends MessageHandler {
     this.isMinimized = false;
     this.coderType = 'Send';
     
-    // Drag state
+    // Initialize managers
+    this.dragHandler = new DragHandler(this);
+    this.dialogStateManager = new DialogStateManager(this);
+    this.scrollManager = new ScrollManager(this);
+    
+    // Initialize drag state
     this.isDragging = false;
-    // Position it at 1/6 from the left of the screen and at the top
     this.position = { 
       x: window.innerWidth / 6, 
-      y: 20 // Position near the top with a small margin
+      y: 20
     };
     this.hasBeenDragged = true;
-    this.dragOffset = { x: 0, y: 0 };
-    
-    // Bind event handlers to maintain context
-    this.handleDocumentClick = this.handleDocumentClick.bind(this);
-    this.handleDragStart = this.handleDragStart.bind(this);
-    this.handleDrag = this.handleDrag.bind(this);
-    this.handleDragEnd = this.handleDragEnd.bind(this);
   }
 
   static styles = css`
@@ -65,14 +65,12 @@ export class PromptView extends MessageHandler {
       height: 120px;
     }
     
-    /* When moved by user */
     :host(.dragged) {
       position: fixed !important;
       bottom: auto !important;
       right: auto !important;
       top: auto !important;
       left: 0 !important;
-      /* Position is handled by translate3d transform for better performance */
     }
     
     :host(.maximized) {
@@ -109,12 +107,12 @@ export class PromptView extends MessageHandler {
       background: #f5f5f5;
       border-bottom: 1px solid #e0e0e0;
       min-height: 48px;
-      user-select: none; /* Prevent text selection during drag */
-      cursor: grab; /* Indicate draggable */
+      user-select: none;
+      cursor: grab;
     }
     
     .dialog-header:active {
-      cursor: grabbing; /* Change cursor when actively dragging */
+      cursor: grabbing;
     }
     
     .dialog-title {
@@ -238,227 +236,45 @@ export class PromptView extends MessageHandler {
 
   connectedCallback() {
     super.connectedCallback();
-    this.updateDialogClass();
-    
-    // Apply initial position
-    if (this.hasBeenDragged) {
-      this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
-    }
-    
-    // Add document click listener
-    document.addEventListener('click', this.handleDocumentClick, true);
-    
-    // Add global mouse event listeners for dragging with proper binding
-    this._boundDragHandler = this.handleDrag.bind(this);
-    this._boundDragEndHandler = this.handleDragEnd.bind(this);
-    
-    document.addEventListener('mousemove', this._boundDragHandler);
-    document.addEventListener('mouseup', this._boundDragEndHandler);
-    
-    console.log('PromptView connected, drag handlers attached');
+    this.dragHandler.initialize();
+    this.dialogStateManager.initialize();
+    this.scrollManager.initialize();
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
-    
-    // Remove all event listeners using the properly stored bound handlers
-    document.removeEventListener('click', this.handleDocumentClick, true);
-    document.removeEventListener('mousemove', this._boundDragHandler);
-    document.removeEventListener('mouseup', this._boundDragEndHandler);
-    
-    console.log('PromptView disconnected, drag handlers removed');
+    this.dragHandler.cleanup();
+    this.dialogStateManager.cleanup();
+    this.scrollManager.cleanup();
   }
   
-  
+  // Delegate methods to managers
   handleHeaderClick(event) {
-    // Only toggle if we weren't dragging
-    if (!this.isDragging && !this._wasDragging) {
-      // Toggle between minimized and maximized when header is clicked
-      if (this.isMinimized) {
-        this.maximize();
-      } else {
-        this.minimize();
-      }
-      // Prevent other click handlers from firing
-      event.stopPropagation();
-    }
-    
-    // Reset drag flag after click is processed
-    this._wasDragging = false;
+    this.dialogStateManager.handleHeaderClick(event);
   }
   
-  // Drag event handlers
   handleDragStart(event) {
-    // Ignore non-left button clicks or if already dragging
-    if (event.button !== 0 || this.isDragging) return;
-    
-    // Get current position
-    const rect = this.getBoundingClientRect();
-    
-    // Calculate the offset between mouse position and dialog top-left
-    this.dragOffset = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
-    
-    // Store initial position
-    this.position = { 
-      x: rect.left, 
-      y: rect.top 
-    };
-    
-    // Add dragging class to disable transitions during drag
-    this.classList.add('dragging');
-    this.style.cursor = 'grabbing';
-    
-    // Mark as dragging
-    this.isDragging = true;
-    
-    // Update position with translate3d for hardware acceleration
-    this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
-    
-    // Prevent default to avoid text selection
-    event.preventDefault();
-    
-    console.log('Drag start:', this.position);
+    this.dragHandler.handleDragStart(event);
   }
-  
-  handleDrag(event) {
-    if (!this.isDragging) return;
-    
-    // Calculate new position
-    const x = event.clientX - this.dragOffset.x;
-    const y = event.clientY - this.dragOffset.y;
-    
-    // Update position state
-    this.position = { x, y };
-    
-    // Apply position using translate3d for hardware acceleration
-    this.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    
-    // Mark as dragged
-    this.hasBeenDragged = true;
-    
-    // Set flag to prevent click handler from firing
-    this._wasDragging = true;
-    
-    // Prevent default behavior
-    event.preventDefault();
-    
-    // Debug
-    if (event.clientX % 100 < 1) {
-      console.log('Dragging to:', x, y);
-    }
-  }
-  
-  handleDragEnd(event) {
-    if (!this.isDragging) return;
-    
-    // Update dragging state
-    this.isDragging = false;
-    
-    // Reset cursor
-    this.style.cursor = '';
-    
-    // Keep dragged state and final position
-    this.classList.remove('dragging');
-    this.classList.add('dragged');
-    
-    console.log('Drag ended at:', this.position.x, this.position.y);
-    console.log('Final transform:', this.style.transform);
-  }
-  
   
   handleDocumentClick(event) {
-    // Check if the click is inside the dialog
-    const dialogContainer = this.shadowRoot.querySelector('.dialog-container');
-    if (!dialogContainer) return;
-    
-    // Get the click target
-    const clickTarget = event.target;
-    
-    // Check if click is inside this component
-    const isInsideDialog = event.composedPath().includes(this) || 
-                          this.shadowRoot.contains(clickTarget) ||
-                          clickTarget === this;
-    
-    if (isInsideDialog) {
-      // Click is inside the dialog - maximize if minimized
-      if (this.isMinimized) {
-        this.maximize();
-      }
-    }
+    this.dialogStateManager.handleDocumentClick(event);
   }
   
   handleDialogClick(event) {
-    // Maximize when dialog is clicked (if minimized)
-    if (this.isMinimized) {
-      this.maximize();
-    }
-    // Stop propagation to prevent document click handler from running
-    event.stopPropagation();
-  }
-  
-  updateDialogClass() {
-    if (this.isMinimized) {
-      // Update minimized/maximized classes
-      this.classList.add('minimized');
-      this.classList.remove('maximized');
-    } else {
-      // Update maximized/minimized classes
-      this.classList.add('maximized');
-      this.classList.remove('minimized');
-    }
-    
-    // Apply dragged state if needed
-    if (this.hasBeenDragged) {
-      this.classList.add('dragged');
-      // Ensure transform is applied (might get cleared by CSS)
-      requestAnimationFrame(() => {
-        if (this.position && this.position.x !== undefined && this.position.y !== undefined) {
-          this.style.transform = `translate3d(${this.position.x}px, ${this.position.y}px, 0)`;
-          console.log('Updating position in rAF:', this.position);
-        }
-      });
-    } else {
-      this.classList.remove('dragged');
-      this.style.transform = '';
-    }
-    
-    // Remove dragging class if we're not actively dragging
-    if (!this.isDragging) {
-      this.classList.remove('dragging');
-    }
+    this.dialogStateManager.handleDialogClick(event);
   }
   
   maximize() {
-    if (this.isMinimized) {
-      this.isMinimized = false;
-      
-      // Reset position when switching to maximized view
-      // if we haven't dragged it yet
-      if (!this.hasBeenDragged) {
-        this.style.transform = '';
-      }
-      
-      this.updateDialogClass();
-      this.requestUpdate();
-    }
+    this.dialogStateManager.maximize();
   }
   
   minimize() {
-    if (!this.isMinimized) {
-      this.isMinimized = true;
-      
-      // Reset position when switching to minimized view
-      // if we haven't dragged it yet
-      if (!this.hasBeenDragged) {
-        this.style.transform = '';
-      }
-      
-      this.updateDialogClass();
-      this.requestUpdate();
-    }
+    this.dialogStateManager.minimize();
+  }
+  
+  updateDialogClass() {
+    this.dialogStateManager.updateDialogClass();
   }
   
   /**
@@ -477,7 +293,7 @@ export class PromptView extends MessageHandler {
           <div class="message-history" id="messageHistory">
             ${repeat(
               this.messageHistory,
-              (message, i) => i, // Using index as key since messages may not have unique IDs
+              (message, i) => i,
               message => {
                 if (message.role === 'user') {
                   return html`<user-card .content=${message.content}></user-card>`;
@@ -562,71 +378,33 @@ export class PromptView extends MessageHandler {
     // Send via inherited sendPrompt method with maximize callback
     await this.sendPrompt(message, () => this.maximize());
   }
-
-  /**
-   * Check if user is scrolled to bottom of the history container
-   */
-  _isScrolledToBottom() {
-    const historyContainer = this.shadowRoot.getElementById('messageHistory');
-    if (historyContainer) {
-      const { scrollTop, scrollHeight, clientHeight } = historyContainer;
-      // Consider "at bottom" if within 10px of actual bottom
-      return Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
-    }
-    return true;
-  }
   
   /**
    * Hook called when a message is added (from MessageHandler)
    */
   onMessageAdded(role, content) {
-    // Check if we're at bottom before adding content
-    const shouldScrollToBottom = this._isScrolledToBottom();
-    
-    // Only scroll to bottom if we were already there
-    this.updateComplete.then(() => {
-      const historyContainer = this.shadowRoot.getElementById('messageHistory');
-      if (historyContainer && shouldScrollToBottom) {
-        historyContainer.scrollTop = historyContainer.scrollHeight;
-      }
-    });
+    this.scrollManager.onMessageAdded(role, content);
   }
   
   /**
    * Hook called when a stream chunk is received (from MessageHandler)
    */
   async onStreamChunk(chunk, final, role) {
-    // Check if we're at bottom before modifying content
-    const shouldScrollToBottom = this._isScrolledToBottom();
-    
-    // Only scroll to bottom if we were already there
-    await this.updateComplete;
-    const historyContainer = this.shadowRoot.getElementById('messageHistory');
-    if (historyContainer && shouldScrollToBottom) {
-      historyContainer.scrollTop = historyContainer.scrollHeight;
-    }
+    await this.scrollManager.onStreamChunk(chunk, final, role);
   }
   
   /**
    * Hook called when streaming is complete (from MessageHandler)
    */
   async onStreamComplete() {
-    await this.updateComplete;
+    await this.scrollManager.onStreamComplete();
   }
   
   /**
    * Hook called when a stream error occurs (from MessageHandler)
    */
   async onStreamError(errorMessage) {
-    // Check if we're at bottom before modifying content
-    const shouldScrollToBottom = this._isScrolledToBottom();
-    
-    // Only scroll to bottom if we were already there
-    await this.updateComplete;
-    const historyContainer = this.shadowRoot.getElementById('messageHistory');
-    if (historyContainer && shouldScrollToBottom) {
-      historyContainer.scrollTop = historyContainer.scrollHeight;
-    }
+    await this.scrollManager.onStreamError(errorMessage);
   }
 
   /**
@@ -648,7 +426,6 @@ export class PromptView extends MessageHandler {
    * Handle recording started event
    */
   _handleRecordingStarted() {
-    // Could add any additional UI changes when recording starts
     console.log('Voice recording started');
   }
   
@@ -657,20 +434,14 @@ export class PromptView extends MessageHandler {
    */
   _handleRecognitionError(event) {
     console.error('Speech recognition error:', event.detail.error);
-    // Could show an error toast or message to the user
   }
 
   /**
    * Override the MessageHandler.onCoderTypeChanged to update button label
    */
   onCoderTypeChanged(coderType) {
-    // Call the parent method
     super.onCoderTypeChanged(coderType);
-    
-    // Update the coderType property to change the button label
     this.coderType = coderType || 'Send';
-    
-    // Request UI update
     this.requestUpdate();
     return true;
   }
