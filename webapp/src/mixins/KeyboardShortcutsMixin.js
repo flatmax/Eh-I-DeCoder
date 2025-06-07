@@ -23,9 +23,41 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
   }
 
   /**
+   * Get selected text from the MergeEditor if available
+   * @returns {string} The selected text, or empty string if no selection
+   */
+  _getSelectedTextFromMergeEditor() {
+    try {
+      // Look for merge-editor component
+      const mergeEditor = this.renderRoot.querySelector('merge-editor');
+      if (mergeEditor && typeof mergeEditor.getSelectedText === 'function') {
+        const selectedText = mergeEditor.getSelectedText();
+        console.log('Found selected text in MergeEditor:', selectedText);
+        return selectedText;
+      }
+      
+      // Try a deep search if not found directly
+      const deepMergeEditor = deepQuerySelector(this.renderRoot, 'merge-editor');
+      if (deepMergeEditor && typeof deepMergeEditor.getSelectedText === 'function') {
+        const selectedText = deepMergeEditor.getSelectedText();
+        console.log('Found selected text in MergeEditor (deep search):', selectedText);
+        return selectedText;
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Error getting selected text from MergeEditor:', error);
+      return '';
+    }
+  }
+
+  /**
    * Focus the search input in FindInFiles
    */
   _focusSearchInput() {
+    // Get selected text from MergeEditor first
+    const selectedText = this._getSelectedTextFromMergeEditor();
+    
     // Switch to the search tab (index 1)
     this.activeTabIndex = 1;
     this.requestUpdate();
@@ -33,14 +65,16 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
     // Wait for the DOM update to complete
     this.updateComplete.then(() => {
       // Try multiple times with delays to account for lazy loading
-      this._tryFocusSearchInput(0);
+      this._tryFocusSearchInput(0, selectedText);
     });
   }
 
   /**
    * Try to focus search input with retries
+   * @param {number} attempt - Current attempt number
+   * @param {string} selectedText - Text to populate in the search input
    */
-  _tryFocusSearchInput(attempt) {
+  _tryFocusSearchInput(attempt, selectedText = '') {
     const maxAttempts = 5;
     const delay = attempt * 100; // Increasing delay: 0ms, 100ms, 200ms, etc.
     
@@ -63,14 +97,14 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
       
       if (findInFiles && typeof findInFiles.focusSearchInput === 'function') {
         console.log(`Found FindInFiles component on attempt ${attempt + 1}`);
-        findInFiles.focusSearchInput();
+        findInFiles.focusSearchInput(selectedText);
         return;
       }
       
       // If not found and we haven't reached max attempts, try again
       if (attempt < maxAttempts - 1) {
         console.log(`FindInFiles not found, retrying... (attempt ${attempt + 1}/${maxAttempts})`);
-        this._tryFocusSearchInput(attempt + 1);
+        this._tryFocusSearchInput(attempt + 1, selectedText);
       } else {
         console.warn('FindInFiles component not found after all attempts');
         

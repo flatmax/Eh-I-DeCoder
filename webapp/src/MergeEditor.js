@@ -65,6 +65,49 @@ export class MergeEditor extends JRPCClient {
     return this.mergeViewManager.getCurrentContent(this.unifiedView) || this.workingContent;
   }
   
+  /**
+   * Get the currently selected text from the merge view
+   * @returns {string} The selected text, or empty string if no selection
+   */
+  getSelectedText() {
+    if (!this.mergeViewManager?.mergeView) return '';
+    
+    try {
+      if (this.unifiedView) {
+        // For unified view, get selection from the single editor
+        const view = this.mergeViewManager.mergeView;
+        const selection = view.state.selection.main;
+        if (selection.empty) return '';
+        return view.state.doc.sliceString(selection.from, selection.to);
+      } else {
+        // For side-by-side view, check both panes (prioritize the working directory pane)
+        const viewB = this.mergeViewManager.mergeView.b; // Working directory pane
+        const viewA = this.mergeViewManager.mergeView.a; // HEAD pane
+        
+        // Check working directory pane first
+        if (viewB) {
+          const selectionB = viewB.state.selection.main;
+          if (!selectionB.empty) {
+            return viewB.state.doc.sliceString(selectionB.from, selectionB.to);
+          }
+        }
+        
+        // Fall back to HEAD pane if no selection in working directory
+        if (viewA) {
+          const selectionA = viewA.state.selection.main;
+          if (!selectionA.empty) {
+            return viewA.state.doc.sliceString(selectionA.from, selectionA.to);
+          }
+        }
+        
+        return '';
+      }
+    } catch (error) {
+      console.error('Error getting selected text:', error);
+      return '';
+    }
+  }
+  
   scrollToLine(lineNumber) {
     if (!this.mergeViewManager || !lineNumber) return;
     
