@@ -2,7 +2,7 @@
  * CommandsTab component for the new tab containing command buttons and settings
  */
 import {LitElement, html, css} from 'lit';
-import './CommandsButtons.js';
+import '../commands-buttons.js';
 
 export class CommandsTab extends LitElement {
   static properties = {
