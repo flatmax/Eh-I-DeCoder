@@ -1,3 +1,3 @@
-import { UserCard } from './src/UserCard.js';
+import { UserCard } from './src/prompt/UserCard.js';
 
 customElements.define('user-card', UserCard);
