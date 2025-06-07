@@ -96,6 +96,13 @@ export class CardMarkdown extends LitElement {
     .output-type-print {
       color: #8be9fd;
     }
+
+    /* Plain text styling for user content */
+    .plain-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+    }
   `;
 
   render() {
@@ -105,7 +112,17 @@ export class CardMarkdown extends LitElement {
       'assistant-card': this.role === 'assistant',
       'command-card': this.role === 'command'
     };
-    // Parse markdown content
+
+    // For user inputs, display as plain text without markdown parsing
+    if (this.role === 'user') {
+      return html`
+        <div class=${classMap(classes)}>
+          <div class="card-content plain-text">${this.content || ''}</div>
+        </div>
+      `;
+    }
+
+    // Parse markdown content for assistant and command roles
     const parsedContent = marked(this.content || '');
 
     return html`
