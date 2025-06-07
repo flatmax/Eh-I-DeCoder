@@ -2,6 +2,7 @@ import {html, css} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import {FileTree} from './FileTree.js';
 import {extractResponseData} from './Utils.js';
+import {ContextMenu} from './tree/ContextMenu.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/fab/fab.js';
@@ -22,20 +23,16 @@ export class RepoTree extends FileTree {
     this.stagedFiles = [];
     this.untrackedFiles = [];
     this.addedFiles = [];
-    this.contextMenuPath = null;
-    this.contextMenuVisible = false;
-    this.contextMenuIsFile = false;
+    this.contextMenu = new ContextMenu(this);
   }
   
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
-    // No need to register callbacks, Repo will directly call loadGitStatus
   }
   
   setupDone() {
     console.log('RepoTree::setupDone');
-    // Load the file tree
     this.loadFileTree();
   }
   
@@ -45,33 +42,12 @@ export class RepoTree extends FileTree {
   
   loadGitStatus(statusResponse) {
     try {
-      // Don't set loading state here to avoid UI updates that affect scroll
       this.error = null;
       
       console.log('Processing git status data');
       console.log('Raw status response:', statusResponse);
       
-      // Extract the status data properly
-      let status = {};
-      
-      // Handle the JSONRPC response format where data may be wrapped
-      if (statusResponse && typeof statusResponse === 'object') {
-        // Check if this is a direct response with known properties
-        if ('branch' in statusResponse || 'is_dirty' in statusResponse) {
-          status = statusResponse;
-        }
-        // Check if this is a wrapped response with a UUID key
-        else {
-          // This uses the same approach as extractResponseData
-          const keys = Object.keys(statusResponse);
-          for (const key of keys) {
-            if (statusResponse[key] && typeof statusResponse[key] === 'object') {
-              status = statusResponse[key];
-              break;
-            }
-          }
-        }
-      }
+      let status = this.extractStatusFromResponse(statusResponse);
       
       console.log('Processed status:', status);
       this.gitStatus = status;
@@ -87,13 +63,36 @@ export class RepoTree extends FileTree {
         modified: this.modifiedFiles.length,
         staged: this.stagedFiles.length,
         untracked: this.untrackedFiles.length,
-        raw: status  // Log the full raw status object for debugging
+        raw: status
       });
       
     } catch (error) {
       console.error('Error loading Git status:', error);
       this.error = `Failed to load Git status: ${error.message}`;
     }
+  }
+
+  extractStatusFromResponse(statusResponse) {
+    let status = {};
+    
+    if (statusResponse && typeof statusResponse === 'object') {
+      // Check if this is a direct response with known properties
+      if ('branch' in statusResponse || 'is_dirty' in statusResponse) {
+        status = statusResponse;
+      }
+      // Check if this is a wrapped response with a UUID key
+      else {
+        const keys = Object.keys(statusResponse);
+        for (const key of keys) {
+          if (statusResponse[key] && typeof statusResponse[key] === 'object') {
+            status = statusResponse[key];
+            break;
+          }
+        }
+      }
+    }
+    
+    return status;
   }
   
   async loadFileTree(scrollPosition = null) {
@@ -109,6 +108,16 @@ export class RepoTree extends FileTree {
     }
     
     // Get Git status first
+    await this.fetchGitStatus();
+    
+    // Then load the file tree with preserved scroll position
+    await super.loadFileTree(scrollPosition);
+    
+    // Expand directories with git-modified files
+    this.expandModifiedFilePaths();
+  }
+
+  async fetchGitStatus() {
     try {
       console.log('Calling Repo.get_status...');
       const statusResponse = await this.call['Repo.get_status']();
@@ -118,30 +127,25 @@ export class RepoTree extends FileTree {
       console.error('Error fetching git status:', error);
       this.error = `Failed to load Git status: ${error.message}`;
     }
-    
-    // Then load the file tree with preserved scroll position
-    await super.loadFileTree(scrollPosition);
-    
-    // After the parent has loaded the file tree and expanded directories with checked files,
-    // also expand directories that contain git-modified files
+  }
+
+  expandModifiedFilePaths() {
     if (this.modifiedFiles.length > 0 || this.stagedFiles.length > 0) {
       // Expand directories with modified files
       this.modifiedFiles.forEach(filePath => {
-        this._expandPathToFile(filePath);
+        this.treeExpansion.expandPathToFile(filePath);
       });
       
       // Expand directories with staged files
       this.stagedFiles.forEach(filePath => {
-        this._expandPathToFile(filePath);
+        this.treeExpansion.expandPathToFile(filePath);
       });
       
-      // Request an update to reflect the expanded state
       this.requestUpdate();
     }
   }
   
   getFileGitStatus(filePath) {
-    // Determine the Git status of a file
     if (this.stagedFiles.includes(filePath)) {
       return 'staged';
     } else if (this.modifiedFiles.includes(filePath)) {
@@ -154,13 +158,10 @@ export class RepoTree extends FileTree {
   
   // Handle file click to open the file in merge editor
   async handleFileClick(path, isFile) {
-    if (!isFile) return; // Only handle file clicks, not directory clicks
+    if (!isFile) return;
     
     try {
-      // Check file git status for logging purposes
       const gitStatus = this.getFileGitStatus(path);
-      
-      // Always show in merge editor regardless of git status
       console.log(`Opening file in merge editor: ${path} (${gitStatus})`);
       
       // Find the MergeEditor component in MainWindow
@@ -176,11 +177,8 @@ export class RepoTree extends FileTree {
       
     } catch (error) {
       console.error('Error handling file click:', error);
-      // Don't fall back to super.handleFileClick even on error
     }
   }
-  
-  // Use handleCheckboxClick from parent FileTree class
   
   // Override to add git status classes
   getAdditionalNodeClasses(node, nodePath) {
@@ -215,166 +213,109 @@ export class RepoTree extends FileTree {
     }
   }
   
-  // Handle stage file action from context menu
+  // Handle context menu
+  handleContextMenu(event, path, isFile) {
+    this.contextMenu.show(event, path, isFile);
+  }
+
+  // Git action handlers
   async handleStageFile() {
-    const path = this.contextMenuPath;
-    if (!path) return;
-    
-    // Hide the context menu
-    this.contextMenuVisible = false;
-    
-    try {
-      // Show loading indicator or toast message here if needed
-      console.log(`Staging file: ${path}`);
-      
-      // Call Repo.stage_file API
-      const response = await this.call['Repo.stage_file'](path);
-      console.log('Stage response:', response);
-      
-      // Refresh the file tree to show updated status
-      setTimeout(() => this.loadFileTree(), 300);
-    } catch (error) {
-      console.error('Error staging file:', error);
-      alert(`Failed to stage file: ${error.message}`);
-    }
+    await this.performGitAction('stage_file', 'Staging file');
   }
   
-  // Handle unstage file action from context menu
   async handleUnstageFile() {
-    const path = this.contextMenuPath;
-    if (!path) return;
-    
-    // Hide the context menu
-    this.contextMenuVisible = false;
-    
-    try {
-      // Show loading indicator or toast message here if needed
-      console.log(`Unstaging file: ${path}`);
-      
-      // Call Repo.unstage_file API
-      const response = await this.call['Repo.unstage_file'](path);
-      console.log('Unstage response:', response);
-      
-      // Refresh the file tree to show updated status
-      setTimeout(() => this.loadFileTree(), 300);
-    } catch (error) {
-      console.error('Error unstaging file:', error);
-      alert(`Failed to unstage file: ${error.message}`);
-    }
+    await this.performGitAction('unstage_file', 'Unstaging file');
   }
   
-  // Handle discard changes action from context menu
   async handleDiscardChanges() {
-    const path = this.contextMenuPath;
+    await this.performGitAction('discard_changes', 'Discarding changes to file');
+  }
+
+  async performGitAction(action, logMessage) {
+    const path = this.contextMenu.path;
     if (!path) return;
     
-    // Hide the context menu
-    this.contextMenuVisible = false;
+    this.contextMenu.hide();
     
     try {
-      console.log(`Discarding changes to file: ${path}`);
-      
-      // Call Repo.discard_changes API
-      const response = await this.call['Repo.discard_changes'](path);
-      console.log('Discard response:', response);
+      console.log(`${logMessage}: ${path}`);
+      const response = await this.call[`Repo.${action}`](path);
+      console.log(`${action} response:`, response);
       
       // Refresh the file tree to show updated status
       setTimeout(() => this.loadFileTree(), 300);
     } catch (error) {
-      console.error('Error discarding changes:', error);
-      alert(`Failed to discard changes: ${error.message}`);
+      console.error(`Error ${action}:`, error);
+      alert(`Failed to ${action.replace('_', ' ')}: ${error.message}`);
     }
   }
   
-  // Handle create file action from context menu
   async handleCreateFile() {
-    const dirPath = this.contextMenuPath;
+    const dirPath = this.contextMenu.path;
     if (!dirPath) return;
     
-    // Hide the context menu
-    this.contextMenuVisible = false;
+    this.contextMenu.hide();
     
     try {
-      // Prompt user for filename
       const fileName = prompt('Enter filename:');
-      if (!fileName) return; // User cancelled
+      if (!fileName) return;
       
-      // Construct full file path
       const filePath = dirPath ? `${dirPath}/${fileName}` : fileName;
-      
       console.log(`Creating file: ${filePath}`);
       
-      // Call Repo.create_file API
       const response = await this.call['Repo.create_file'](filePath, '');
       console.log('Create file response:', response);
       
-      // Check if there was an error
       if (response && response.error) {
         alert(`Failed to create file: ${response.error}`);
         return;
       }
       
-      // Refresh the file tree to show the new file
+      // Refresh and open the new file
       setTimeout(() => this.loadFileTree(), 300);
-      
-      // Optionally open the new file in the merge editor
-      setTimeout(async () => {
-        const mainWindow = document.querySelector('main-window');
-        if (mainWindow && mainWindow.shadowRoot) {
-          const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-          if (mergeEditor) {
-            await mergeEditor.loadFileContent(filePath);
-          }
-        }
-      }, 500);
+      setTimeout(() => this.openFileInEditor(filePath), 500);
       
     } catch (error) {
       console.error('Error creating file:', error);
       alert(`Failed to create file: ${error.message}`);
     }
   }
-  
-  // Handle file context menu
-  handleContextMenu(event, path, isFile) {
-    // Prevent default browser context menu
-    event.preventDefault();
-    
-    // Set the path and type for the selected item
-    this.contextMenuPath = path;
-    this.contextMenuIsFile = isFile;
-    this.contextMenuVisible = true;
-    
-    // Position context menu immediately to avoid flickering
-    const x = event.clientX;
-    const y = event.clientY;
-    
-    // Force immediate update and then position the menu
-    this.requestUpdate().then(() => {
-      this.updateComplete.then(() => {
-        const contextMenu = this.shadowRoot.querySelector('.context-menu');
-        if (contextMenu) {
-          // Position context menu at mouse position
-          contextMenu.style.left = `${x}px`;
-          contextMenu.style.top = `${y}px`;
-          
-          // Add event listener for clicks outside the menu
-          requestAnimationFrame(() => {
-            const closeMenu = (e) => {
-              // Check if click is outside the context menu
-              if (!contextMenu.contains(e.target)) {
-                this.contextMenuVisible = false;
-                this.requestUpdate();
-                document.removeEventListener('click', closeMenu);
-              }
-            };
-            
-            document.addEventListener('click', closeMenu);
-          });
-        }
-      });
-    });
+
+  async openFileInEditor(filePath) {
+    const mainWindow = document.querySelector('main-window');
+    if (mainWindow && mainWindow.shadowRoot) {
+      const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
+      if (mergeEditor) {
+        await mergeEditor.loadFileContent(filePath);
+      }
+    }
   }
-  
+
+  renderContextMenu() {
+    if (!this.contextMenu.visible) return html``;
+
+    const path = this.contextMenu.path;
+    const isFile = this.contextMenu.isFile;
+
+    return html`
+      <div class="context-menu">
+        ${isFile ? html`
+          <!-- File context menu options -->
+          ${path && this.getFileGitStatus(path) === 'staged' ? 
+            this.contextMenu.renderMenuItem('remove_circle', 'Unstage File', () => this.handleUnstageFile()) :
+            this.contextMenu.renderMenuItem('add_circle', 'Stage File', () => this.handleStageFile())
+          }
+          
+          ${path && this.getFileGitStatus(path) === 'modified' ?
+            this.contextMenu.renderMenuItem('restore', 'Discard Changes', () => this.handleDiscardChanges()) : ''
+          }
+        ` : html`
+          <!-- Directory context menu options -->
+          ${this.contextMenu.renderMenuItem('add', 'Create File', () => this.handleCreateFile())}
+        `}
+      </div>
+    `;
+  }
 
   render() {
     return html`
@@ -408,45 +349,7 @@ export class RepoTree extends FileTree {
         </md-fab>
       </div>
       
-      ${this.contextMenuVisible ? html`
-        <div class="context-menu">
-          ${this.contextMenuIsFile ? html`
-            <!-- File context menu options -->
-            ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'staged' ? html`
-              <div class="context-menu-item" @click=${this.handleUnstageFile}>
-                <span class="context-menu-icon">
-                  <md-icon class="material-symbols-outlined">remove_circle</md-icon>
-                </span>
-                <span class="context-menu-text">Unstage File</span>
-              </div>
-            ` : html`
-              <div class="context-menu-item" @click=${this.handleStageFile}>
-                <span class="context-menu-icon">
-                  <md-icon class="material-symbols-outlined">add_circle</md-icon>
-                </span>
-                <span class="context-menu-text">Stage File</span>
-              </div>
-            `}
-            
-            ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'modified' ? html`
-              <div class="context-menu-item" @click=${this.handleDiscardChanges}>
-                <span class="context-menu-icon">
-                  <md-icon class="material-symbols-outlined">restore</md-icon>
-                </span>
-                <span class="context-menu-text">Discard Changes</span>
-              </div>
-            ` : ''}
-          ` : html`
-            <!-- Directory context menu options -->
-            <div class="context-menu-item" @click=${this.handleCreateFile}>
-              <span class="context-menu-icon">
-                <md-icon class="material-symbols-outlined">add</md-icon>
-              </span>
-              <span class="context-menu-text">Create File</span>
-            </div>
-          `}
-        </div>
-      ` : ''}
+      ${this.renderContextMenu()}
     `;
   }
   
@@ -455,7 +358,7 @@ export class RepoTree extends FileTree {
     
     .file-tree-container {
       position: relative;
-      min-height: 200px; /* Ensure container has enough height */
+      min-height: 200px;
     }
     
     /* Context Menu Styles */
