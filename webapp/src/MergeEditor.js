@@ -187,8 +187,6 @@ export class MergeEditor extends JRPCClient {
     const container = this.shadowRoot.querySelector('.merge-container');
     if (!container || !this.mergeViewManager) return;
     
-    if (!this.headContent && !this.workingContent) return;
-    
     try {
       this.mergeViewManager.createMergeView(
         container, 
@@ -211,7 +209,7 @@ export class MergeEditor extends JRPCClient {
     super.updated(changedProperties);
     
     if (changedProperties.has('headContent') || changedProperties.has('workingContent')) {
-      if (this.headContent || this.workingContent) {
+      if (this.headContent || this.workingContent || this.filePath) {
         setTimeout(() => this.updateMergeView(), 100);
       }
     }

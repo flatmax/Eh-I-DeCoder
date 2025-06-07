@@ -28,8 +28,6 @@ export class MergeViewManager {
     // Clear container
     container.innerHTML = '';
     
-    if (!headContent && !workingContent) return null;
-    
     try {
       // Create search configuration with panel at top
       const searchConfig = search({
@@ -42,7 +40,7 @@ export class MergeViewManager {
       if (unifiedView) {
         // Create unified view (single editor with the unifiedMergeView extension)
         this.mergeView = new EditorView({
-          doc: workingContent,
+          doc: workingContent || '',
           extensions: [
             basicSetup,
             searchConfig,
@@ -50,7 +48,7 @@ export class MergeViewManager {
             ...commonEditorTheme,
             keymap.of(commonKeymap),
             unifiedMergeView({
-              original: headContent,
+              original: headContent || '',
               highlightChanges: true,
               gutter: true,
               mergeControls: true
@@ -63,7 +61,7 @@ export class MergeViewManager {
         // Create side-by-side MergeView
         this.mergeView = new MergeView({
           a: {
-            doc: headContent,
+            doc: headContent || '',
             extensions: [
               basicSetup,
               searchConfig,
@@ -73,7 +71,7 @@ export class MergeViewManager {
             ]
           },
           b: {
-            doc: workingContent,
+            doc: workingContent || '',
             extensions: [
               basicSetup,
               searchConfig,
