@@ -84,17 +84,40 @@ export const promptViewStyles = css`
     flex: 1;
   }
   
-  .message-history {
+  .message-history-wrapper {
+    position: relative;
     flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+  
+  .message-history {
+    height: 100%;
     overflow-y: auto;
     padding: 10px;
     background-color: #f9f9f9;
     white-space: pre-wrap;
-    min-height: 0;
   }
   
-  :host(.minimized) .message-history {
+  :host(.minimized) .message-history-wrapper {
     display: none;
+  }
+  
+  .scroll-to-bottom-btn {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid #e0e0e0;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    transition: all 0.2s ease;
+  }
+  
+  .scroll-to-bottom-btn:hover {
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
   
   .input-area {

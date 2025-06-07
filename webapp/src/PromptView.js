@@ -24,6 +24,7 @@ export class PromptView extends MessageHandler {
     showVoiceInput: { type: Boolean, state: true },
     isMinimized: { type: Boolean, state: false },
     coderType: { type: String, state: true },
+    showScrollToBottom: { type: Boolean, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
     position: { type: Object, state: true },
@@ -36,6 +37,7 @@ export class PromptView extends MessageHandler {
     this.showVoiceInput = true;
     this.isMinimized = false;
     this.coderType = 'Send';
+    this.showScrollToBottom = false;
     
     // Initialize managers
     this.dragHandler = new DragHandler(this);

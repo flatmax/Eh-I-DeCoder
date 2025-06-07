@@ -14,20 +14,31 @@ export function renderPromptView(component) {
       </div>
       
       <div class="prompt-container">
-        <div class="message-history" id="messageHistory">
-          ${repeat(
-            component.messageHistory,
-            (message, i) => i,
-            message => {
-              if (message.role === 'user') {
-                return html`<user-card .content=${message.content}></user-card>`;
-              } else if (message.role === 'assistant') {
-                return html`<assistant-card .content=${message.content}></assistant-card>`;
-              } else if (message.role === 'command') {
-                return html`<commands-card .content=${message.content}></commands-card>`;
+        <div class="message-history-wrapper">
+          <div class="message-history" id="messageHistory" @scroll=${component.scrollManager.handleScroll.bind(component.scrollManager)}>
+            ${repeat(
+              component.messageHistory,
+              (message, i) => i,
+              message => {
+                if (message.role === 'user') {
+                  return html`<user-card .content=${message.content}></user-card>`;
+                } else if (message.role === 'assistant') {
+                  return html`<assistant-card .content=${message.content}></assistant-card>`;
+                } else if (message.role === 'command') {
+                  return html`<commands-card .content=${message.content}></commands-card>`;
+                }
               }
-            }
-          )}
+            )}
+          </div>
+          ${component.showScrollToBottom ? html`
+            <md-icon-button 
+              class="scroll-to-bottom-btn"
+              @click=${component.scrollManager.scrollToBottom.bind(component.scrollManager)}
+              title="Scroll to bottom"
+            >
+              <md-icon>keyboard_arrow_down</md-icon>
+            </md-icon-button>
+          ` : ''}
         </div>
         <div class="input-area">
           <md-filled-text-field

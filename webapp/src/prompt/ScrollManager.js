@@ -4,6 +4,7 @@
 export class ScrollManager {
   constructor(promptView) {
     this.promptView = promptView;
+    this.scrollThreshold = 100; // Show button when scrolled up more than 100px from bottom
   }
   
   initialize() {
@@ -12,6 +13,34 @@ export class ScrollManager {
   
   cleanup() {
     console.log('ScrollManager cleaned up');
+  }
+  
+  /**
+   * Handle scroll events on the message history container
+   */
+  handleScroll(event) {
+    const historyContainer = event.target;
+    const { scrollTop, scrollHeight, clientHeight } = historyContainer;
+    const distanceFromBottom = scrollHeight - clientHeight - scrollTop;
+    
+    // Show scroll-to-bottom button if user has scrolled up significantly
+    const shouldShowButton = distanceFromBottom > this.scrollThreshold;
+    
+    if (this.promptView.showScrollToBottom !== shouldShowButton) {
+      this.promptView.showScrollToBottom = shouldShowButton;
+    }
+  }
+  
+  /**
+   * Scroll to the bottom of the message history
+   */
+  scrollToBottom() {
+    const historyContainer = this.promptView.shadowRoot.getElementById('messageHistory');
+    if (historyContainer) {
+      historyContainer.scrollTop = historyContainer.scrollHeight;
+      // Hide the button immediately after scrolling
+      this.promptView.showScrollToBottom = false;
+    }
   }
   
   /**
