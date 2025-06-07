@@ -91,10 +91,18 @@ class Repo(BaseWrapper):
             modified_files = [item.a_path for item in self.repo.index.diff(None)]
             staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
             
+            # Convert untracked files to relative paths (they should already be relative)
+            # but ensure they're normalized
+            normalized_untracked = []
+            for file_path in untracked_files:
+                # Normalize path separators and ensure it's relative
+                normalized_path = os.path.normpath(file_path).replace(os.sep, '/')
+                normalized_untracked.append(normalized_path)
+            
             status = {
                 "branch": branch_name,
                 "is_dirty": is_dirty,
-                "untracked_files": untracked_files,
+                "untracked_files": normalized_untracked,
                 "modified_files": modified_files,
                 "staged_files": staged_files,
                 "repo_root": self.repo.working_tree_dir
