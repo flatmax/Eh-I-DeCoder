@@ -103,3 +103,71 @@ export function extractResponseData(response, defaultValue = null, ensureArray =
   
   return data;
 }
+
+/**
+ * Deep search through shadow roots to find an element matching a selector
+ * 
+ * @param {Element} rootElement - The root element to start searching from
+ * @param {string} selector - CSS selector to search for
+ * @returns {Element|null} The found element or null
+ */
+export function deepQuerySelector(rootElement, selector) {
+  const searchInElement = (element) => {
+    // Check current element
+    if (element.tagName && element.tagName.toLowerCase() === selector) {
+      return element;
+    }
+    
+    // Search in shadow root if it exists
+    if (element.shadowRoot) {
+      const found = element.shadowRoot.querySelector(selector);
+      if (found) return found;
+      
+      // Recursively search in shadow root children
+      const shadowChildren = Array.from(element.shadowRoot.querySelectorAll('*'));
+      for (const child of shadowChildren) {
+        const result = searchInElement(child);
+        if (result) return result;
+      }
+    }
+    
+    // Search in regular children
+    const children = Array.from(element.children || []);
+    for (const child of children) {
+      const result = searchInElement(child);
+      if (result) return result;
+    }
+    
+    return null;
+  };
+  
+  return searchInElement(rootElement);
+}
+
+/**
+ * Get all custom elements in a DOM tree, including those in shadow roots
+ * 
+ * @param {Element} rootElement - The root element to start searching from
+ * @returns {string[]} Array of custom element tag names found
+ */
+export function getAllCustomElements(rootElement) {
+  const elements = new Set();
+  
+  const collectElements = (root) => {
+    const customEls = Array.from(root.querySelectorAll('*'))
+      .filter(el => el.tagName.includes('-'))
+      .map(el => el.tagName.toLowerCase());
+    
+    customEls.forEach(tag => elements.add(tag));
+    
+    // Also check shadow roots
+    Array.from(root.querySelectorAll('*')).forEach(el => {
+      if (el.shadowRoot) {
+        collectElements(el.shadowRoot);
+      }
+    });
+  };
+  
+  collectElements(rootElement);
+  return Array.from(elements);
+}

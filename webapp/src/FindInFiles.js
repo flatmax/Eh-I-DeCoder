@@ -40,6 +40,29 @@ export class FindInFiles extends JRPCClient {
     this.addClass?.(this);
   }
   
+  /**
+   * Focus the search input field
+   */
+  focusSearchInput() {
+    this.updateComplete.then(() => {
+      const textField = this.shadowRoot.querySelector('md-outlined-text-field');
+      if (textField) {
+        // For Material Design Web Components, we need to focus the internal input
+        const input = textField.shadowRoot?.querySelector('input');
+        if (input) {
+          input.focus();
+          console.log('Search input focused successfully');
+        } else {
+          // Fallback: try focusing the text field directly
+          textField.focus();
+          console.log('Search text field focused (fallback)');
+        }
+      } else {
+        console.warn('Search text field not found');
+      }
+    });
+  }
+  
   async handleSearch(e) {
     e?.preventDefault();
     
