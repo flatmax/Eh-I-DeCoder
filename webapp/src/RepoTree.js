@@ -84,6 +84,13 @@ export class RepoTree extends FileTree {
     await super.loadFileTree(scrollPosition);
   }
   
+  // Method that can be called from Python to trigger a refresh
+  loadGitStatus(statusData = null) {
+    console.log('loadGitStatus called from Python with:', statusData);
+    // Just trigger a full file tree reload which will fetch fresh git status
+    this.loadFileTree();
+  }
+  
   // Override to fetch git status before loading files
   async performAdditionalLoading() {
     await this.fetchGitStatus();

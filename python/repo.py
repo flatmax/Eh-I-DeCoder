@@ -213,11 +213,8 @@ class Repo(BaseWrapper):
         self.log("Git state changed, notifying RepoTree")
         
         try:
-            # Get the current git status
-            st = self.get_status()
-            
-            # Notify RepoTree using _safe_create_task
-            self._safe_create_task(self.get_call()['RepoTree.loadGitStatus'](st))
+            # Notify RepoTree using _safe_create_task - call loadGitStatus which triggers a refresh
+            self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
             
         except Exception as e:
             self.log(f"Error in _notify_git_change: {e}")
