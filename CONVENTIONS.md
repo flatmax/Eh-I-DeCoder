@@ -21,3 +21,6 @@ self.get_call() (assume get_call exists) in py
 RPC usage :
 js promise : this.call['Class.method'](args)
 py async : self.get_call()['Class.method'](args)
+
+webapp js :
+customElements.define are put in the webapp directory and the class implementation in the webapp/src
