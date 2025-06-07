@@ -9,6 +9,8 @@ import '@material/web/button/outlined-button.js';
 import '@material/web/checkbox/checkbox.js';
 import '@material/web/textfield/outlined-text-field.js';
 import '@material/web/progress/circular-progress.js';
+import '@material/web/iconbutton/icon-button.js';
+import '@material/web/icon/icon.js';
 
 export class FindInFiles extends JRPCClient {
   static properties = {
@@ -20,7 +22,9 @@ export class FindInFiles extends JRPCClient {
     useRegex: { type: Boolean, state: true },
     respectGitignore: { type: Boolean, state: true },
     caseSensitive: { type: Boolean, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    expandedFiles: { type: Set, state: true },
+    allExpanded: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -33,6 +37,8 @@ export class FindInFiles extends JRPCClient {
     this.useRegex = false;
     this.respectGitignore = true; // Default to respecting .gitignore
     this.caseSensitive = false; // Default to case-insensitive search
+    this.expandedFiles = new Set();
+    this.allExpanded = false;
   }
   
   connectedCallback() {
@@ -83,6 +89,8 @@ export class FindInFiles extends JRPCClient {
     this.isSearching = true;
     this.searchResults = [];
     this.searchError = null;
+    this.expandedFiles = new Set();
+    this.allExpanded = false;
     
     try {
       console.log(`Searching for "${query}" (word: ${this.useWordMatch}, regex: ${this.useRegex}, respectGitignore: ${this.respectGitignore}, caseSensitive: ${this.caseSensitive})`);
@@ -109,6 +117,31 @@ export class FindInFiles extends JRPCClient {
     } finally {
       this.isSearching = false;
     }
+  }
+  
+  handleExpandAll() {
+    this.allExpanded = true;
+    this.expandedFiles = new Set(this.searchResults.map(result => result.file));
+    this.requestUpdate();
+  }
+  
+  handleCollapseAll() {
+    this.allExpanded = false;
+    this.expandedFiles = new Set();
+    this.requestUpdate();
+  }
+  
+  handleFileHeaderClick(filePath) {
+    if (this.expandedFiles.has(filePath)) {
+      this.expandedFiles.delete(filePath);
+    } else {
+      this.expandedFiles.add(filePath);
+    }
+    
+    // Update allExpanded state based on current expansion
+    this.allExpanded = this.expandedFiles.size === this.searchResults.length;
+    
+    this.requestUpdate();
   }
   
   handleOpenFile(filePath, lineNumber = null) {
@@ -221,30 +254,58 @@ export class FindInFiles extends JRPCClient {
         ` : ''}
         
         ${!this.isSearching && this.searchResults?.length > 0 ? html`
-          <div class="results-info">
-            Found matches in ${this.searchResults.length} file${this.searchResults.length !== 1 ? 's' : ''}
+          <div class="results-header">
+            <div class="results-info">
+              Found matches in ${this.searchResults.length} file${this.searchResults.length !== 1 ? 's' : ''}
+            </div>
+            <div class="results-controls">
+              <md-icon-button 
+                title="Expand All" 
+                @click=${this.handleExpandAll}
+                ?disabled=${this.allExpanded}
+              >
+                <md-icon class="material-symbols-outlined">unfold_more</md-icon>
+              </md-icon-button>
+              <md-icon-button 
+                title="Collapse All" 
+                @click=${this.handleCollapseAll}
+                ?disabled=${this.expandedFiles.size === 0}
+              >
+                <md-icon class="material-symbols-outlined">unfold_less</md-icon>
+              </md-icon-button>
+            </div>
           </div>
           
-          ${repeat(this.searchResults, result => result.file, result => html`
-            <div class="file-result">
-              <div class="file-header" @click=${() => this.handleOpenFile(result.file)}>
-                <span class="file-path">${result.file}</span>
-                <span class="match-count">${result.matches.length}</span>
-              </div>
-              
-              <div class="match-list">
-                ${repeat(result.matches, match => `${result.file}-${match.line_num}`, match => html`
-                  <div 
-                    class="match-item"
-                    @click=${() => this.handleOpenFile(result.file, match.line_num)}
-                  >
-                    <span class="line-number">${match.line_num}</span>
-                    <span class="line-content">${match.line}</span>
+          ${repeat(this.searchResults, result => result.file, result => {
+            const isExpanded = this.expandedFiles.has(result.file);
+            return html`
+              <div class="file-result">
+                <div class="file-header" @click=${() => this.handleFileHeaderClick(result.file)}>
+                  <md-icon class="material-symbols-outlined expand-icon">
+                    ${isExpanded ? 'expand_less' : 'expand_more'}
+                  </md-icon>
+                  <span class="file-path">${result.file}</span>
+                  ${isExpanded ? html`
+                    <span class="match-count">${result.matches.length}</span>
+                  ` : ''}
+                </div>
+                
+                ${isExpanded ? html`
+                  <div class="match-list">
+                    ${repeat(result.matches, match => `${result.file}-${match.line_num}`, match => html`
+                      <div 
+                        class="match-item"
+                        @click=${() => this.handleOpenFile(result.file, match.line_num)}
+                      >
+                        <span class="line-number">${match.line_num}</span>
+                        <span class="line-content">${match.line}</span>
+                      </div>
+                    `)}
                   </div>
-                `)}
+                ` : ''}
               </div>
-            </div>
-          `)}
+            `;
+          })}
         ` : ''}
         
         ${!this.isSearching && this.searchResults?.length === 0 && !this.searchError && this.searchQuery ? html`
@@ -367,8 +428,19 @@ export class FindInFiles extends JRPCClient {
       padding: 16px;
     }
     
-    .results-info {
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       margin-bottom: 16px;
+    }
+    
+    .results-controls {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .results-info {
       color: var(--md-sys-color-on-surface-variant, #49454f);
       display: flex;
       align-items: center;
@@ -393,7 +465,7 @@ export class FindInFiles extends JRPCClient {
     }
     
     .file-result {
-      margin-bottom: 16px;
+      margin-bottom: 8px;
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
@@ -406,10 +478,17 @@ export class FindInFiles extends JRPCClient {
       padding: 12px 16px;
       background-color: var(--md-sys-color-surface-variant, #e7e0ec);
       cursor: pointer;
+      transition: background-color 0.2s;
     }
     
     .file-header:hover {
       background-color: var(--md-sys-color-surface-variant, #d9d1e0);
+    }
+    
+    .expand-icon {
+      color: var(--md-sys-color-on-surface-variant, #49454f);
+      font-size: 20px;
+      transition: transform 0.2s;
     }
     
     .file-path {
@@ -443,6 +522,7 @@ export class FindInFiles extends JRPCClient {
       overflow-x: auto;
       display: flex;
       cursor: pointer;
+      transition: background-color 0.2s;
     }
     
     .match-item:hover {
