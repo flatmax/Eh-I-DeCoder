@@ -108,6 +108,61 @@ class Repo(BaseWrapper):
             self.log(f"Error getting repository status: {e}")
             return error_msg
     
+    def create_file(self, file_path, content=""):
+        """Create a new file in the repository and stage it"""
+        self.log(f"create_file method called with path: {file_path}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"create_file returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Get the absolute path within the repository
+            if os.path.isabs(file_path):
+                # If absolute path, make sure it's within the repo
+                repo_root = self.repo.working_tree_dir
+                if not file_path.startswith(repo_root):
+                    error_msg = {"error": f"File path {file_path} is outside repository"}
+                    self.log(f"create_file returning error: {error_msg}")
+                    return error_msg
+                abs_path = file_path
+            else:
+                # If relative path, make it relative to repo root
+                abs_path = os.path.join(self.repo.working_tree_dir, file_path)
+            
+            # Check if file already exists
+            if os.path.exists(abs_path):
+                error_msg = {"error": f"File {file_path} already exists"}
+                self.log(f"create_file returning error: {error_msg}")
+                return error_msg
+            
+            # Create directory structure if it doesn't exist
+            dir_path = os.path.dirname(abs_path)
+            if dir_path and not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+                self.log(f"Created directory structure: {dir_path}")
+            
+            # Create the file with the specified content
+            with open(abs_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            self.log(f"Successfully created file: {file_path}")
+            
+            # Stage the newly created file
+            try:
+                self.repo.index.add([file_path])
+                self.log(f"Successfully staged file: {file_path}")
+                return {"success": f"File {file_path} created and staged successfully"}
+            except Exception as stage_error:
+                self.log(f"File created but failed to stage: {stage_error}")
+                return {"success": f"File {file_path} created successfully but failed to stage: {stage_error}"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error creating file {file_path}: {e}"}
+            self.log(f"create_file returning error: {error_msg}")
+            return error_msg
+    
     # Delegate methods to component modules
     def get_file_content(self, file_path, version='working'):
         """Get the content of a file from either HEAD or working directory"""

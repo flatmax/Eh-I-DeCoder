@@ -24,6 +24,7 @@ export class RepoTree extends FileTree {
     this.addedFiles = [];
     this.contextMenuPath = null;
     this.contextMenuVisible = false;
+    this.contextMenuIsFile = false;
   }
   
   connectedCallback() {
@@ -285,16 +286,62 @@ export class RepoTree extends FileTree {
     }
   }
   
+  // Handle create file action from context menu
+  async handleCreateFile() {
+    const dirPath = this.contextMenuPath;
+    if (!dirPath) return;
+    
+    // Hide the context menu
+    this.contextMenuVisible = false;
+    
+    try {
+      // Prompt user for filename
+      const fileName = prompt('Enter filename:');
+      if (!fileName) return; // User cancelled
+      
+      // Construct full file path
+      const filePath = dirPath ? `${dirPath}/${fileName}` : fileName;
+      
+      console.log(`Creating file: ${filePath}`);
+      
+      // Call Repo.create_file API
+      const response = await this.call['Repo.create_file'](filePath, '');
+      console.log('Create file response:', response);
+      
+      // Check if there was an error
+      if (response && response.error) {
+        alert(`Failed to create file: ${response.error}`);
+        return;
+      }
+      
+      // Refresh the file tree to show the new file
+      setTimeout(() => this.loadFileTree(), 300);
+      
+      // Optionally open the new file in the merge editor
+      setTimeout(async () => {
+        const mainWindow = document.querySelector('main-window');
+        if (mainWindow && mainWindow.shadowRoot) {
+          const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
+          if (mergeEditor) {
+            await mergeEditor.loadFileContent(filePath);
+          }
+        }
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error creating file:', error);
+      alert(`Failed to create file: ${error.message}`);
+    }
+  }
+  
   // Handle file context menu
   handleContextMenu(event, path, isFile) {
-    // Only show context menu for files, not directories
-    if (!isFile) return;
-
     // Prevent default browser context menu
     event.preventDefault();
     
-    // Set the path for the selected file
+    // Set the path and type for the selected item
     this.contextMenuPath = path;
+    this.contextMenuIsFile = isFile;
     this.contextMenuVisible = true;
     
     // Position context menu immediately to avoid flickering
@@ -363,30 +410,41 @@ export class RepoTree extends FileTree {
       
       ${this.contextMenuVisible ? html`
         <div class="context-menu">
-          ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'staged' ? html`
-            <div class="context-menu-item" @click=${this.handleUnstageFile}>
-              <span class="context-menu-icon">
-                <md-icon class="material-symbols-outlined">remove_circle</md-icon>
-              </span>
-              <span class="context-menu-text">Unstage File</span>
-            </div>
+          ${this.contextMenuIsFile ? html`
+            <!-- File context menu options -->
+            ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'staged' ? html`
+              <div class="context-menu-item" @click=${this.handleUnstageFile}>
+                <span class="context-menu-icon">
+                  <md-icon class="material-symbols-outlined">remove_circle</md-icon>
+                </span>
+                <span class="context-menu-text">Unstage File</span>
+              </div>
+            ` : html`
+              <div class="context-menu-item" @click=${this.handleStageFile}>
+                <span class="context-menu-icon">
+                  <md-icon class="material-symbols-outlined">add_circle</md-icon>
+                </span>
+                <span class="context-menu-text">Stage File</span>
+              </div>
+            `}
+            
+            ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'modified' ? html`
+              <div class="context-menu-item" @click=${this.handleDiscardChanges}>
+                <span class="context-menu-icon">
+                  <md-icon class="material-symbols-outlined">restore</md-icon>
+                </span>
+                <span class="context-menu-text">Discard Changes</span>
+              </div>
+            ` : ''}
           ` : html`
-            <div class="context-menu-item" @click=${this.handleStageFile}>
+            <!-- Directory context menu options -->
+            <div class="context-menu-item" @click=${this.handleCreateFile}>
               <span class="context-menu-icon">
-                <md-icon class="material-symbols-outlined">add_circle</md-icon>
+                <md-icon class="material-symbols-outlined">add</md-icon>
               </span>
-              <span class="context-menu-text">Stage File</span>
+              <span class="context-menu-text">Create File</span>
             </div>
           `}
-          
-          ${this.contextMenuPath && this.getFileGitStatus(this.contextMenuPath) === 'modified' ? html`
-            <div class="context-menu-item" @click=${this.handleDiscardChanges}>
-              <span class="context-menu-icon">
-                <md-icon class="material-symbols-outlined">restore</md-icon>
-              </span>
-              <span class="context-menu-text">Discard Changes</span>
-            </div>
-          ` : ''}
         </div>
       ` : ''}
     `;

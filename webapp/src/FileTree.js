@@ -313,6 +313,11 @@ export class FileTree extends JRPCClient {
     return html``;
   }
   
+  // Default context menu handler - can be overridden by subclasses
+  handleContextMenu(event, path, isFile) {
+    // Base class does nothing - subclasses can override
+  }
+  
   renderTreeNode(node, path = '') {
     if (!node) return html``; // Handle null/undefined nodes
     
@@ -348,7 +353,8 @@ export class FileTree extends JRPCClient {
         <details class="directory-details" ?open=${isOpen} @toggle=${(e) => {
           this.expandedDirs[nodePath] = e.target.open;
         }}>
-          <summary class=${classMap(nodeClasses)}>
+          <summary class=${classMap(nodeClasses)}
+                   @contextmenu=${(event) => this.handleContextMenu(event, nodePath, node.isFile)}>
             <md-icon class="material-symbols-outlined">
               ${isOpen ? 'folder_open' : 'folder'}
             </md-icon>
