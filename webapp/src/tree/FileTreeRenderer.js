@@ -97,7 +97,10 @@ export class FileTreeRenderer {
           <md-icon class="material-symbols-outlined">description</md-icon>
           <span @click=${() => this.host.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
           ${lineCount !== null && lineCount !== undefined && lineCount >= 0 ? html`
-            <span class="line-count">(${lineCount} lines)</span>
+            <span class="line-count">
+              <md-icon class="material-symbols-outlined">format_list_numbered</md-icon>
+              ${lineCount}
+            </span>
           ` : ''}
           ${this.host.renderAdditionalIndicators(node, nodePath)}
         </div>

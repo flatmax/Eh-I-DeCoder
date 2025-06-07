@@ -76,7 +76,16 @@ export const fileTreeStyles = css`
     margin-left: auto;
     font-size: 0.8em;
     color: #666;
-    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  
+  .line-count md-icon {
+    font-size: 14px;
+    --md-icon-size: 14px;
+    margin-right: 0;
+    color: #666;
   }
   
   .line-count.loading {
