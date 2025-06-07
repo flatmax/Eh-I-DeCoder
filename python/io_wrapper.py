@@ -129,7 +129,7 @@ class IOWrapper(BaseWrapper):
                     self._async_confirmation_request(confirmation_data),
                     self.main_loop
                 )
-                response = future.result(timeout=30.0)
+                response = future.result()  # No timeout - wait indefinitely
                 self.log(f"Received response from webapp: {response}")
                 if response == "d" and allow_never:
                     self.io.never_prompts.add(question_id)
@@ -151,7 +151,7 @@ class IOWrapper(BaseWrapper):
         self.log('Making RPC call to webapp')
         try:
             call_func = self.get_call()['MessageHandler.confirmation_request']
-            response = await asyncio.wait_for(call_func(confirmation_data), timeout=30.0)
+            response = await call_func(confirmation_data)  # No timeout - wait indefinitely
             # Extract response from dict if needed
             if isinstance(response, dict) and len(response) == 1:
                 response = next(iter(response.values()))
