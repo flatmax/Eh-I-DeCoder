@@ -147,6 +147,14 @@ class Repo(BaseWrapper):
             with open(abs_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
+            # Explicitly set file permissions to be writable
+            # This ensures the file is not read-only after creation
+            import stat
+            current_permissions = os.stat(abs_path).st_mode
+            # Add write permission for owner, group, and others
+            writable_permissions = current_permissions | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+            os.chmod(abs_path, writable_permissions)
+            
             self.log(f"Successfully created file: {file_path}")
             
             # Stage the newly created file
