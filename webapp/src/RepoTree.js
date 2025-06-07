@@ -1,8 +1,8 @@
 import {html, css} from 'lit';
-import {classMap} from 'lit/directives/class-map.js';
 import {FileTree} from './FileTree.js';
-import {extractResponseData} from './Utils.js';
 import {ContextMenu} from './tree/ContextMenu.js';
+import {GitStatusManager} from './tree/GitStatusManager.js';
+import {GitActions} from './tree/GitActions.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/fab/fab.js';
@@ -18,12 +18,10 @@ export class RepoTree extends FileTree {
   
   constructor() {
     super();
-    this.gitStatus = {};
-    this.modifiedFiles = [];
-    this.stagedFiles = [];
-    this.untrackedFiles = [];
-    this.addedFiles = [];
+    this.gitStatusManager = new GitStatusManager();
     this.contextMenu = new ContextMenu(this);
+    this.gitActions = new GitActions(this, this.contextMenu, () => this.handleGitActionComplete());
+    this.addedFiles = [];
   }
   
   connectedCallback() {
@@ -39,60 +37,10 @@ export class RepoTree extends FileTree {
   disconnectedCallback() {
     super.disconnectedCallback();
   }
-  
-  loadGitStatus(statusResponse) {
-    try {
-      this.error = null;
-      
-      console.log('Processing git status data');
-      console.log('Raw status response:', statusResponse);
-      
-      let status = this.extractStatusFromResponse(statusResponse);
-      
-      console.log('Processed status:', status);
-      this.gitStatus = status;
-      
-      // Extract file arrays for easier access
-      this.modifiedFiles = status.modified_files || [];
-      this.stagedFiles = status.staged_files || [];
-      this.untrackedFiles = status.untracked_files || [];
-      
-      console.log('Git status loaded:', {
-        branch: status.branch,
-        isDirty: status.is_dirty,
-        modified: this.modifiedFiles.length,
-        staged: this.stagedFiles.length,
-        untracked: this.untrackedFiles.length,
-        raw: status
-      });
-      
-    } catch (error) {
-      console.error('Error loading Git status:', error);
-      this.error = `Failed to load Git status: ${error.message}`;
-    }
-  }
 
-  extractStatusFromResponse(statusResponse) {
-    let status = {};
-    
-    if (statusResponse && typeof statusResponse === 'object') {
-      // Check if this is a direct response with known properties
-      if ('branch' in statusResponse || 'is_dirty' in statusResponse) {
-        status = statusResponse;
-      }
-      // Check if this is a wrapped response with a UUID key
-      else {
-        const keys = Object.keys(statusResponse);
-        for (const key of keys) {
-          if (statusResponse[key] && typeof statusResponse[key] === 'object') {
-            status = statusResponse[key];
-            break;
-          }
-        }
-      }
-    }
-    
-    return status;
+  handleGitActionComplete() {
+    // Refresh the file tree to show updated status
+    setTimeout(() => this.loadFileTree(), 300);
   }
   
   async loadFileTree(scrollPosition = null) {
@@ -122,7 +70,15 @@ export class RepoTree extends FileTree {
       console.log('Calling Repo.get_status...');
       const statusResponse = await this.call['Repo.get_status']();
       console.log('Raw status response:', statusResponse);
-      this.loadGitStatus(statusResponse);
+      
+      this.gitStatusManager.loadGitStatus(statusResponse);
+      
+      // Update component properties for reactivity
+      this.gitStatus = this.gitStatusManager.gitStatus;
+      this.modifiedFiles = this.gitStatusManager.modifiedFiles;
+      this.stagedFiles = this.gitStatusManager.stagedFiles;
+      this.untrackedFiles = this.gitStatusManager.untrackedFiles;
+      
     } catch (error) {
       console.error('Error fetching git status:', error);
       this.error = `Failed to load Git status: ${error.message}`;
@@ -130,30 +86,13 @@ export class RepoTree extends FileTree {
   }
 
   expandModifiedFilePaths() {
-    if (this.modifiedFiles.length > 0 || this.stagedFiles.length > 0) {
-      // Expand directories with modified files
-      this.modifiedFiles.forEach(filePath => {
+    const modifiedPaths = this.gitStatusManager.getModifiedFilePaths();
+    if (modifiedPaths.length > 0) {
+      modifiedPaths.forEach(filePath => {
         this.treeExpansion.expandPathToFile(filePath);
       });
-      
-      // Expand directories with staged files
-      this.stagedFiles.forEach(filePath => {
-        this.treeExpansion.expandPathToFile(filePath);
-      });
-      
       this.requestUpdate();
     }
-  }
-  
-  getFileGitStatus(filePath) {
-    if (this.stagedFiles.includes(filePath)) {
-      return 'staged';
-    } else if (this.modifiedFiles.includes(filePath)) {
-      return 'modified';
-    } else if (this.untrackedFiles.includes(filePath)) {
-      return 'untracked';
-    }
-    return 'clean';
   }
   
   // Handle file click to open the file in merge editor
@@ -161,19 +100,10 @@ export class RepoTree extends FileTree {
     if (!isFile) return;
     
     try {
-      const gitStatus = this.getFileGitStatus(path);
+      const gitStatus = this.gitStatusManager.getFileGitStatus(path);
       console.log(`Opening file in merge editor: ${path} (${gitStatus})`);
       
-      // Find the MergeEditor component in MainWindow
-      const mainWindow = document.querySelector('main-window');
-      if (mainWindow && mainWindow.shadowRoot) {
-        const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-        if (mergeEditor) {
-          await mergeEditor.loadFileContent(path);
-        } else {
-          console.warn('MergeEditor component not found');
-        }
-      }
+      this.gitActions.openFileInEditor(path);
       
     } catch (error) {
       console.error('Error handling file click:', error);
@@ -183,7 +113,7 @@ export class RepoTree extends FileTree {
   // Override to add git status classes
   getAdditionalNodeClasses(node, nodePath) {
     if (node.isFile) {
-      const gitStatus = this.getFileGitStatus(nodePath);
+      const gitStatus = this.gitStatusManager.getFileGitStatus(nodePath);
       return {
         [`git-${gitStatus}`]: gitStatus !== 'clean'
       };
@@ -194,101 +124,19 @@ export class RepoTree extends FileTree {
   // Override to add git status indicator
   renderAdditionalIndicators(node, nodePath) {
     if (node.isFile) {
-      const gitStatus = this.getFileGitStatus(nodePath);
+      const gitStatus = this.gitStatusManager.getFileGitStatus(nodePath);
       if (gitStatus !== 'clean') {
         return html`
-          <span class="git-status-indicator">${this.getGitStatusSymbol(gitStatus)}</span>
+          <span class="git-status-indicator">${this.gitStatusManager.getGitStatusSymbol(gitStatus)}</span>
         `;
       }
     }
     return html``;
   }
   
-  getGitStatusSymbol(status) {
-    switch (status) {
-      case 'modified': return 'M';
-      case 'staged': return 'S';
-      case 'untracked': return '?';
-      default: return '';
-    }
-  }
-  
   // Handle context menu
   handleContextMenu(event, path, isFile) {
     this.contextMenu.show(event, path, isFile);
-  }
-
-  // Git action handlers
-  async handleStageFile() {
-    await this.performGitAction('stage_file', 'Staging file');
-  }
-  
-  async handleUnstageFile() {
-    await this.performGitAction('unstage_file', 'Unstaging file');
-  }
-  
-  async handleDiscardChanges() {
-    await this.performGitAction('discard_changes', 'Discarding changes to file');
-  }
-
-  async performGitAction(action, logMessage) {
-    const path = this.contextMenu.path;
-    if (!path) return;
-    
-    this.contextMenu.hide();
-    
-    try {
-      console.log(`${logMessage}: ${path}`);
-      const response = await this.call[`Repo.${action}`](path);
-      console.log(`${action} response:`, response);
-      
-      // Refresh the file tree to show updated status
-      setTimeout(() => this.loadFileTree(), 300);
-    } catch (error) {
-      console.error(`Error ${action}:`, error);
-      alert(`Failed to ${action.replace('_', ' ')}: ${error.message}`);
-    }
-  }
-  
-  async handleCreateFile() {
-    const dirPath = this.contextMenu.path;
-    if (!dirPath) return;
-    
-    this.contextMenu.hide();
-    
-    try {
-      const fileName = prompt('Enter filename:');
-      if (!fileName) return;
-      
-      const filePath = dirPath ? `${dirPath}/${fileName}` : fileName;
-      console.log(`Creating file: ${filePath}`);
-      
-      const response = await this.call['Repo.create_file'](filePath, '');
-      console.log('Create file response:', response);
-      
-      if (response && response.error) {
-        alert(`Failed to create file: ${response.error}`);
-        return;
-      }
-      
-      // Refresh and open the new file
-      setTimeout(() => this.loadFileTree(), 300);
-      setTimeout(() => this.openFileInEditor(filePath), 500);
-      
-    } catch (error) {
-      console.error('Error creating file:', error);
-      alert(`Failed to create file: ${error.message}`);
-    }
-  }
-
-  async openFileInEditor(filePath) {
-    const mainWindow = document.querySelector('main-window');
-    if (mainWindow && mainWindow.shadowRoot) {
-      const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-      if (mergeEditor) {
-        await mergeEditor.loadFileContent(filePath);
-      }
-    }
   }
 
   renderContextMenu() {
@@ -301,29 +149,31 @@ export class RepoTree extends FileTree {
       <div class="context-menu">
         ${isFile ? html`
           <!-- File context menu options -->
-          ${path && this.getFileGitStatus(path) === 'staged' ? 
-            this.contextMenu.renderMenuItem('remove_circle', 'Unstage File', () => this.handleUnstageFile()) :
-            this.contextMenu.renderMenuItem('add_circle', 'Stage File', () => this.handleStageFile())
+          ${path && this.gitStatusManager.getFileGitStatus(path) === 'staged' ? 
+            this.contextMenu.renderMenuItem('remove_circle', 'Unstage File', () => this.gitActions.handleUnstageFile()) :
+            this.contextMenu.renderMenuItem('add_circle', 'Stage File', () => this.gitActions.handleStageFile())
           }
           
-          ${path && this.getFileGitStatus(path) === 'modified' ?
-            this.contextMenu.renderMenuItem('restore', 'Discard Changes', () => this.handleDiscardChanges()) : ''
+          ${path && this.gitStatusManager.getFileGitStatus(path) === 'modified' ?
+            this.contextMenu.renderMenuItem('restore', 'Discard Changes', () => this.gitActions.handleDiscardChanges()) : ''
           }
         ` : html`
           <!-- Directory context menu options -->
-          ${this.contextMenu.renderMenuItem('add', 'Create File', () => this.handleCreateFile())}
+          ${this.contextMenu.renderMenuItem('add', 'Create File', () => this.gitActions.handleCreateFile())}
         `}
       </div>
     `;
   }
 
   render() {
+    const branchInfo = this.gitStatusManager.getBranchInfo();
+    
     return html`
       <div class="file-tree-container">
-        ${this.gitStatus.branch ? html`
+        ${branchInfo.branch ? html`
           <div class="branch-row">
-            <span class="branch-info">Branch: ${this.gitStatus.branch}</span>
-            ${this.gitStatus.is_dirty ? html`<span class="dirty-indicator">●</span>` : ''}
+            <span class="branch-info">Branch: ${branchInfo.branch}</span>
+            ${branchInfo.isDirty ? html`<span class="dirty-indicator">●</span>` : ''}
           </div>
         ` : ''}
         <div class="file-tree-header">
