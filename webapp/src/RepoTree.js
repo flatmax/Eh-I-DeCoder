@@ -178,6 +178,9 @@ export class RepoTree extends FileTree {
         ` : ''}
         <div class="file-tree-header">
           <div class="tree-controls">
+            <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
+              <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
+            </md-icon-button>
             <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
               <md-icon class="material-symbols-outlined">unfold_more</md-icon>
             </md-icon-button>

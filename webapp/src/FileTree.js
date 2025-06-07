@@ -68,6 +68,25 @@ export class FileTree extends JRPCClient {
     });
   }
   
+  // Uncheck all checkboxes (remove all files from chat context)
+  async uncheckAll() {
+    try {
+      // Create a copy of addedFiles to iterate over since we'll be modifying the original
+      const filesToRemove = [...this.addedFiles];
+      
+      // Remove each file from the chat context
+      for (const filePath of filesToRemove) {
+        try {
+          await this.call['EditBlockCoder.drop_rel_fname'](filePath);
+        } catch (error) {
+          console.error(`Error removing file ${filePath}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error unchecking all files:', error);
+    }
+  }
+  
   async loadFileTree(scrollPosition = 0) {
     try {
       this.loading = true;
@@ -243,6 +262,9 @@ export class FileTree extends JRPCClient {
       <div class="file-tree-container">
         <div class="file-tree-header">
           <div class="tree-controls">
+            <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
+              <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
+            </md-icon-button>
             <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
               <md-icon class="material-symbols-outlined">unfold_more</md-icon>
             </md-icon-button>
