@@ -16,7 +16,7 @@ class GitChangeHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         # Only respond to events that actually change files
         # Ignore read-only events like 'opened', 'closed', 'accessed'
-        if event.event_type in ['opened', 'closed', 'accessed']:
+        if event.event_type in ['opened', 'closed', 'accessed', 'closed_no_write']:
             return
             
         # Ignore events in .git directory except for index and HEAD changes
