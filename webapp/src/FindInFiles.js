@@ -15,8 +15,9 @@ export class FindInFiles extends JRPCClient {
 
   constructor() {
     super();
-    this.searchState = new SearchState();
+    this.searchState = new SearchState(() => this.updateStateFromSearchState());
     this.initializeProperties();
+    console.log('FindInFiles constructor completed');
   }
   
   initializeProperties() {
@@ -24,11 +25,13 @@ export class FindInFiles extends JRPCClient {
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
+    console.log('FindInFiles properties initialized');
   }
   
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    console.log('FindInFiles connected');
   }
   
   /**
@@ -45,8 +48,8 @@ export class FindInFiles extends JRPCClient {
   }
   
   async handleSearch(query, options) {
+    console.log('FindInFiles.handleSearch called with:', { query, options });
     this.searchState.startSearch();
-    this.updateStateFromSearchState();
     
     try {
       console.log(`Searching for "${query}" (word: ${options.useWordMatch}, regex: ${options.useRegex}, respectGitignore: ${options.respectGitignore}, caseSensitive: ${options.caseSensitive})`);
@@ -62,23 +65,21 @@ export class FindInFiles extends JRPCClient {
     } catch (error) {
       this.searchState.handleSearchError(error);
     }
-    
-    this.updateStateFromSearchState();
   }
   
   handleExpandAll() {
+    console.log('FindInFiles.handleExpandAll called');
     this.searchState.expandAll();
-    this.updateStateFromSearchState();
   }
   
   handleCollapseAll() {
+    console.log('FindInFiles.handleCollapseAll called');
     this.searchState.collapseAll();
-    this.updateStateFromSearchState();
   }
   
   handleFileHeaderClick(filePath) {
+    console.log('FindInFiles.handleFileHeaderClick called with filePath:', filePath);
     this.searchState.toggleFileExpansion(filePath);
-    this.updateStateFromSearchState();
   }
   
   handleOpenFile(filePath, lineNumber = null) {
@@ -110,14 +111,25 @@ export class FindInFiles extends JRPCClient {
   }
   
   updateStateFromSearchState() {
+    console.log('FindInFiles.updateStateFromSearchState called');
+    console.log('Current expandedFiles in searchState:', this.searchState.expandedFiles);
+    
     // Sync component properties with search state
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
+    
+    console.log('FindInFiles expandedFiles after sync:', this.expandedFiles);
     this.requestUpdate();
   }
   
   render() {
+    console.log('FindInFiles.render called with expandedFiles:', this.expandedFiles);
+    
+    // Convert Set to Array for better LitElement property change detection
+    const expandedFilesArray = Array.from(this.expandedFiles || []);
+    console.log('FindInFiles passing expandedFilesArray to SearchResults:', expandedFilesArray);
+    
     return html`
       <div class="search-container">
         <search-form
@@ -143,6 +155,7 @@ export class FindInFiles extends JRPCClient {
         <search-results
           .searchResults=${this.searchResults}
           .expandedFiles=${this.expandedFiles}
+          .expandedFilesArray=${expandedFilesArray}
           .allExpanded=${this.allExpanded}
           .isSearching=${this.isSearching}
           .searchQuery=${this.searchQuery}

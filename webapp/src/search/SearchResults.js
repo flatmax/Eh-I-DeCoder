@@ -9,6 +9,7 @@ export class SearchResults extends LitElement {
   static properties = {
     searchResults: { type: Array },
     expandedFiles: { type: Set },
+    expandedFilesArray: { type: Array },
     allExpanded: { type: Boolean },
     isSearching: { type: Boolean },
     searchQuery: { type: String },
@@ -19,33 +20,59 @@ export class SearchResults extends LitElement {
     super();
     this.searchResults = [];
     this.expandedFiles = new Set();
+    this.expandedFilesArray = [];
     this.allExpanded = false;
     this.isSearching = false;
     this.searchQuery = '';
     this.searchError = null;
   }
 
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    console.log('SearchResults.updated called with changedProperties:', changedProperties);
+    if (changedProperties.has('expandedFiles')) {
+      console.log('SearchResults expandedFiles changed to:', this.expandedFiles);
+    }
+    if (changedProperties.has('expandedFilesArray')) {
+      console.log('SearchResults expandedFilesArray changed to:', this.expandedFilesArray);
+      // Convert array back to Set for internal use
+      this.expandedFiles = new Set(this.expandedFilesArray);
+      console.log('SearchResults converted expandedFiles Set:', this.expandedFiles);
+    }
+  }
+
   handleExpandAll() {
+    console.log('SearchResults.handleExpandAll called');
     this.dispatchEvent(new CustomEvent('expand-all'));
   }
 
   handleCollapseAll() {
+    console.log('SearchResults.handleCollapseAll called');
     this.dispatchEvent(new CustomEvent('collapse-all'));
   }
 
   handleFileHeaderClick(filePath) {
+    console.log('SearchResults.handleFileHeaderClick called with filePath:', filePath);
     this.dispatchEvent(new CustomEvent('file-header-click', {
       detail: { filePath }
     }));
   }
 
   handleOpenFile(filePath, lineNumber) {
+    console.log('SearchResults.handleOpenFile called with:', { filePath, lineNumber });
     this.dispatchEvent(new CustomEvent('open-file', {
       detail: { filePath, lineNumber }
     }));
   }
 
   render() {
+    console.log('SearchResults.render called with:', {
+      searchResults: this.searchResults?.length,
+      expandedFiles: this.expandedFiles?.size,
+      expandedFilesArray: this.expandedFilesArray?.length,
+      isSearching: this.isSearching
+    });
+
     if (!this.isSearching && this.searchResults?.length > 0) {
       return html`
         <div class="results-header">
@@ -72,6 +99,7 @@ export class SearchResults extends LitElement {
         
         ${repeat(this.searchResults, result => result.file, result => {
           const isExpanded = this.expandedFiles.has(result.file);
+          console.log(`Rendering file ${result.file}, isExpanded: ${isExpanded}, expandedFiles:`, this.expandedFiles);
           return html`
             <div class="file-result">
               <div class="file-header" @click=${() => this.handleFileHeaderClick(result.file)}>
