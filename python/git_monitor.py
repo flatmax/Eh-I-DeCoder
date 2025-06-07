@@ -19,8 +19,13 @@ class GitChangeHandler(FileSystemEventHandler):
         if event.event_type in ['opened', 'closed', 'accessed', 'closed_no_write']:
             return
             
-        # Ignore events in .git directory except for index and HEAD changes
+        # Handle events in .git directory with special filtering
         if ".git" in event.src_path:
+            # Ignore .lock files ONLY in .git directory - these are temporary Git operation files
+            if event.src_path.endswith('.lock'):
+                return
+                
+            # Only monitor important git files that indicate actual repository state changes
             important_git_files = [
                 os.path.join(self.repo.repo.git_dir, "index"),
                 os.path.join(self.repo.repo.git_dir, "HEAD"),
@@ -30,6 +35,8 @@ class GitChangeHandler(FileSystemEventHandler):
             is_important = any(path in event.src_path for path in important_git_files)
             if not is_important:
                 return
+        
+        # For files outside .git directory, process all events (no .lock filtering)
         
         # Debounce events to avoid multiple rapid notifications
         current_time = time.time()
