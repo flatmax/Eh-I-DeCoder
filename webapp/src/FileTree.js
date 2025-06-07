@@ -1,12 +1,10 @@
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {html, css} from 'lit';
-import {classMap} from 'lit/directives/class-map.js';
-import '@material/web/icon/icon.js';
-import '@material/web/iconbutton/icon-button.js';
-import {extractResponseData} from './Utils.js';
+import {html} from 'lit';
 import {TreeNode} from './tree/TreeNode.js';
-import {TreeBuilder} from './tree/TreeBuilder.js';
 import {TreeExpansion} from './tree/TreeExpansion.js';
+import {FileTreeManager} from './tree/FileTreeManager.js';
+import {FileTreeRenderer} from './tree/FileTreeRenderer.js';
+import {fileTreeStyles} from './tree/FileTreeStyles.js';
 
 export class FileTree extends JRPCClient {
   static properties = {
@@ -24,7 +22,6 @@ export class FileTree extends JRPCClient {
     this.initializeManagers();
   }
   
-  // Initialize basic properties - can be overridden by subclasses
   initializeProperties() {
     this.files = [];
     this.addedFiles = [];
@@ -34,9 +31,9 @@ export class FileTree extends JRPCClient {
     this.treeExpansion = new TreeExpansion();
   }
   
-  // Initialize managers - can be overridden by subclasses
   initializeManagers() {
-    // Base class has no additional managers
+    this.fileTreeManager = new FileTreeManager(this);
+    this.renderer = new FileTreeRenderer(this);
   }
   
   connectedCallback() {
@@ -49,7 +46,6 @@ export class FileTree extends JRPCClient {
     this.cleanup();
   }
   
-  // Cleanup method - can be overridden by subclasses
   cleanup() {
     // Base class has no cleanup
   }
@@ -59,13 +55,11 @@ export class FileTree extends JRPCClient {
     this.loadFileTree();
   }
   
-  // Expand all directories in the tree
   expandAll() {
     this.treeExpansion.reset();
     this.treeExpansion.setAllExpandedState(this.treeData, true);
     this.requestUpdate();
     
-    // Directly manipulate DOM after update
     this.updateComplete.then(() => {
       const details = this.shadowRoot.querySelectorAll('details.directory-details');
       details.forEach(detail => {
@@ -74,13 +68,11 @@ export class FileTree extends JRPCClient {
     });
   }
   
-  // Collapse all directories in the tree
   collapseAll() {
     this.treeExpansion.reset();
     this.treeExpansion.setAllExpandedState(this.treeData, false);
     this.requestUpdate();
     
-    // Directly manipulate DOM after update
     this.updateComplete.then(() => {
       const details = this.shadowRoot.querySelectorAll('details.directory-details');
       details.forEach(detail => {
@@ -89,20 +81,9 @@ export class FileTree extends JRPCClient {
     });
   }
   
-  // Uncheck all checkboxes (remove all files from chat context)
   async uncheckAll() {
     try {
-      // Create a copy of addedFiles to iterate over since we'll be modifying the original
-      const filesToRemove = [...this.addedFiles];
-      
-      // Remove each file from the chat context
-      for (const filePath of filesToRemove) {
-        try {
-          await this.call['EditBlockCoder.drop_rel_fname'](filePath);
-        } catch (error) {
-          console.error(`Error removing file ${filePath}:`, error);
-        }
-      }
+      await this.fileTreeManager.removeAllFiles(this.addedFiles);
     } catch (error) {
       console.error('Error unchecking all files:', error);
     }
@@ -113,28 +94,14 @@ export class FileTree extends JRPCClient {
       this.loading = true;
       this.error = null;
       
-      // Allow subclasses to perform additional loading
       await this.performAdditionalLoading();
       
-      // Get all files in the repository
-      const allFilesResponse = await this.call['EditBlockCoder.get_all_relative_files']();
-      const all_files = extractResponseData(allFilesResponse, [], true);
+      const fileData = await this.fileTreeManager.loadFileData();
+      this.addedFiles = fileData.addedFiles;
+      this.files = fileData.allFiles;
+      this.treeData = fileData.treeData;
       
-      // Get files that are already added to the chat context
-      const addedFilesResponse = await this.call['EditBlockCoder.get_inchat_relative_files']();
-      const added_files = extractResponseData(addedFilesResponse, [], true);
-      
-      // Store files
-      this.addedFiles = added_files;
-      this.files = all_files;
-      
-      // Build the file tree structure from all files
-      this.treeData = TreeBuilder.buildTreeFromPaths(this.files);
-      
-      // Setup initial expansion state
       this.setupInitialExpansion();
-      
-      // Allow subclasses to perform post-loading actions
       await this.performPostLoadingActions();
       
     } catch (error) {
@@ -143,28 +110,22 @@ export class FileTree extends JRPCClient {
     } finally {
       this.loading = false;
       this.requestUpdate();
-      
-      // Restore scroll position after update completes
       this.restoreScrollPosition(scrollPosition);
     }
   }
   
-  // Hook for subclasses to perform additional loading - can be overridden
   async performAdditionalLoading() {
     // Base class does nothing
   }
   
-  // Hook for subclasses to perform post-loading actions - can be overridden
   async performPostLoadingActions() {
     // Base class does nothing
   }
 
   setupInitialExpansion() {
-    // Initially collapse all directories
     this.treeExpansion.reset();
     this.treeExpansion.setAllExpandedState(this.treeData, false);
     
-    // Then ensure directories with added files are expanded
     if (this.addedFiles && this.addedFiles.length > 0) {
       this.addedFiles.forEach(filePath => {
         this.treeExpansion.expandPathToFile(filePath);
@@ -181,12 +142,10 @@ export class FileTree extends JRPCClient {
     });
   }
   
-  // handleFileClick doesn't do anything now - users must click checkbox directly to add/remove files
   async handleFileClick(path, isFile) {
     // No action when clicking file name - can be overridden by subclasses
   }
   
-  // Handle checkbox clicks for adding/removing files
   async handleCheckboxClick(event, path) {
     event.stopPropagation();
     
@@ -194,16 +153,15 @@ export class FileTree extends JRPCClient {
       const isAdded = this.addedFiles.includes(path);
       
       if (isAdded) {
-        await this.call['EditBlockCoder.drop_rel_fname'](path);
+        await this.fileTreeManager.removeFile(path);
       } else {
-        await this.call['EditBlockCoder.add_rel_fname'](path);
+        await this.fileTreeManager.addFile(path);
       }
     } catch (error) {
       console.error(`Error ${isAdded ? 'dropping' : 'adding'} file:`, error);
     }
   }
   
-  // Handle notification when a file is added to the chat context
   add_rel_fname_notification(filePath) {
     console.log(`File added notification: ${filePath}`);
     
@@ -214,7 +172,6 @@ export class FileTree extends JRPCClient {
     }
   }
   
-  // Handle notification when a file is dropped from the chat context
   drop_rel_fname_notification(filePath) {
     console.log(`File dropped notification: ${filePath}`);
     
@@ -224,22 +181,18 @@ export class FileTree extends JRPCClient {
     }
   }
   
-  // Method to get additional node classes - can be overridden by subclasses
   getAdditionalNodeClasses(node, nodePath) {
     return {};
   }
   
-  // Method to render additional indicators - can be overridden by subclasses
   renderAdditionalIndicators(node, nodePath) {
     return html``;
   }
   
-  // Default context menu handler - can be overridden by subclasses
   handleContextMenu(event, path, isFile) {
     // Base class does nothing - subclasses can override
   }
   
-  // Method to get which header controls to show - can be overridden by subclasses
   getHeaderControls() {
     return {
       showUncheckAll: true,
@@ -249,213 +202,17 @@ export class FileTree extends JRPCClient {
     };
   }
   
-  // Method to render additional header content - can be overridden by subclasses
   renderAdditionalHeaderContent() {
     return html``;
   }
   
-  // Method to render additional content after the tree - can be overridden by subclasses
   renderAdditionalContent() {
     return html``;
   }
   
-  // Render the header controls
-  renderHeaderControls() {
-    const controls = this.getHeaderControls();
-    
-    return html`
-      <div class="tree-controls">
-        ${controls.showUncheckAll ? html`
-          <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
-            <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
-          </md-icon-button>
-        ` : ''}
-        ${controls.showExpandAll ? html`
-          <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
-            <md-icon class="material-symbols-outlined">unfold_more</md-icon>
-          </md-icon-button>
-        ` : ''}
-        ${controls.showCollapseAll ? html`
-          <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
-            <md-icon class="material-symbols-outlined">unfold_less</md-icon>
-          </md-icon-button>
-        ` : ''}
-        ${controls.showRefresh ? html`
-          <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
-            <md-icon class="material-symbols-outlined">refresh</md-icon>
-          </md-icon-button>
-        ` : ''}
-      </div>
-    `;
-  }
-  
-  renderTreeNode(node, path = '') {
-    if (!node) return html``;
-    
-    const nodePath = node.path;
-    const isAdded = node.isFile && this.addedFiles.includes(nodePath);
-    const hasChildren = !node.isFile && node.children && node.children.size > 0;
-    
-    const nodeClasses = {
-      'file-node': true,
-      'directory': !node.isFile,
-      'file': node.isFile,
-      ...this.getAdditionalNodeClasses(node, nodePath)
-    };
-    
-    if (node.name === 'root') {
-      return html`
-        <div class="tree-root">
-          ${node.getSortedChildren().map(child => this.renderTreeNode(child))}
-        </div>
-      `;
-    }
-    
-    if (hasChildren) {
-      const isOpen = this.treeExpansion.isExpanded(nodePath);
-      
-      return html`
-        <details class="directory-details" ?open=${isOpen} @toggle=${(e) => {
-          this.treeExpansion.setExpanded(nodePath, e.target.open);
-        }}>
-          <summary class=${classMap(nodeClasses)}
-                   @contextmenu=${(event) => this.handleContextMenu(event, nodePath, node.isFile)}>
-            <md-icon class="material-symbols-outlined">
-              ${isOpen ? 'folder_open' : 'folder'}
-            </md-icon>
-            <span>${node.name}</span>
-          </summary>
-          <div class="children-container">
-            ${node.getSortedChildren().map(child => this.renderTreeNode(child))}
-          </div>
-        </details>
-      `;
-    } else {
-      return html`
-        <div class=${classMap(nodeClasses)}
-             @contextmenu=${(event) => this.handleContextMenu(event, nodePath, node.isFile)}>
-          ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
-                               @click=${(e) => this.handleCheckboxClick(e, nodePath)}>` : ''}
-          <md-icon class="material-symbols-outlined">description</md-icon>
-          <span @click=${() => this.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
-          ${this.renderAdditionalIndicators(node, nodePath)}
-        </div>
-      `;
-    }
-  }
-  
   render() {
-    return html`
-      <div class="file-tree-container">
-        ${this.renderAdditionalHeaderContent()}
-        <div class="file-tree-header">
-          ${this.renderHeaderControls()}
-        </div>
-        
-        ${this.loading ? 
-          html`<div class="loading">Loading files...</div>` : 
-          this.error ? 
-            html`<div class="error">${this.error}</div>` :
-            html`<div class="file-tree">${this.renderTreeNode(this.treeData)}</div>`
-        }
-        
-        ${this.renderAdditionalContent()}
-      </div>
-    `;
+    return this.renderer.render();
   }
   
-  static styles = css`
-    :host {
-      display: block;
-      height: 100%;
-    }
-    
-    .file-tree-container {
-      height: 100%;
-      overflow: auto;
-      background-color: #fff;
-      position: relative;
-    }
-    
-    .file-tree-header {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 4px 8px;
-      border-bottom: 1px solid #ccc;
-    }
-    
-    .tree-controls {
-      display: flex;
-      gap: 2px;
-    }
-    
-    .file-tree {
-      padding: 8px;
-    }
-    
-    .file-node {
-      display: flex;
-      align-items: center;
-      padding: 6px 8px;
-      cursor: pointer;
-      border-radius: 4px;
-      margin: 2px 0;
-    }
-    
-    .file-node:hover {
-      background-color: #f5f5f5;
-    }
-    
-    .file-node md-icon {
-      margin-right: 8px;
-      font-size: 18px;
-      font-family: 'Material Symbols Outlined';
-      display: inline-flex;
-      flex-shrink: 0;
-      --md-icon-size: 18px;
-      color: #616161;
-    }
-    
-    .directory md-icon {
-      color: #FFA000;  /* Amber color for folders */
-    }
-    
-    .file md-icon {
-      color: #2196F3;  /* Blue color for files */
-    }
-    
-    .file-checkbox {
-      margin-right: 4px;
-      cursor: pointer;
-    }
-    
-    .directory-details {
-      margin-left: 0;
-    }
-    
-    .directory-details summary {
-      list-style: none;
-    }
-    
-    .directory-details summary::marker,
-    .directory-details summary::-webkit-details-marker {
-      display: none;
-    }
-    
-    .children-container {
-      margin-left: 16px;
-      border-left: 1px solid #ccc;
-      padding-left: 8px;
-    }
-    
-    .loading, .error {
-      padding: 16px;
-      text-align: center;
-    }
-    
-    .error {
-      color: red;
-    }
-  `;
+  static styles = fileTreeStyles;
 }
