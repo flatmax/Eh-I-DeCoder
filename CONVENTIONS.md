@@ -3,7 +3,7 @@ in javascript :
 * setupDone() When the system is finished setup and ready to be used
 * remoteDisconnected(uuid) Notify that a remote has been disconnected
 * remoteIsUp() Remote is up but not ready to call see setupDone
-In python :
+In python (uses asyncio) :
 * def remote_is_up(self): Remote is up
 * def remote_disconnected(self, uuid): Notify that a remote has been disconnected
 * def setup_done(self): When the system is finished setup and ready to be used
