@@ -41,10 +41,11 @@ def parse_args():
 
 # Setup custom sys.exit handler
 original_sigint_handler = None  # Will be set in main_starter_async
+shutdown_event = None  # Global shutdown event
 
 async def main_starter_async():
     # Store the original SIGINT handler
-    global original_sigint_handler
+    global original_sigint_handler, shutdown_event
     original_sigint_handler = signal.getsignal(signal.SIGINT)
     
     # Create shutdown event
@@ -53,7 +54,14 @@ async def main_starter_async():
     # Define SIGINT handler that will trigger shutdown
     def sigint_handler(sig, frame):
         print("\nSIGINT received, initiating shutdown... please wait")
-        shutdown_event.set()
+        # Use call_soon_threadsafe to safely set the event from signal handler
+        try:
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(shutdown_event.set)
+        except RuntimeError:
+            # If no loop is running, force exit
+            print("No event loop running, forcing exit...")
+            os._exit(1)
     
     # Set our custom SIGINT handler
     signal.signal(signal.SIGINT, sigint_handler)
@@ -140,17 +148,38 @@ async def main_starter_async():
         await jrpc_server.start()
         
         try:
-            # Wait until shutdown event is set
+            # Wait until shutdown event is set with timeout
             print("Server running. Press Ctrl+C to exit.")
-            await shutdown_event.wait()
-            print("Shutdown event triggered, stopping server...")
+            
+            # Create a task for the shutdown event wait with timeout
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
+            
+            try:
+                # Wait for shutdown event with a reasonable timeout
+                await asyncio.wait_for(shutdown_task, timeout=None)
+                print("Shutdown event triggered, stopping server...")
+            except asyncio.TimeoutError:
+                print("Shutdown timeout reached, forcing exit...")
+            except asyncio.CancelledError:
+                print("Shutdown cancelled, forcing exit...")
+                
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt caught, stopping server...")
         except Exception as e:
             print(f"Error in server main loop: {e}")
         finally:
             print("Stopping JSON-RPC server...")
-            await jrpc_server.stop()
-            # Restore original signal handler and sys.exit when shutting down
+            try:
+                # Give the server a chance to stop gracefully
+                await asyncio.wait_for(jrpc_server.stop(), timeout=5.0)
+            except asyncio.TimeoutError:
+                print("Server stop timeout, forcing exit...")
+            except Exception as e:
+                print(f"Error stopping server: {e}")
+            
+            # Restore original signal handler
             signal.signal(signal.SIGINT, original_sigint_handler)
+            
     except OSError as e:
         if e.errno == 98:  # Address already in use
             print(f"ERROR: Port {args.port} is already in use. Try a different port.")
@@ -159,6 +188,14 @@ async def main_starter_async():
         else:
             print(f"ERROR: Failed to start server: {e}")
             return 2  # Different error code for other OSErrors
+
+
+def force_exit_after_delay():
+    """Force exit after a delay if graceful shutdown fails"""
+    import time
+    time.sleep(10)  # Wait 10 seconds
+    print("Force exit after timeout...")
+    os._exit(1)
 
 
 def main_starter():
@@ -173,12 +210,29 @@ def main_starter():
         # Set up basic logging through our centralized logger
         Logger.info("Starting aider-server")
         
+        # Start a background thread that will force exit if graceful shutdown fails
+        force_exit_thread = threading.Thread(target=force_exit_after_delay, daemon=True)
+        
+        # Set up a signal handler that will start the force exit timer
+        def emergency_exit_handler(sig, frame):
+            print("\nEmergency exit triggered! Starting force exit timer...")
+            if not force_exit_thread.is_alive():
+                force_exit_thread.start()
+        
+        # Set up double Ctrl+C handler for emergency exit
+        signal.signal(signal.SIGUSR1, emergency_exit_handler)  # Use SIGUSR1 as backup
+        
         exit_code = asyncio.run(main_starter_async())
         return exit_code if exit_code else 0
+        
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt in main_starter, forcing exit...")
+        os._exit(1)
     except Exception as e:
         print(f"Unhandled exception: {e}")
-        # Restore original sys.exit in case of exception
-        return 3  # Exit code for unhandled exceptions
+        # Force exit in case of unhandled exception
+        os._exit(3)
+
 
 if __name__ == "__main__":
-    main_starter()
+    sys.exit(main_starter())
