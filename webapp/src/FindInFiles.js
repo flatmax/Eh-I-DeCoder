@@ -174,7 +174,7 @@ export class FindInFiles extends JRPCClient {
   
   render() {
     return html`
-      <div class="search-container md-elevation-1">
+      <div class="search-container">
         <form class="search-form" @submit=${this.handleSearch}>
           <div class="input-row">
             <md-outlined-text-field
@@ -204,8 +204,8 @@ export class FindInFiles extends JRPCClient {
                 ?disabled=${this.isSearching}
               ></md-checkbox>
               <label>
-                <span class="mdi mdi-text-box-search" style="font-size: 20px;"></span>
-                <span class="option-text">Whole word</span>
+                <span class="mdi mdi-text-box-search" style="font-size: 16px;"></span>
+                <span class="option-text">Word</span>
               </label>
             </div>
             
@@ -215,7 +215,7 @@ export class FindInFiles extends JRPCClient {
                 @change=${e => this.useRegex = e.target.checked}
                 ?disabled=${this.isSearching}
               ></md-checkbox>
-              <label>Regular expression</label>
+              <label>Regex</label>
             </div>
             
             <div class="checkbox-option">
@@ -224,7 +224,7 @@ export class FindInFiles extends JRPCClient {
                 @change=${e => this.respectGitignore = e.target.checked}
                 ?disabled=${this.isSearching}
               ></md-checkbox>
-              <label>Respect .gitignore</label>
+              <label>.gitignore</label>
             </div>
             <button 
               class="case-sensitive-button" 
@@ -233,7 +233,7 @@ export class FindInFiles extends JRPCClient {
               title="${this.caseSensitive ? 'Case sensitive (click to disable)' : 'Case insensitive (click to enable)'}"
             >
               <span class="mdi mdi-case-sensitive-alt ${this.caseSensitive ? 'active' : 'inactive'}"></span>
-              <span>${this.caseSensitive ? 'Case sensitive' : 'Case insensitive'}</span>
+              <span>Aa</span>
             </button>
           </div>
         </form>
@@ -256,7 +256,7 @@ export class FindInFiles extends JRPCClient {
         ${!this.isSearching && this.searchResults?.length > 0 ? html`
           <div class="results-header">
             <div class="results-info">
-              Found matches in ${this.searchResults.length} file${this.searchResults.length !== 1 ? 's' : ''}
+              ${this.searchResults.length} file${this.searchResults.length !== 1 ? 's' : ''}
             </div>
             <div class="results-controls">
               <md-icon-button 
@@ -285,9 +285,7 @@ export class FindInFiles extends JRPCClient {
                     ${isExpanded ? 'expand_less' : 'expand_more'}
                   </md-icon>
                   <span class="file-path">${result.file}</span>
-                  ${isExpanded ? html`
-                    <span class="match-count">${result.matches.length}</span>
-                  ` : ''}
+                  <span class="match-count">${result.matches.length}</span>
                 </div>
                 
                 ${isExpanded ? html`
@@ -311,7 +309,7 @@ export class FindInFiles extends JRPCClient {
         ${!this.isSearching && this.searchResults?.length === 0 && !this.searchError && this.searchQuery ? html`
           <div class="results-info no-results">
             <span class="material-symbols-outlined">search_off</span>
-            <span>No matches found for "${this.searchQuery}"</span>
+            <span>No matches found</span>
           </div>
         ` : ''}
       </div>
@@ -338,66 +336,64 @@ export class FindInFiles extends JRPCClient {
     }
     
     .search-container {
-      padding: 16px;
+      padding: 8px;
       background-color: var(--md-sys-color-surface, #ffffff);
       border-bottom: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
-    }
-    
-    .md-elevation-1 {
-      box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
     }
     
     .search-form {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
     }
     
     .input-row {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
     }
     
     .options-row {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 16px;
+      gap: 8px;
     }
     
     .checkbox-option {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
     }
     
     .checkbox-option label {
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      font-size: 12px;
     }
     
     .checkbox-option .mdi {
-      font-size: 20px;
+      font-size: 16px;
       color: var(--md-sys-color-on-surface-variant, #49454f);
     }
     
     .option-text {
-      font-size: 14px;
+      font-size: 12px;
     }
     
     .case-sensitive-button {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
       background: none;
       border: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
       border-radius: 4px;
-      padding: 4px 8px;
+      padding: 2px 6px;
       cursor: pointer;
       transition: all 0.2s;
+      font-size: 12px;
     }
     
     .case-sensitive-button:hover {
@@ -410,7 +406,7 @@ export class FindInFiles extends JRPCClient {
     }
     
     .case-sensitive-button .mdi {
-      font-size: 18px;
+      font-size: 14px;
     }
     
     .case-sensitive-button .active {
@@ -425,57 +421,59 @@ export class FindInFiles extends JRPCClient {
     .results-container {
       flex-grow: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 8px;
     }
     
     .results-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
     
     .results-controls {
       display: flex;
-      gap: 4px;
+      gap: 2px;
     }
     
     .results-info {
       color: var(--md-sys-color-on-surface-variant, #49454f);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      font-size: 12px;
     }
     
     .no-results {
       justify-content: center;
-      padding: 24px;
-      font-size: 16px;
+      padding: 16px;
+      font-size: 14px;
     }
     
     .error-message {
       color: var(--md-sys-color-on-error-container, #410e0b);
       background-color: var(--md-sys-color-error-container, #f9dedc);
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      font-size: 12px;
     }
     
     .file-result {
-      margin-bottom: 8px;
-      border-radius: 8px;
+      margin-bottom: 4px;
+      border-radius: 6px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     
     .file-header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
+      gap: 8px;
+      padding: 6px 8px;
       background-color: var(--md-sys-color-surface-variant, #e7e0ec);
       cursor: pointer;
       transition: background-color 0.2s;
@@ -487,7 +485,7 @@ export class FindInFiles extends JRPCClient {
     
     .expand-icon {
       color: var(--md-sys-color-on-surface-variant, #49454f);
-      font-size: 20px;
+      font-size: 16px;
       transition: transform 0.2s;
     }
     
@@ -497,15 +495,16 @@ export class FindInFiles extends JRPCClient {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-size: 12px;
     }
     
     .match-count {
       background-color: var(--md-sys-color-primary, #6750a4);
       color: var(--md-sys-color-on-primary, white);
-      border-radius: 16px;
-      padding: 4px 12px;
-      font-size: 12px;
-      min-width: 16px;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 10px;
+      min-width: 12px;
       text-align: center;
       font-weight: 500;
     }
@@ -515,7 +514,7 @@ export class FindInFiles extends JRPCClient {
     }
     
     .match-item {
-      padding: 12px 16px;
+      padding: 4px 8px;
       border-top: 1px solid var(--md-sys-color-outline-variant, #cac4d0);
       font-family: 'Roboto Mono', monospace;
       white-space: pre-wrap;
@@ -523,6 +522,7 @@ export class FindInFiles extends JRPCClient {
       display: flex;
       cursor: pointer;
       transition: background-color 0.2s;
+      font-size: 11px;
     }
     
     .match-item:hover {
@@ -535,9 +535,9 @@ export class FindInFiles extends JRPCClient {
     
     .line-number {
       color: var(--md-sys-color-on-surface-variant, #49454f);
-      margin-right: 16px;
+      margin-right: 8px;
       user-select: none;
-      min-width: 40px;
+      min-width: 30px;
       text-align: right;
     }
     
@@ -549,10 +549,8 @@ export class FindInFiles extends JRPCClient {
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 120px;
+      height: 60px;
     }
-    
-    /* Remove spinner animation since we're using md-circular-progress */
     
     @keyframes spin {
       to { transform: rotate(360deg); }
