@@ -14,6 +14,11 @@ class GitChangeHandler(FileSystemEventHandler):
         self.debounce_interval = 0.5  # seconds
     
     def on_any_event(self, event):
+        # Only respond to events that actually change files
+        # Ignore read-only events like 'opened', 'closed', 'accessed'
+        if event.event_type in ['opened', 'closed', 'accessed']:
+            return
+            
         # Ignore events in .git directory except for index and HEAD changes
         if ".git" in event.src_path:
             important_git_files = [
@@ -33,6 +38,7 @@ class GitChangeHandler(FileSystemEventHandler):
             
         self.last_event_time = current_time
         self.repo.log(f"Git change detected: {event.src_path}")
+        self.repo.log(f"Git change event: {event}")
         self.repo._notify_git_change()
 
 
