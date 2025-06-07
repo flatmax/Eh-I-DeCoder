@@ -17,6 +17,38 @@ export class GitActions {
     await this.performGitAction('discard_changes', 'Discarding changes to file');
   }
 
+  async handleDeleteFile() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+
+    // Confirm deletion
+    const confirmed = confirm(`Are you sure you want to delete "${path}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    this.contextMenu.hide();
+
+    try {
+      console.log(`Deleting file: ${path}`);
+      const response = await this.jrpcClient.call['Repo.delete_file'](path);
+      console.log(`delete_file response:`, response);
+      
+      // Check if the response indicates an error
+      if (response && response.error) {
+        console.error(`Error deleting file: ${response.error}`);
+        alert(`Failed to delete file: ${response.error}`);
+      } else {
+        console.log(`File ${path} deleted successfully`);
+        // Notify completion
+        if (this.onActionComplete) {
+          this.onActionComplete();
+        }
+      }
+    } catch (error) {
+      console.error(`Error deleting file ${path}:`, error);
+      alert(`Failed to delete file: ${error.message}`);
+    }
+  }
+
   async performGitAction(action, logMessage) {
     const path = this.contextMenu.path;
     if (!path) return;

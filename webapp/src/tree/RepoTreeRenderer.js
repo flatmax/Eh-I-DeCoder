@@ -55,6 +55,10 @@ export class RepoTreeRenderer {
           ${path && this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(path) === 'modified' ?
             this.repoTree.repoManagers.contextMenu.renderMenuItem('restore', 'Discard Changes', () => this.repoTree.repoManagers.gitActions.handleDiscardChanges()) : ''
           }
+
+          ${path && this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(path) === 'untracked' ?
+            this.repoTree.repoManagers.contextMenu.renderMenuItem('delete', 'Delete File', () => this.repoTree.repoManagers.gitActions.handleDeleteFile()) : ''
+          }
         ` : html`
           <!-- Directory context menu options -->
           ${this.repoTree.repoManagers.contextMenu.renderMenuItem('add', 'Create File', () => this.repoTree.repoManagers.gitActions.handleCreateFile())}

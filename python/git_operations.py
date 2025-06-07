@@ -80,6 +80,42 @@ class GitOperations:
             error_msg = {"error": f"Error saving file {file_path}: {e}"}
             self.repo.log(f"save_file_content returning error: {error_msg}")
             return error_msg
+
+    def delete_file(self, file_path):
+        """Delete a file from the working directory"""
+        self.repo.log(f"delete_file called for {file_path}")
+        
+        if not self.repo.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"delete_file returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Construct the full path
+            full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
+            
+            # Check if file exists
+            if not os.path.exists(full_path):
+                error_msg = {"error": f"File {file_path} does not exist"}
+                self.repo.log(f"delete_file returning error: {error_msg}")
+                return error_msg
+            
+            # Check if it's actually a file (not a directory)
+            if not os.path.isfile(full_path):
+                error_msg = {"error": f"Path {file_path} is not a file"}
+                self.repo.log(f"delete_file returning error: {error_msg}")
+                return error_msg
+            
+            # Delete the file
+            os.remove(full_path)
+            
+            self.repo.log(f"File {file_path} deleted successfully")
+            return {"status": "success", "message": f"File {file_path} deleted successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error deleting file {file_path}: {e}"}
+            self.repo.log(f"delete_file returning error: {error_msg}")
+            return error_msg
             
     def stage_file(self, file_path):
         """Stage a specific file in the repository"""

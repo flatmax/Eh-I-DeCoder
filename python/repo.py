@@ -187,6 +187,10 @@ class Repo(BaseWrapper):
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
         return self.git_operations.save_file_content(file_path, content)
+
+    def delete_file(self, file_path):
+        """Delete a file from the working directory"""
+        return self.git_operations.delete_file(file_path)
             
     def stage_file(self, file_path):
         """Stage a specific file in the repository"""
