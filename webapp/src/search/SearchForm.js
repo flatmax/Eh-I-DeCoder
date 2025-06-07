@@ -101,7 +101,7 @@ export class SearchForm extends LitElement {
             ></md-checkbox>
             <label>
               <span class="mdi mdi-text-box-search" style="font-size: 16px;"></span>
-              <span class="option-text">Word</span>
+              <span class="option-text">└─┘</span>
             </label>
           </div>
           
@@ -111,7 +111,7 @@ export class SearchForm extends LitElement {
               @change=${e => this.searchState.useRegex = e.target.checked}
               ?disabled=${this.searchState.isSearching}
             ></md-checkbox>
-            <label>Regex</label>
+            <label><code>.*</code></label>
           </div>
           
           <div class="checkbox-option">
