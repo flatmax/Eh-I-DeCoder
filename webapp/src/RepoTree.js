@@ -16,26 +16,18 @@ export class RepoTree extends FileTree {
     untrackedFiles: { type: Array, state: true }
   };
   
-  constructor() {
-    super();
+  // Override to initialize additional managers
+  initializeManagers() {
+    super.initializeManagers();
     this.gitStatusManager = new GitStatusManager();
     this.contextMenu = new ContextMenu(this);
     this.gitActions = new GitActions(this, this.contextMenu, () => this.handleGitActionComplete());
-    this.addedFiles = [];
   }
   
-  connectedCallback() {
-    super.connectedCallback();
-    this.addClass?.(this);
-  }
-  
-  setupDone() {
-    console.log('RepoTree::setupDone');
-    this.loadFileTree();
-  }
-  
-  disconnectedCallback() {
-    super.disconnectedCallback();
+  // Override cleanup to handle additional cleanup
+  cleanup() {
+    super.cleanup();
+    // Add any RepoTree-specific cleanup here if needed
   }
 
   handleGitActionComplete() {
@@ -43,6 +35,39 @@ export class RepoTree extends FileTree {
     setTimeout(() => this.loadFileTree(), 300);
   }
   
+  // Override to customize which header controls to show
+  getHeaderControls() {
+    return {
+      showUncheckAll: true,
+      showExpandAll: true,
+      showCollapseAll: true,
+      showRefresh: false  // RepoTree uses FAB for refresh instead
+    };
+  }
+  
+  // Override to add branch info above the header
+  renderAdditionalHeaderContent() {
+    const branchInfo = this.gitStatusManager.getBranchInfo();
+    
+    return branchInfo.branch ? html`
+      <div class="branch-row">
+        <span class="branch-info">Branch: ${branchInfo.branch}</span>
+        ${branchInfo.isDirty ? html`<span class="dirty-indicator">●</span>` : ''}
+      </div>
+    ` : html``;
+  }
+  
+  // Override to add FAB and context menu
+  renderAdditionalContent() {
+    return html`
+      <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.loadFileTree()}>
+        <md-icon slot="icon">refresh</md-icon>
+      </md-fab>
+      ${this.renderContextMenu()}
+    `;
+  }
+  
+  // Override to handle scroll position parameter variations
   async loadFileTree(scrollPosition = null) {
     // Handle empty object parameter (from git change notifications)
     if (scrollPosition && typeof scrollPosition === 'object' && Object.keys(scrollPosition).length === 0) {
@@ -55,13 +80,17 @@ export class RepoTree extends FileTree {
       scrollPosition = fileTreeContainer ? fileTreeContainer.scrollTop : 0;
     }
     
-    // Get Git status first
-    await this.fetchGitStatus();
-    
-    // Then load the file tree with preserved scroll position
+    // Call parent with the processed scroll position
     await super.loadFileTree(scrollPosition);
-    
-    // Expand directories with git-modified files
+  }
+  
+  // Override to fetch git status before loading files
+  async performAdditionalLoading() {
+    await this.fetchGitStatus();
+  }
+  
+  // Override to expand modified file paths after loading
+  async performPostLoadingActions() {
     this.expandModifiedFilePaths();
   }
 
@@ -95,7 +124,7 @@ export class RepoTree extends FileTree {
     }
   }
   
-  // Handle file click to open the file in merge editor
+  // Override to handle file click to open the file in merge editor
   async handleFileClick(path, isFile) {
     if (!isFile) return;
     
@@ -134,7 +163,7 @@ export class RepoTree extends FileTree {
     return html``;
   }
   
-  // Handle context menu
+  // Override to handle context menu
   handleContextMenu(event, path, isFile) {
     this.contextMenu.show(event, path, isFile);
   }
@@ -164,55 +193,9 @@ export class RepoTree extends FileTree {
       </div>
     `;
   }
-
-  render() {
-    const branchInfo = this.gitStatusManager.getBranchInfo();
-    
-    return html`
-      <div class="file-tree-container">
-        ${branchInfo.branch ? html`
-          <div class="branch-row">
-            <span class="branch-info">Branch: ${branchInfo.branch}</span>
-            ${branchInfo.isDirty ? html`<span class="dirty-indicator">●</span>` : ''}
-          </div>
-        ` : ''}
-        <div class="file-tree-header">
-          <div class="tree-controls">
-            <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
-              <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
-            </md-icon-button>
-            <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
-              <md-icon class="material-symbols-outlined">unfold_more</md-icon>
-            </md-icon-button>
-            <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
-              <md-icon class="material-symbols-outlined">unfold_less</md-icon>
-            </md-icon-button>
-          </div>
-        </div>
-        
-        ${this.loading ? 
-          html`<div class="loading">Loading files...</div>` : 
-          this.error ? 
-            html`<div class="error">${this.error}</div>` :
-            html`<div class="file-tree">${this.renderTreeNode(this.treeData)}</div>`
-        }
-        
-        <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.loadFileTree()}>
-          <md-icon slot="icon">refresh</md-icon>
-        </md-fab>
-      </div>
-      
-      ${this.renderContextMenu()}
-    `;
-  }
   
   static styles = css`
     ${FileTree.styles}
-    
-    .file-tree-container {
-      position: relative;
-      min-height: 200px;
-    }
     
     /* Context Menu Styles */
     .context-menu {

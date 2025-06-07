@@ -20,6 +20,12 @@ export class FileTree extends JRPCClient {
   
   constructor() {
     super();
+    this.initializeProperties();
+    this.initializeManagers();
+  }
+  
+  // Initialize basic properties - can be overridden by subclasses
+  initializeProperties() {
     this.files = [];
     this.addedFiles = [];
     this.loading = false;
@@ -28,13 +34,28 @@ export class FileTree extends JRPCClient {
     this.treeExpansion = new TreeExpansion();
   }
   
+  // Initialize managers - can be overridden by subclasses
+  initializeManagers() {
+    // Base class has no additional managers
+  }
+  
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
   }
   
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.cleanup();
+  }
+  
+  // Cleanup method - can be overridden by subclasses
+  cleanup() {
+    // Base class has no cleanup
+  }
+  
   setupDone() {
-    console.log('FileTree::setupDone');
+    console.log(`${this.constructor.name}::setupDone`);
     this.loadFileTree();
   }
   
@@ -92,6 +113,9 @@ export class FileTree extends JRPCClient {
       this.loading = true;
       this.error = null;
       
+      // Allow subclasses to perform additional loading
+      await this.performAdditionalLoading();
+      
       // Get all files in the repository
       const allFilesResponse = await this.call['EditBlockCoder.get_all_relative_files']();
       const all_files = extractResponseData(allFilesResponse, [], true);
@@ -110,6 +134,9 @@ export class FileTree extends JRPCClient {
       // Setup initial expansion state
       this.setupInitialExpansion();
       
+      // Allow subclasses to perform post-loading actions
+      await this.performPostLoadingActions();
+      
     } catch (error) {
       console.error('Error loading file tree:', error);
       this.error = `Failed to load file tree: ${error.message}`;
@@ -120,6 +147,16 @@ export class FileTree extends JRPCClient {
       // Restore scroll position after update completes
       this.restoreScrollPosition(scrollPosition);
     }
+  }
+  
+  // Hook for subclasses to perform additional loading - can be overridden
+  async performAdditionalLoading() {
+    // Base class does nothing
+  }
+  
+  // Hook for subclasses to perform post-loading actions - can be overridden
+  async performPostLoadingActions() {
+    // Base class does nothing
   }
 
   setupInitialExpansion() {
@@ -146,7 +183,7 @@ export class FileTree extends JRPCClient {
   
   // handleFileClick doesn't do anything now - users must click checkbox directly to add/remove files
   async handleFileClick(path, isFile) {
-    // No action when clicking file name
+    // No action when clicking file name - can be overridden by subclasses
   }
   
   // Handle checkbox clicks for adding/removing files
@@ -200,6 +237,56 @@ export class FileTree extends JRPCClient {
   // Default context menu handler - can be overridden by subclasses
   handleContextMenu(event, path, isFile) {
     // Base class does nothing - subclasses can override
+  }
+  
+  // Method to get which header controls to show - can be overridden by subclasses
+  getHeaderControls() {
+    return {
+      showUncheckAll: true,
+      showExpandAll: true,
+      showCollapseAll: true,
+      showRefresh: true
+    };
+  }
+  
+  // Method to render additional header content - can be overridden by subclasses
+  renderAdditionalHeaderContent() {
+    return html``;
+  }
+  
+  // Method to render additional content after the tree - can be overridden by subclasses
+  renderAdditionalContent() {
+    return html``;
+  }
+  
+  // Render the header controls
+  renderHeaderControls() {
+    const controls = this.getHeaderControls();
+    
+    return html`
+      <div class="tree-controls">
+        ${controls.showUncheckAll ? html`
+          <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
+            <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
+          </md-icon-button>
+        ` : ''}
+        ${controls.showExpandAll ? html`
+          <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
+            <md-icon class="material-symbols-outlined">unfold_more</md-icon>
+          </md-icon-button>
+        ` : ''}
+        ${controls.showCollapseAll ? html`
+          <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
+            <md-icon class="material-symbols-outlined">unfold_less</md-icon>
+          </md-icon-button>
+        ` : ''}
+        ${controls.showRefresh ? html`
+          <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
+            <md-icon class="material-symbols-outlined">refresh</md-icon>
+          </md-icon-button>
+        ` : ''}
+      </div>
+    `;
   }
   
   renderTreeNode(node, path = '') {
@@ -260,21 +347,9 @@ export class FileTree extends JRPCClient {
   render() {
     return html`
       <div class="file-tree-container">
+        ${this.renderAdditionalHeaderContent()}
         <div class="file-tree-header">
-          <div class="tree-controls">
-            <md-icon-button title="Uncheck All" @click=${() => this.uncheckAll()}>
-              <md-icon class="material-symbols-outlined">check_box_outline_blank</md-icon>
-            </md-icon-button>
-            <md-icon-button title="Expand All" @click=${() => this.expandAll()}>
-              <md-icon class="material-symbols-outlined">unfold_more</md-icon>
-            </md-icon-button>
-            <md-icon-button title="Collapse All" @click=${() => this.collapseAll()}>
-              <md-icon class="material-symbols-outlined">unfold_less</md-icon>
-            </md-icon-button>
-            <md-icon-button title="Refresh" @click=${() => this.loadFileTree()}>
-              <md-icon class="material-symbols-outlined">refresh</md-icon>
-            </md-icon-button>
-          </div>
+          ${this.renderHeaderControls()}
         </div>
         
         ${this.loading ? 
@@ -283,6 +358,8 @@ export class FileTree extends JRPCClient {
             html`<div class="error">${this.error}</div>` :
             html`<div class="file-tree">${this.renderTreeNode(this.treeData)}</div>`
         }
+        
+        ${this.renderAdditionalContent()}
       </div>
     `;
   }
@@ -297,6 +374,7 @@ export class FileTree extends JRPCClient {
       height: 100%;
       overflow: auto;
       background-color: #fff;
+      position: relative;
     }
     
     .file-tree-header {
