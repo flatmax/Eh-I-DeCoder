@@ -9,3 +9,5 @@ export class UserCard extends CardMarkdown {
     this.role = 'user';
   }
 }
+
+customElements.define('user-card', UserCard);

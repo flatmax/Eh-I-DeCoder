@@ -9,3 +9,5 @@ export class AssistantCard extends CardMarkdown {
     this.role = 'assistant';
   }
 }
+
+customElements.define('assistant-card', AssistantCard);

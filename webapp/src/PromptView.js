@@ -5,10 +5,10 @@ import '@material/web/button/filled-button.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/textfield/filled-text-field.js';
 import '@material/web/icon/icon.js';
-import '../assistant-card.js';
-import '../user-card.js';
+import './prompt/AssistantCard.js';
+import './prompt/UserCard.js';
 import '../speech-to-text.js';
-import '../commands-card.js';
+import './prompt/CommandsCard.js';
 import { MessageHandler } from './MessageHandler.js';
 import { DragHandler } from './prompt/DragHandler.js';
 import { DialogStateManager } from './prompt/DialogStateManager.js';
@@ -147,3 +147,5 @@ export class PromptView extends MessageHandler {
     return true;
   }
 }
+
+customElements.define('prompt-view', PromptView);
