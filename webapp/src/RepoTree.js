@@ -35,7 +35,8 @@ export class RepoTree extends FileTree {
       showUncheckAll: true,
       showExpandAll: true,
       showCollapseAll: true,
-      showRefresh: false
+      showRefresh: false,
+      showLineCountToggle: true
     };
   }
   

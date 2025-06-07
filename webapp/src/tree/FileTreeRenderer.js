@@ -33,6 +33,14 @@ export class FileTreeRenderer {
             <md-icon class="material-symbols-outlined">refresh</md-icon>
           </md-icon-button>
         ` : ''}
+        ${controls.showLineCountToggle ? html`
+          <md-icon-button 
+            title="${this.host.showLineCounts ? 'Hide Line Counts' : 'Show Line Counts'}" 
+            @click=${() => this.host.toggleLineCounts()}
+            class="${this.host.showLineCounts ? 'active' : ''}">
+            <md-icon class="material-symbols-outlined">format_list_numbered</md-icon>
+          </md-icon-button>
+        ` : ''}
       </div>
     `;
   }
@@ -79,6 +87,8 @@ export class FileTreeRenderer {
         </details>
       `;
     } else {
+      const lineCount = this.host.showLineCounts ? this.host.lineCounts[nodePath] : null;
+      
       return html`
         <div class=${classMap(nodeClasses)}
              @contextmenu=${(event) => this.host.handleContextMenu(event, nodePath, node.isFile)}>
@@ -86,6 +96,9 @@ export class FileTreeRenderer {
                                @click=${(e) => this.host.handleCheckboxClick(e, nodePath)}>` : ''}
           <md-icon class="material-symbols-outlined">description</md-icon>
           <span @click=${() => this.host.handleFileClick(nodePath, node.isFile)}>${node.name}</span>
+          ${lineCount !== null && lineCount !== undefined && lineCount >= 0 ? html`
+            <span class="line-count">(${lineCount} lines)</span>
+          ` : ''}
           ${this.host.renderAdditionalIndicators(node, nodePath)}
         </div>
       `;

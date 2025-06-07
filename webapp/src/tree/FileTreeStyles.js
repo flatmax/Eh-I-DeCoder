@@ -26,6 +26,12 @@ export const fileTreeStyles = css`
     gap: 2px;
   }
   
+  .tree-controls md-icon-button.active,
+  .tree-controls .line-count-toggle.active {
+    background-color: #e3f2fd;
+    color: #1976d2;
+  }
+  
   .file-tree {
     padding: 8px;
   }
@@ -64,6 +70,23 @@ export const fileTreeStyles = css`
   .file-checkbox {
     margin-right: 4px;
     cursor: pointer;
+  }
+  
+  .line-count {
+    margin-left: auto;
+    font-size: 0.8em;
+    color: #666;
+    font-style: italic;
+  }
+  
+  .line-count.loading {
+    opacity: 0.6;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.3; }
   }
   
   .directory-details {

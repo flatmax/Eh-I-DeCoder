@@ -5,6 +5,7 @@ import {TreeExpansion} from './tree/TreeExpansion.js';
 import {FileTreeManager} from './tree/FileTreeManager.js';
 import {FileTreeRenderer} from './tree/FileTreeRenderer.js';
 import {fileTreeStyles} from './tree/FileTreeStyles.js';
+import {extractResponseData} from './Utils.js';
 
 export class FileTree extends JRPCClient {
   static properties = {
@@ -13,7 +14,9 @@ export class FileTree extends JRPCClient {
     loading: { type: Boolean, state: true },
     error: { type: String, state: true },
     treeData: { type: Object, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    showLineCounts: { type: Boolean, state: true },
+    lineCounts: { type: Object, state: true }
   };
   
   constructor() {
@@ -29,6 +32,8 @@ export class FileTree extends JRPCClient {
     this.error = null;
     this.treeData = new TreeNode('root', '', false);
     this.treeExpansion = new TreeExpansion();
+    this.showLineCounts = false;
+    this.lineCounts = {};
   }
   
   initializeManagers() {
@@ -53,6 +58,35 @@ export class FileTree extends JRPCClient {
   setupDone() {
     console.log(`${this.constructor.name}::setupDone`);
     this.loadFileTree();
+  }
+  
+  async toggleLineCounts() {
+    this.showLineCounts = !this.showLineCounts;
+    
+    if (this.showLineCounts && Object.keys(this.lineCounts).length === 0) {
+      // Load line counts for all files
+      await this.loadLineCounts();
+    }
+    
+    this.requestUpdate();
+  }
+  
+  async loadLineCounts() {
+    try {
+      console.log('Loading line counts for files...');
+      const response = await this.call['Repo.get_file_line_counts'](this.files);
+      console.log('Raw line counts response:', response);
+      
+      // Extract the actual data from the UUID wrapper
+      const extractedData = extractResponseData(response, {});
+      console.log('Extracted line counts:', extractedData);
+      
+      this.lineCounts = extractedData || {};
+      this.requestUpdate();
+    } catch (error) {
+      console.error('Error loading line counts:', error);
+      this.lineCounts = {};
+    }
   }
   
   expandAll() {
@@ -103,6 +137,11 @@ export class FileTree extends JRPCClient {
       
       this.setupInitialExpansion();
       await this.performPostLoadingActions();
+      
+      // Reload line counts if they were previously shown
+      if (this.showLineCounts) {
+        await this.loadLineCounts();
+      }
       
     } catch (error) {
       console.error('Error loading file tree:', error);
@@ -198,7 +237,8 @@ export class FileTree extends JRPCClient {
       showUncheckAll: true,
       showExpandAll: true,
       showCollapseAll: true,
-      showRefresh: true
+      showRefresh: true,
+      showLineCountToggle: true
     };
   }
   
