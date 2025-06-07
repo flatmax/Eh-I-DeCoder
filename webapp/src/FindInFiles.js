@@ -17,7 +17,6 @@ export class FindInFiles extends JRPCClient {
     super();
     this.searchState = new SearchState(() => this.updateStateFromSearchState());
     this.initializeProperties();
-    console.log('FindInFiles constructor completed');
   }
   
   initializeProperties() {
@@ -25,13 +24,11 @@ export class FindInFiles extends JRPCClient {
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
-    console.log('FindInFiles properties initialized');
   }
   
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
-    console.log('FindInFiles connected');
   }
   
   /**
@@ -48,11 +45,9 @@ export class FindInFiles extends JRPCClient {
   }
   
   async handleSearch(query, options) {
-    console.log('FindInFiles.handleSearch called with:', { query, options });
     this.searchState.startSearch();
     
     try {
-      console.log(`Searching for "${query}" (word: ${options.useWordMatch}, regex: ${options.useRegex}, respectGitignore: ${options.respectGitignore}, caseSensitive: ${options.caseSensitive})`);
       const response = await this.call['Repo.search_files'](
         query, 
         options.useWordMatch, 
@@ -68,35 +63,24 @@ export class FindInFiles extends JRPCClient {
   }
   
   handleExpandAll() {
-    console.log('FindInFiles.handleExpandAll called');
     this.searchState.expandAll();
   }
   
   handleCollapseAll() {
-    console.log('FindInFiles.handleCollapseAll called');
     this.searchState.collapseAll();
   }
   
   handleFileHeaderClick(filePath) {
-    console.log('FindInFiles.handleFileHeaderClick called with filePath:', filePath);
     this.searchState.toggleFileExpansion(filePath);
   }
   
   handleOpenFile(filePath, lineNumber = null) {
-    console.log(`FindInFiles: handleOpenFile called with:`, { 
-      filePath, 
-      lineNumber, 
-      lineNumberType: typeof lineNumber 
-    });
-    
     // Ensure lineNumber is a number (if it exists)
     if (lineNumber !== null) {
       lineNumber = parseInt(lineNumber, 10);
       if (isNaN(lineNumber)) {
         console.warn(`FindInFiles: Invalid line number format: ${lineNumber}`);
         lineNumber = null;
-      } else {
-        console.log(`FindInFiles: Converted line number to: ${lineNumber}`);
       }
     }
     
@@ -106,29 +90,20 @@ export class FindInFiles extends JRPCClient {
       composed: true,
       detail: { filePath, lineNumber }
     });
-    console.log(`FindInFiles: Dispatching open-file event:`, event.detail);
     this.dispatchEvent(event);
   }
   
   updateStateFromSearchState() {
-    console.log('FindInFiles.updateStateFromSearchState called');
-    console.log('Current expandedFiles in searchState:', this.searchState.expandedFiles);
-    
     // Sync component properties with search state
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
-    
-    console.log('FindInFiles expandedFiles after sync:', this.expandedFiles);
     this.requestUpdate();
   }
   
   render() {
-    console.log('FindInFiles.render called with expandedFiles:', this.expandedFiles);
-    
     // Convert Set to Array for better LitElement property change detection
     const expandedFilesArray = Array.from(this.expandedFiles || []);
-    console.log('FindInFiles passing expandedFilesArray to SearchResults:', expandedFilesArray);
     
     return html`
       <div class="search-container">
