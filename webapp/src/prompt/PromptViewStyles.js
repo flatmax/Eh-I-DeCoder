@@ -40,6 +40,11 @@ export const promptViewStyles = css`
     position: absolute;
   }
   
+  :host(.resizing) {
+    transition: none;
+    user-select: none;
+  }
+  
   .dialog-container {
     width: 100%;
     height: 100%;
@@ -50,6 +55,7 @@ export const promptViewStyles = css`
     flex-direction: column;
     overflow: hidden;
     border: 1px solid #e0e0e0;
+    position: relative;
   }
   
   .dialog-header {
@@ -73,6 +79,34 @@ export const promptViewStyles = css`
     font-size: 14px;
     color: #333;
     margin: 0;
+  }
+  
+  .resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 10;
+    transition: background-color 0.2s ease;
+  }
+  
+  .resize-handle:hover {
+    background-color: rgba(0, 123, 255, 0.3);
+  }
+  
+  .resize-handle.active {
+    background-color: rgba(0, 123, 255, 0.5);
+  }
+  
+  .resize-handle-right {
+    right: 0;
+    border-radius: 0 8px 8px 0;
+  }
+  
+  /* Hide resize handles when minimized */
+  :host(.minimized) .resize-handle {
+    display: none;
   }
   
   .prompt-container {

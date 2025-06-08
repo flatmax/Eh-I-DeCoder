@@ -7,6 +7,10 @@ import { repeat } from 'lit/directives/repeat.js';
 export function renderPromptView(component) {
   return html`
     <div class="dialog-container" @click=${component.handleDialogClick}>
+      <!-- Only right resize handle -->
+      <div class="resize-handle resize-handle-right" 
+        @mousedown=${(e) => component.handleResizeStart(e, 'right')}></div>
+      
       <div class="dialog-header" 
         @mousedown=${component.handleDragStart}
         @click=${component.handleHeaderClick}>

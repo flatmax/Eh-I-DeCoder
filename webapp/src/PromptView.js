@@ -28,7 +28,10 @@ export class PromptView extends MessageHandler {
     // Drag properties
     isDragging: { type: Boolean, state: true },
     position: { type: Object, state: true },
-    hasBeenDragged: { type: Boolean, state: true }
+    hasBeenDragged: { type: Boolean, state: true },
+    // Resize properties
+    dialogWidth: { type: Number, state: true },
+    hasBeenResized: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -52,6 +55,10 @@ export class PromptView extends MessageHandler {
       y: 20
     };
     this.hasBeenDragged = true;
+    
+    // Initialize resize state
+    this.dialogWidth = window.innerWidth / 3; // Default width
+    this.hasBeenResized = false;
   }
 
   static styles = promptViewStyles;
@@ -77,6 +84,10 @@ export class PromptView extends MessageHandler {
   
   handleDragStart(event) {
     this.dragHandler.handleDragStart(event);
+  }
+  
+  handleResizeStart(event, resizeType) {
+    this.dragHandler.handleResizeStart(event, resizeType);
   }
   
   handleDocumentClick(event) {
