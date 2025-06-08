@@ -19,6 +19,10 @@ class GitChangeHandler(FileSystemEventHandler):
         if event.event_type in ['opened', 'closed', 'accessed', 'closed_no_write']:
             return
             
+        # Ignore .aider.chat.history.md file
+        if ".aider.chat.history.md" in event.src_path:
+            return
+            
         # Handle events in .git directory with special filtering
         if ".git" in event.src_path:
             # Ignore .lock files ONLY in .git directory - these are temporary Git operation files
