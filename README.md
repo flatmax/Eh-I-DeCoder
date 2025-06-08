@@ -50,7 +50,7 @@ If you encounter a ModuleNotFoundError: No module named 'boto3', simply install 
 ```Bash
 pip install boto3
 ```
-###Frontend Setup
+### Frontend Setup
 Navigate to the webapp directory and install its dependencies:
 
 ```Bash
