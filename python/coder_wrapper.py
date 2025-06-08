@@ -188,12 +188,38 @@ class CoderWrapper(BaseWrapper):
         except Exception as e:
             self.log(f"Error signaling completion: {e}")
 
+    def _is_terminal_command(self, message):
+        """Check if a message is a command that should be executed in the terminal."""
+        terminal_commands = [
+            '/model', '/editor-model', '/weak-model', '/chat-mode', 
+            '/help', '/ask', '/code', '/architect', '/context'
+        ]
+        
+        # Ensure we're dealing with a string and only match exact commands without postfix
+        if isinstance(message, str):
+            message = message.strip()
+            return message in terminal_commands
+        return False
+
     def run_wrapper(self, message):
         """
         Wrapper for the coder's run method to execute it non-blockingly.
         This method is intended to be called via JRPC and return immediately.
         """
         self.log(f"run_wrapper called with message (first 100 chars): {str(message)[:100]}...")
+
+        # Check if this is a terminal command
+        if self._is_terminal_command(message):
+            self.log(f"Terminal command detected: {message}")
+            # Send immediate response that this command should be executed in the terminal
+            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](
+                f"The command `{message}` (without suffix string) should be executed directly in your terminal, not in the web interface.", 
+                True, 
+                'assistant'
+            ))
+            # Signal completion to reset UI state
+            self.signal_completion()
+            return {"status": "terminal_command_detected", "command": message}
 
         actual_run_method = self.original_run
 
