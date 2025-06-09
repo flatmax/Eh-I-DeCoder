@@ -23,6 +23,35 @@ export class GitHistoryStyles {
         background: #f8f9fa;
         border: 1px solid #e1e4e8;
         overflow: hidden;
+        transition: width 0.3s ease;
+        position: relative;
+      }
+
+      .commit-panel.collapsed {
+        min-width: 60px;
+      }
+
+      .commit-panel.collapsed .commit-panel-header {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        padding: 16px 8px;
+        text-align: center;
+        font-size: 12px;
+      }
+
+      .commit-panel.collapsed commit-list {
+        display: none;
+      }
+
+      .commit-panel.collapsed .loading-more {
+        padding: 8px;
+        font-size: 10px;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+      }
+
+      .commit-panel.expanded {
+        min-width: 200px;
       }
 
       .commit-panel-header {
@@ -33,14 +62,16 @@ export class GitHistoryStyles {
         font-size: 14px;
         color: #24292e;
         text-align: right;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
       }
 
       .left-panel {
-        min-width: 200px;
+        border-right: none;
       }
 
       .right-panel {
-        min-width: 200px;
+        border-left: none;
       }
 
       .center-panel {
@@ -111,6 +142,7 @@ export class GitHistoryStyles {
         font-style: italic;
         background: #f5f5f5;
         border-top: 1px solid #e1e4e8;
+        transition: all 0.3s ease;
       }
       
       .loading-more-spinner {

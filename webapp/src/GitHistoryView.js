@@ -22,7 +22,9 @@ export class GitHistoryView extends JRPCClient {
     page: { type: Number, state: true },
     hasMoreCommits: { type: Boolean, state: true },
     pageSize: { type: Number, state: true },
-    totalCommitsLoaded: { type: Number, state: true }
+    totalCommitsLoaded: { type: Number, state: true },
+    leftPanelHovered: { type: Boolean, state: true },
+    rightPanelHovered: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -41,6 +43,8 @@ export class GitHistoryView extends JRPCClient {
     this.hasMoreCommits = true;
     this.pageSize = 50;
     this.totalCommitsLoaded = 0;
+    this.leftPanelHovered = false;
+    this.rightPanelHovered = false;
 
     // Initialize managers
     this.commitDataManager = new CommitDataManager(this);
@@ -82,6 +86,32 @@ export class GitHistoryView extends JRPCClient {
   handleToCommitSelect(event) {
     this.toCommit = event.detail.commitHash;
     this.requestUpdate();
+  }
+
+  handleLeftPanelMouseEnter() {
+    this.leftPanelHovered = true;
+  }
+
+  handleLeftPanelMouseLeave() {
+    this.leftPanelHovered = false;
+  }
+
+  handleRightPanelMouseEnter() {
+    this.rightPanelHovered = true;
+  }
+
+  handleRightPanelMouseLeave() {
+    this.rightPanelHovered = false;
+  }
+
+  getLeftPanelWidth() {
+    if (this.isDraggingLeft) return this.leftPanelWidth;
+    return this.leftPanelHovered ? this.leftPanelWidth : 60;
+  }
+
+  getRightPanelWidth() {
+    if (this.isDraggingRight) return this.rightPanelWidth;
+    return this.rightPanelHovered ? this.rightPanelWidth : 60;
   }
 
   renderEmptyState() {
@@ -146,8 +176,15 @@ export class GitHistoryView extends JRPCClient {
     return html`
       <div class="git-history-container">
         <!-- Left Panel -->
-        <div class="commit-panel left-panel" style="width: ${this.leftPanelWidth}px;">
-          <div class="commit-panel-header">From Commit (Older)</div>
+        <div 
+          class="commit-panel left-panel ${this.leftPanelHovered ? 'expanded' : 'collapsed'}" 
+          style="width: ${this.getLeftPanelWidth()}px;"
+          @mouseenter=${this.handleLeftPanelMouseEnter}
+          @mouseleave=${this.handleLeftPanelMouseLeave}
+        >
+          <div class="commit-panel-header">
+            ${this.leftPanelHovered ? 'From Commit (Older)' : 'From'}
+          </div>
           <commit-list
             .commits=${this.commits}
             .selectedCommit=${this.fromCommit}
@@ -158,7 +195,7 @@ export class GitHistoryView extends JRPCClient {
           ${this.loadingMore ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
-              Loading more commits...
+              ${this.leftPanelHovered ? 'Loading more commits...' : '...'}
             </div>
           ` : ''}
         </div>
@@ -188,8 +225,15 @@ export class GitHistoryView extends JRPCClient {
         ></div>
 
         <!-- Right Panel -->
-        <div class="commit-panel right-panel" style="width: ${this.rightPanelWidth}px;">
-          <div class="commit-panel-header">To Commit (Newer)</div>
+        <div 
+          class="commit-panel right-panel ${this.rightPanelHovered ? 'expanded' : 'collapsed'}" 
+          style="width: ${this.getRightPanelWidth()}px;"
+          @mouseenter=${this.handleRightPanelMouseEnter}
+          @mouseleave=${this.handleRightPanelMouseLeave}
+        >
+          <div class="commit-panel-header">
+            ${this.rightPanelHovered ? 'To Commit (Newer)' : 'To'}
+          </div>
           <commit-list
             .commits=${this.commits}
             .selectedCommit=${this.toCommit}
@@ -200,7 +244,7 @@ export class GitHistoryView extends JRPCClient {
           ${this.loadingMore ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
-              Loading more commits...
+              ${this.rightPanelHovered ? 'Loading more commits...' : '...'}
             </div>
           ` : ''}
         </div>
