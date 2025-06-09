@@ -309,9 +309,9 @@ class Repo(BaseWrapper):
             self.log(f"create_file returning error: {error_msg}")
             return error_msg
     
-    def get_commit_history(self, max_count=50, branch=None):
-        """Get commit history with detailed information - optimized for performance"""
-        self.log(f"get_commit_history called with max_count: {max_count}, branch: {branch}")
+    def get_commit_history(self, max_count=50, branch=None, skip=0):
+        """Get commit history with detailed information - optimized for performance with pagination support"""
+        self.log(f"get_commit_history called with max_count: {max_count}, branch: {branch}, skip: {skip}")
         
         if not self.repo:
             error_msg = {"error": "No Git repository available"}
@@ -331,8 +331,8 @@ class Repo(BaseWrapper):
                     branch = 'HEAD'
                     self.log("Using HEAD (detached state)")
             
-            # Get commits from specified branch only - much faster
-            for commit in self.repo.iter_commits(branch, max_count=max_count):
+            # Get commits from specified branch with skip and max_count for pagination
+            for commit in self.repo.iter_commits(branch, max_count=max_count, skip=skip):
                 commit_data = {
                     'hash': commit.hexsha,
                     'author': commit.author.name,
@@ -343,7 +343,7 @@ class Repo(BaseWrapper):
                 }
                 commits.append(commit_data)
             
-            self.log(f"get_commit_history returning {len(commits)} commits from branch {branch}")
+            self.log(f"get_commit_history returning {len(commits)} commits from branch {branch} (skip: {skip})")
             return commits
             
         except Exception as e:

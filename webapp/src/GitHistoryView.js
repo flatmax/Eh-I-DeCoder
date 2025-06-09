@@ -19,7 +19,8 @@ export class GitHistoryView extends JRPCClient {
     isDraggingRight: { type: Boolean, state: true },
     page: { type: Number, state: true },
     hasMoreCommits: { type: Boolean, state: true },
-    pageSize: { type: Number, state: true }
+    pageSize: { type: Number, state: true },
+    totalCommitsLoaded: { type: Number, state: true }
   };
 
   constructor() {
@@ -37,6 +38,7 @@ export class GitHistoryView extends JRPCClient {
     this.page = 1;
     this.hasMoreCommits = true;
     this.pageSize = 50; // Default page size
+    this.totalCommitsLoaded = 0;
 
     // Bind methods
     this.handleFromCommitSelect = this.handleFromCommitSelect.bind(this);
@@ -223,16 +225,24 @@ export class GitHistoryView extends JRPCClient {
   }
   
   /**
-   * Handle scroll events on the commit list panels
+   * Handle scroll events from commit list components
    * Used to implement infinite scrolling/pagination
    */
   handleCommitListScroll(event) {
     // Don't trigger loading if we're already loading or there are no more commits
     if (this.loading || this.loadingMore || !this.hasMoreCommits) return;
     
-    const target = event.target;
+    const { scrollTop, scrollHeight, clientHeight, distanceFromBottom } = event.detail;
+    
+    console.log('Scroll event detected:', {
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      distanceFromBottom
+    });
+    
     // Check if we've scrolled close to the bottom (within 100px)
-    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+    const isNearBottom = distanceFromBottom < 100;
     
     if (isNearBottom) {
       console.log('Near bottom of commit list, loading more commits');
@@ -248,13 +258,13 @@ export class GitHistoryView extends JRPCClient {
     this.loadingMore = true;
     
     try {
-      // Calculate skip value for pagination (page - 1) * pageSize
-      const skip = (this.page - 1) * this.pageSize;
+      // Calculate skip value for pagination - skip the commits we already have
+      const skip = this.totalCommitsLoaded;
       
-      console.log(`Loading more commits (page ${this.page + 1}, skip ${skip})`);
+      console.log(`Loading more commits (page ${this.page + 1}, skip ${skip}, total loaded: ${this.totalCommitsLoaded})`);
       
-      // Call backend with proper pagination parameters
-      const response = await this.call['Repo.get_commit_history'](this.pageSize, null);
+      // Call backend with proper pagination parameters (max_count, branch, skip)
+      const response = await this.call['Repo.get_commit_history'](this.pageSize, null, skip);
       const newCommits = this.extractCommitsFromResponse(response);
       
       // If we got no new commits or less than expected, mark as no more to load
@@ -262,16 +272,27 @@ export class GitHistoryView extends JRPCClient {
         this.hasMoreCommits = false;
         console.log('No more commits to load');
       } else {
-        // Append new commits to the existing list
-        this.commits = [...this.commits, ...newCommits];
-        console.log(`Added ${newCommits.length} more commits`);
+        // Filter out any duplicate commits (just in case)
+        const existingHashes = new Set(this.commits.map(c => c.hash));
+        const uniqueNewCommits = newCommits.filter(c => !existingHashes.has(c.hash));
         
-        // Increment page for next load
-        this.page += 1;
-        
-        // If we got fewer commits than page size, no more to load
-        if (newCommits.length < this.pageSize) {
+        if (uniqueNewCommits.length === 0) {
           this.hasMoreCommits = false;
+          console.log('No new unique commits to load');
+        } else {
+          // Append new commits to the existing list
+          this.commits = [...this.commits, ...uniqueNewCommits];
+          this.totalCommitsLoaded += uniqueNewCommits.length;
+          console.log(`Added ${uniqueNewCommits.length} more commits (total: ${this.totalCommitsLoaded})`);
+          
+          // Increment page for next load
+          this.page += 1;
+          
+          // If we got fewer commits than page size, no more to load
+          if (newCommits.length < this.pageSize) {
+            this.hasMoreCommits = false;
+            console.log('Received fewer commits than page size, no more to load');
+          }
         }
       }
     } catch (error) {
@@ -311,6 +332,7 @@ export class GitHistoryView extends JRPCClient {
     // Reset pagination state when loading commits from scratch
     this.page = 1;
     this.hasMoreCommits = true;
+    this.totalCommitsLoaded = 0;
     
     // Define all possible method names for getting git history
     const methodsList = [
@@ -341,14 +363,15 @@ export class GitHistoryView extends JRPCClient {
     }
 
     try {
-      console.log(`GitHistoryView: Calling ${methodToCall} with pageSize=${this.pageSize}`);
+      console.log(`GitHistoryView: Calling ${methodToCall} with pageSize=${this.pageSize}, skip=0`);
       
-      // Call the backend method with proper parameters (max_count, branch)
-      const response = await this.call[methodToCall](this.pageSize, null);
+      // Call the backend method with proper parameters (max_count, branch, skip)
+      const response = await this.call[methodToCall](this.pageSize, null, 0);
       
       console.log('GitHistoryView: Received response type:', typeof response);
       
       this.commits = this.extractCommitsFromResponse(response);
+      this.totalCommitsLoaded = this.commits.length;
       console.log(`GitHistoryView: Extracted ${this.commits.length} commits:`, 
         this.commits.map(c => `${c.hash?.substring(0, 7)}: ${c.message?.substring(0, 20)}...`));
       
@@ -583,6 +606,7 @@ export class GitHistoryView extends JRPCClient {
       
       if (commits.length > 0) {
         this.commits = commits;
+        this.totalCommitsLoaded = commits.length;
         console.log(`Loaded ${commits.length} commits manually`);
         
         // Set initial commits
@@ -612,6 +636,7 @@ export class GitHistoryView extends JRPCClient {
     return html`
       <div class="selected-commits">
         Comparing: ${fromCommitObj?.hash?.substring(0, 7) || 'Unknown'} → ${toCommitObj?.hash?.substring(0, 7) || 'Unknown'}
+        (${this.totalCommitsLoaded} commits loaded)
       </div>
     `;
   }
@@ -654,7 +679,7 @@ export class GitHistoryView extends JRPCClient {
             .selectedCommit=${this.fromCommit}
             .serverURI=${this.serverURI}
             @commit-select=${this.handleFromCommitSelect}
-            @scroll=${this.handleCommitListScroll}
+            @commit-list-scroll=${this.handleCommitListScroll}
           ></commit-list>
           ${this.loadingMore ? html`
             <div class="loading-more">
@@ -696,7 +721,7 @@ export class GitHistoryView extends JRPCClient {
             .selectedCommit=${this.toCommit}
             .serverURI=${this.serverURI}
             @commit-select=${this.handleToCommitSelect}
-            @scroll=${this.handleCommitListScroll}
+            @commit-list-scroll=${this.handleCommitListScroll}
           ></commit-list>
           ${this.loadingMore ? html`
             <div class="loading-more">

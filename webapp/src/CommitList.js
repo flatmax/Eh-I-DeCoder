@@ -14,6 +14,9 @@ export class CommitList extends LitElement {
     this.commits = [];
     this.selectedCommit = '';
     this.expandedCommits = new Set();
+    
+    // Bind scroll handler
+    this.handleScroll = this.handleScroll.bind(this);
   }
 
   static styles = css`
@@ -139,6 +142,32 @@ export class CommitList extends LitElement {
       font-style: italic;
     }
   `;
+
+  firstUpdated() {
+    super.firstUpdated?.();
+    this.setupScrollListener();
+  }
+
+  setupScrollListener() {
+    const commitListContainer = this.shadowRoot.querySelector('.commit-list');
+    if (commitListContainer) {
+      commitListContainer.addEventListener('scroll', this.handleScroll);
+    }
+  }
+
+  handleScroll(event) {
+    // Dispatch a custom scroll event that bubbles up to the parent GitHistoryView
+    this.dispatchEvent(new CustomEvent('commit-list-scroll', {
+      detail: {
+        scrollTop: event.target.scrollTop,
+        scrollHeight: event.target.scrollHeight,
+        clientHeight: event.target.clientHeight,
+        distanceFromBottom: event.target.scrollHeight - event.target.scrollTop - event.target.clientHeight
+      },
+      bubbles: true,
+      composed: true
+    }));
+  }
 
   handleCommitClick(commit) {
     this.dispatchEvent(new CustomEvent('commit-select', {
