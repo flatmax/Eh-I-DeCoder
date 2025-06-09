@@ -11,6 +11,7 @@ import {ResizeMixin} from './mixins/ResizeMixin.js';
 import '../app-sidebar.js';
 import '../prompt-view.js';
 import '../merge-editor.js';
+import './GitHistoryView.js';
 
 export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMixin(JRPCClient))) {
   static properties = {
@@ -20,7 +21,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     showConnectionDetails: { type: Boolean, state: true },
     headerExpanded: { type: Boolean, state: true },
     sidebarExpanded: { type: Boolean, state: true },
-    activeTabIndex: { type: Number, state: true }
+    activeTabIndex: { type: Number, state: true },
+    gitHistoryMode: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -34,9 +36,12 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.headerExpanded = false;
     this.sidebarExpanded = true;
     this.activeTabIndex = 0;
+    this.gitHistoryMode = false;
     
     // Bind methods
     this.handleOpenFile = this.handleOpenFile.bind(this);
+    this.toggleGitHistoryMode = this.toggleGitHistoryMode.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
   }
   
   static styles = css`
@@ -45,11 +50,39 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       font-family: sans-serif;
       height: 100vh;
       overflow: hidden;
+      position: relative;
     }
     .container {
       display: flex;
       height: 100vh;
       overflow: hidden;
+    }
+    
+    .mode-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      transition: all 0.2s ease;
+    }
+    
+    .mode-toggle:hover {
+      background: #1976D2;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .mode-toggle:active {
+      transform: translateY(0);
     }
     
     .resize-handle {
@@ -78,6 +111,19 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       border-radius: 4px;
       min-height: 0;
     }
+
+    .git-history-container {
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Ensure prompt view is always visible and positioned correctly */
+    prompt-view {
+      position: fixed;
+      z-index: 2000;
+      pointer-events: auto;
+    }
   `;
 
   /**
@@ -89,17 +135,53 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     // Set initial connection status to connecting
     this.connectionStatus = 'connecting';
     
+    // Add keyboard event listener
+    document.addEventListener('keydown', this.handleKeyDown);
+    
     // Connect on startup
     console.log('MainWindow: First connection attempt on startup');
     
     // Schedule reconnect
     this.scheduleReconnect();
   }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    document.removeEventListener('keydown', this.handleKeyDown);
+  }
+
+  handleKeyDown(event) {
+    // Ctrl+G or Ctrl+H to toggle git history mode
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'g' || event.key === 'h')) {
+      event.preventDefault();
+      this.toggleGitHistoryMode();
+    }
+  }
+
+  toggleGitHistoryMode() {
+    this.gitHistoryMode = !this.gitHistoryMode;
+    console.log(`Switched to ${this.gitHistoryMode ? 'Git History' : 'File Explorer'} mode`);
+  }
   
   /**
    * LitElement render method
    */
   render() {
+    return html`
+      <!-- Mode Toggle Button -->
+      <button class="mode-toggle" @click=${this.toggleGitHistoryMode} title="Toggle between File Explorer and Git History modes (Ctrl+G)">
+        ${this.gitHistoryMode ? '📁 File Mode' : '📊 History Mode'}
+      </button>
+
+      <!-- Main Content -->
+      ${this.gitHistoryMode ? this.renderGitHistoryMode() : this.renderFileExplorerMode()}
+      
+      <!-- Floating Prompt View Dialog - Always Available and Always Visible -->
+      <prompt-view .serverURI=${this.serverURI}></prompt-view>
+    `;
+  }
+
+  renderFileExplorerMode() {
     return html`
       <div class="container" @mousemove=${this._handleMouseMove} @mouseup=${this._handleMouseUp}>
         <app-sidebar
@@ -126,10 +208,18 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
           ${this.showMergeEditor ? 
             html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
         </div>
-        
         <!-- Floating Prompt View Dialog -->
         ${this.showPromptView ? 
           html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
+
+      </div>
+    `;
+  }
+
+  renderGitHistoryMode() {
+    return html`
+      <div class="git-history-container">
+        <git-history-view .serverURI=${this.serverURI}></git-history-view>
       </div>
     `;
   }
@@ -169,7 +259,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     Promise.all([
       updateChildComponents(this, 'prompt-view', 'serverURI', this.serverURI),
       updateChildComponents(this, 'app-sidebar', 'serverURI', this.serverURI),
-      updateChildComponents(this, 'merge-editor', 'serverURI', this.serverURI)
+      updateChildComponents(this, 'merge-editor', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'git-history-view', 'serverURI', this.serverURI)
     ]).then(() => {
       console.log('All child components updated with server URI');
     });
@@ -186,6 +277,11 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     
     const { filePath, lineNumber } = e.detail;
     console.log(`Opening file: ${filePath}${lineNumber ? ` at line ${lineNumber}` : ''}`);
+    
+    // Switch to file explorer mode if we're in git history mode
+    if (this.gitHistoryMode) {
+      this.gitHistoryMode = false;
+    }
     
     // Find merge editor component
     const mergeEditor = this.shadowRoot.querySelector('merge-editor');

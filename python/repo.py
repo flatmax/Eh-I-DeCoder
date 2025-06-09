@@ -309,10 +309,144 @@ class Repo(BaseWrapper):
             self.log(f"create_file returning error: {error_msg}")
             return error_msg
     
+    def get_commit_history(self, max_count=100):
+        """Get commit history with detailed information"""
+        self.log(f"get_commit_history called with max_count: {max_count}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_commit_history returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            commits = []
+            
+            # Get commits from all branches
+            for commit in self.repo.iter_commits('--all', max_count=max_count):
+                # Get branch information for this commit
+                branch_name = None
+                try:
+                    # Try to find which branch contains this commit
+                    branches = [ref.name.replace('origin/', '') for ref in self.repo.refs if commit in self.repo.iter_commits(ref)]
+                    if branches:
+                        # Prefer non-remote branches, then remote branches
+                        local_branches = [b for b in branches if not b.startswith('remotes/')]
+                        if local_branches:
+                            branch_name = local_branches[0]
+                        else:
+                            branch_name = branches[0].replace('remotes/origin/', '')
+                except:
+                    pass
+                
+                commit_data = {
+                    'hash': commit.hexsha,
+                    'author': commit.author.name,
+                    'email': commit.author.email,
+                    'date': commit.committed_datetime.isoformat(),
+                    'message': commit.message.strip(),
+                    'branch': branch_name
+                }
+                commits.append(commit_data)
+            
+            self.log(f"get_commit_history returning {len(commits)} commits")
+            return commits
+            
+        except Exception as e:
+            error_msg = {"error": f"Error getting commit history: {e}"}
+            self.log(f"get_commit_history returning error: {error_msg}")
+            return error_msg
+    
+    def get_changed_files(self, from_commit, to_commit):
+        """Get list of files changed between two commits"""
+        self.log(f"get_changed_files called with from_commit: {from_commit}, to_commit: {to_commit}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_changed_files returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Get the commit objects
+            from_commit_obj = self.repo.commit(from_commit)
+            to_commit_obj = self.repo.commit(to_commit)
+            
+            # Get the diff between the commits
+            diff = from_commit_obj.diff(to_commit_obj)
+            
+            # Extract file paths from the diff
+            changed_files = []
+            for diff_item in diff:
+                # Handle different types of changes (added, deleted, modified, renamed)
+                if diff_item.a_path:
+                    changed_files.append(diff_item.a_path)
+                if diff_item.b_path and diff_item.b_path != diff_item.a_path:
+                    changed_files.append(diff_item.b_path)
+            
+            # Remove duplicates and sort
+            changed_files = sorted(list(set(changed_files)))
+            
+            self.log(f"get_changed_files returning {len(changed_files)} files")
+            return changed_files
+            
+        except Exception as e:
+            error_msg = {"error": f"Error getting changed files: {e}"}
+            self.log(f"get_changed_files returning error: {error_msg}")
+            return error_msg
+    
     # Delegate methods to component modules
     def get_file_content(self, file_path, version='working'):
-        """Get the content of a file from either HEAD or working directory"""
-        return self.git_operations.get_file_content(file_path, version)
+        """Get the content of a file from either HEAD, working directory, or specific commit"""
+        self.log(f"get_file_content called for {file_path}, version: {version}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            if version == 'HEAD':
+                # Get file content from HEAD commit
+                try:
+                    blob = self.repo.head.commit.tree[file_path]
+                    content = blob.data_stream.read().decode('utf-8')
+                    self.log(f"HEAD content loaded for {file_path}, length: {len(content)}")
+                    return content
+                except KeyError:
+                    # File doesn't exist in HEAD (new file)
+                    self.log(f"File {file_path} not found in HEAD (new file)")
+                    return ""
+            elif version == 'working':
+                # Get file content from working directory
+                full_path = os.path.join(self.repo.working_tree_dir, file_path)
+                if os.path.exists(full_path):
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    self.log(f"Working content loaded for {file_path}, length: {len(content)}")
+                    return content
+                else:
+                    self.log(f"File {file_path} not found in working directory")
+                    return ""
+            else:
+                # Treat version as a commit hash
+                try:
+                    commit = self.repo.commit(version)
+                    blob = commit.tree[file_path]
+                    content = blob.data_stream.read().decode('utf-8')
+                    self.log(f"Content loaded for {file_path} at commit {version[:8]}, length: {len(content)}")
+                    return content
+                except (KeyError, git.exc.BadName):
+                    # File doesn't exist in this commit
+                    self.log(f"File {file_path} not found in commit {version}")
+                    return ""
+                
+        except UnicodeDecodeError as e:
+            error_msg = {"error": f"File {file_path} contains binary data or invalid encoding: {e}"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
+        except Exception as e:
+            error_msg = {"error": f"Error reading file {file_path}: {e}"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
             
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
