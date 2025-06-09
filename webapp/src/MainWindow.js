@@ -15,7 +15,6 @@ import './GitHistoryView.js';
 
 export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMixin(JRPCClient))) {
   static properties = {
-    showPromptView: { type: Boolean, state: true },
     showFileTree: { type: Boolean, state: true },
     showMergeEditor: { type: Boolean, state: true },
     showConnectionDetails: { type: Boolean, state: true },
@@ -29,7 +28,6 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     super();
     this.remoteTimeout = 300;
     this.debug = false;
-    this.showPromptView = true;
     this.showFileTree = true;
     this.showMergeEditor = true;
     this.showConnectionDetails = false;
@@ -208,10 +206,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
           ${this.showMergeEditor ? 
             html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
         </div>
-        <!-- Floating Prompt View Dialog -->
-        ${this.showPromptView ? 
-          html`<prompt-view .serverURI=${this.serverURI}></prompt-view>` : ''}
-
+        <prompt-view .serverURI=${this.serverURI}></prompt-view>
       </div>
     `;
   }
