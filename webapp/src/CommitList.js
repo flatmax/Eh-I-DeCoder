@@ -6,7 +6,8 @@ export class CommitList extends LitElement {
     commits: { type: Array },
     selectedCommit: { type: String },
     serverURI: { type: String },
-    expandedCommits: { type: Set, state: true }
+    expandedCommits: { type: Set, state: true },
+    disabledCommits: { type: Set }
   };
 
   constructor() {
@@ -14,6 +15,7 @@ export class CommitList extends LitElement {
     this.commits = [];
     this.selectedCommit = '';
     this.expandedCommits = new Set();
+    this.disabledCommits = new Set();
     
     // Bind scroll handler
     this.handleScroll = this.handleScroll.bind(this);
@@ -53,6 +55,18 @@ export class CommitList extends LitElement {
       box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.2);
     }
 
+    .commit-item.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #f8f9fa;
+      border-color: #d1d5da;
+    }
+
+    .commit-item.disabled:hover {
+      border-color: #d1d5da;
+      box-shadow: none;
+    }
+
     .commit-header {
       padding: 12px;
       display: flex;
@@ -67,12 +81,20 @@ export class CommitList extends LitElement {
       font-weight: 600;
     }
 
+    .commit-item.disabled .commit-hash {
+      color: #959da5;
+    }
+
     .commit-message {
       font-size: 14px;
       color: #24292e;
       font-weight: 500;
       line-height: 1.3;
       margin: 2px 0;
+    }
+
+    .commit-item.disabled .commit-message {
+      color: #959da5;
     }
 
     .commit-meta {
@@ -84,12 +106,20 @@ export class CommitList extends LitElement {
       margin-top: 4px;
     }
 
+    .commit-item.disabled .commit-meta {
+      color: #959da5;
+    }
+
     .commit-author {
       font-weight: 500;
     }
 
     .commit-date {
       font-style: italic;
+    }
+
+    .commit-item.disabled .commit-date {
+      color: #959da5;
     }
 
     .commit-branch {
@@ -102,12 +132,24 @@ export class CommitList extends LitElement {
       border: 1px solid #c8e1ff;
     }
 
+    .commit-item.disabled .commit-branch {
+      background: #f8f9fa;
+      color: #959da5;
+      border-color: #d1d5da;
+    }
+
     .commit-details {
       border-top: 1px solid #e1e4e8;
       padding: 12px;
       background: #f8f9fa;
       font-size: 12px;
       color: #586069;
+    }
+
+    .commit-item.disabled .commit-details {
+      background: #f8f9fa;
+      color: #959da5;
+      border-top-color: #d1d5da;
     }
 
     .commit-details-row {
@@ -135,11 +177,46 @@ export class CommitList extends LitElement {
       background: #f1f8ff;
     }
 
+    .commit-item.disabled .expand-toggle {
+      color: #959da5;
+      cursor: not-allowed;
+    }
+
+    .commit-item.disabled .expand-toggle:hover {
+      background: none;
+    }
+
     .no-commits {
       padding: 20px;
       text-align: center;
       color: #586069;
       font-style: italic;
+    }
+
+    .disabled-tooltip {
+      position: relative;
+    }
+
+    .disabled-tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #24292e;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 1000;
+    }
+
+    .disabled-tooltip:hover::after {
+      opacity: 1;
     }
   `;
 
@@ -170,6 +247,11 @@ export class CommitList extends LitElement {
   }
 
   handleCommitClick(commit) {
+    // Don't allow clicking on disabled commits
+    if (this.disabledCommits && this.disabledCommits.has(commit.hash)) {
+      return;
+    }
+    
     this.dispatchEvent(new CustomEvent('commit-select', {
       detail: { commitHash: commit.hash }
     }));
@@ -177,6 +259,11 @@ export class CommitList extends LitElement {
 
   toggleCommitDetails(commit, event) {
     event.stopPropagation();
+    
+    // Don't allow expanding disabled commits
+    if (this.disabledCommits && this.disabledCommits.has(commit.hash)) {
+      return;
+    }
     
     if (this.expandedCommits.has(commit.hash)) {
       this.expandedCommits.delete(commit.hash);
@@ -210,13 +297,17 @@ export class CommitList extends LitElement {
   renderCommitItem(commit) {
     const isSelected = this.selectedCommit === commit.hash;
     const isExpanded = this.expandedCommits.has(commit.hash);
+    const isDisabled = this.disabledCommits && this.disabledCommits.has(commit.hash);
     
     return html`
       <div 
         class=${classMap({
           'commit-item': true,
-          'selected': isSelected
+          'selected': isSelected,
+          'disabled': isDisabled,
+          'disabled-tooltip': isDisabled
         })}
+        data-tooltip=${isDisabled ? 'Cannot select newer commit than "To" commit' : ''}
         @click=${() => this.handleCommitClick(commit)}
       >
         <div class="commit-header">
