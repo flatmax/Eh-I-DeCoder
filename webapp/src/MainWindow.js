@@ -174,7 +174,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       <!-- Main Content -->
       ${this.gitHistoryMode ? this.renderGitHistoryMode() : this.renderFileExplorerMode()}
       
-      <!-- Floating Prompt View Dialog - Always Available and Always Visible -->
+      <!-- Single Floating Prompt View Dialog - Always Available and Always Visible -->
       <prompt-view .serverURI=${this.serverURI}></prompt-view>
     `;
   }
@@ -206,7 +206,6 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
           ${this.showMergeEditor ? 
             html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
         </div>
-        <prompt-view .serverURI=${this.serverURI}></prompt-view>
       </div>
     `;
   }

@@ -38,7 +38,7 @@ export class PromptView extends MessageHandler {
     super();
     this.inputValue = '';
     this.showVoiceInput = true;
-    this.isMinimized = false;
+    this.isMinimized = true; // Start minimized
     this.coderType = 'Send';
     this.showScrollToBottom = false;
     
@@ -54,7 +54,7 @@ export class PromptView extends MessageHandler {
       x: window.innerWidth / 6, 
       y: 20
     };
-    this.hasBeenDragged = true;
+    this.hasBeenDragged = false; // Start as not dragged
     
     // Initialize resize state
     this.dialogWidth = window.innerWidth / 3; // Default width
@@ -65,9 +65,16 @@ export class PromptView extends MessageHandler {
 
   connectedCallback() {
     super.connectedCallback();
+    
+    // Initialize managers
     this.dragHandler.initialize();
     this.dialogStateManager.initialize();
     this.scrollManager.initialize();
+    
+    // Force initial state update
+    this.updateComplete.then(() => {
+      this.dialogStateManager.updateDialogClass();
+    });
   }
   
   disconnectedCallback() {

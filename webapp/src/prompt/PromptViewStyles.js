@@ -6,43 +6,70 @@ import { css } from 'lit';
 export const promptViewStyles = css`
   :host {
     position: fixed;
-    z-index: 1000;
+    z-index: 2000;
     transition: all 0.3s ease;
     font-family: sans-serif;
+    pointer-events: auto;
   }
   
   :host(.minimized) {
+    width: calc(100vw / 6);
+    min-width: 300px;
+    height: 120px;
+  }
+  
+  :host(.minimized:not(.dragged)) {
     bottom: 20px;
     right: 20px;
-    width: calc(100vw / 6);
-    height: 120px;
+    top: auto;
+    left: auto;
+    transform: none !important;
+  }
+  
+  :host(.maximized) {
+    width: calc(100vw / 3);
+    min-width: 400px;
+    height: 80vh;
+    max-height: calc(100vh - 40px);
+  }
+  
+  :host(.maximized:not(.dragged)) {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) !important;
+    bottom: auto;
+    right: auto;
   }
   
   :host(.dragged) {
     position: fixed !important;
     bottom: auto !important;
     right: auto !important;
-    top: auto !important;
+    top: 0 !important;
     left: 0 !important;
-  }
-  
-  :host(.maximized) {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100vw / 3);
-    height: 100vh;
-    max-height: calc(100vh - 40px);
+    /* Transform will be set via JavaScript */
   }
   
   :host(.dragging) {
-    transition: none;
-    position: absolute;
+    transition: none !important;
+    user-select: none;
   }
   
   :host(.resizing) {
-    transition: none;
+    transition: none !important;
     user-select: none;
+  }
+  
+  /* Default state - show as minimized in bottom right */
+  :host(:not(.minimized):not(.maximized)) {
+    bottom: 20px;
+    right: 20px;
+    width: calc(100vw / 6);
+    min-width: 300px;
+    height: 120px;
+    top: auto;
+    left: auto;
+    transform: none !important;
   }
   
   .dialog-container {
@@ -104,8 +131,8 @@ export const promptViewStyles = css`
     border-radius: 0 8px 8px 0;
   }
   
-  /* Hide resize handles when minimized */
-  :host(.minimized) .resize-handle {
+  /* Hide resize handles when minimized and not dragged */
+  :host(.minimized:not(.dragged)) .resize-handle {
     display: none;
   }
   
