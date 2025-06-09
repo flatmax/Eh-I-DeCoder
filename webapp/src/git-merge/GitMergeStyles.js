@@ -94,11 +94,35 @@ export class GitMergeStyles {
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        min-height: 0;
       }
 
       .merge-container {
         flex: 1;
-        overflow: hidden;
+        overflow: auto;
+        min-height: 0;
+        position: relative;
+      }
+
+      /* Ensure CodeMirror editors can scroll properly */
+      .merge-container :global(.cm-editor) {
+        height: 100%;
+        overflow: auto;
+      }
+
+      .merge-container :global(.cm-scroller) {
+        overflow: auto;
+      }
+
+      /* For merge view specifically */
+      .merge-container :global(.cm-merge-view) {
+        height: 100%;
+        overflow: auto;
+      }
+
+      .merge-container :global(.cm-merge-view .cm-editor) {
+        height: 100%;
+        overflow: auto;
       }
 
       .loading, .error, .no-changes {
