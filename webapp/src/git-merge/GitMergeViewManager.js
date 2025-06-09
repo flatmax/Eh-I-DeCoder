@@ -28,7 +28,8 @@ export class GitMergeViewManager {
         this.view.fromContent || '',
         this.view.toContent || '',
         this.view.unifiedView,
-        this.view
+        this.view,
+        this.view.gitHistoryMode // Pass read-only flag
       );
     } catch (error) {
       console.error('Error creating MergeView:', error);

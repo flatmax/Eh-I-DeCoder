@@ -66,6 +66,52 @@ export class GitHistoryStyles {
         flex-shrink: 0;
       }
 
+      .collapsed-commit-hashes {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .collapsed-hash {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 10px;
+        padding: 4px 2px;
+        background: #ffffff;
+        border: 1px solid #e1e4e8;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        color: #586069;
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .collapsed-hash:hover {
+        background: #f1f8ff;
+        border-color: #c8e1ff;
+        color: #0366d6;
+      }
+
+      .collapsed-hash.active {
+        background: #0366d6;
+        border-color: #0366d6;
+        color: white;
+        font-weight: bold;
+      }
+
+      .collapsed-hash.active:hover {
+        background: #0256cc;
+        border-color: #0256cc;
+      }
+
       .left-panel {
         border-right: none;
       }

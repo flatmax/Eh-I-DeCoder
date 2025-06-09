@@ -37,6 +37,13 @@ export class GitMergeStyles {
         font-weight: 600;
       }
 
+      .read-only-indicator {
+        color: #666;
+        font-style: italic;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+
       .header-controls {
         display: flex;
         align-items: center;

@@ -102,6 +102,7 @@ export class GitMergeView extends JRPCClient {
           <span>From: <span class="commit-hash">${this.fromCommit?.substring(0, 7) || 'None'}</span></span>
           <span>→</span>
           <span>To: <span class="commit-hash">${this.toCommit?.substring(0, 7) || 'None'}</span></span>
+          ${this.gitHistoryMode ? html`<span class="read-only-indicator">(Read-only)</span>` : ''}
         </div>
         
         <div class="header-controls">

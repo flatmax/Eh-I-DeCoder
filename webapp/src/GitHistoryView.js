@@ -114,6 +114,24 @@ export class GitHistoryView extends JRPCClient {
     return this.rightPanelHovered ? this.rightPanelWidth : 60;
   }
 
+  renderCollapsedCommitHashes(selectedCommit, isLeft = true) {
+    if (!this.commits || this.commits.length === 0) return '';
+    
+    return html`
+      <div class="collapsed-commit-hashes">
+        ${this.commits.map(commit => html`
+          <div 
+            class="collapsed-hash ${selectedCommit === commit.hash ? 'active' : ''}"
+            @click=${() => isLeft ? this.handleFromCommitSelect({detail: {commitHash: commit.hash}}) : this.handleToCommitSelect({detail: {commitHash: commit.hash}})}
+            title="${commit.hash} - ${commit.message || 'No message'}"
+          >
+            ${commit.hash?.substring(0, 7) || '???????'}
+          </div>
+        `)}
+      </div>
+    `;
+  }
+
   renderEmptyState() {
     if (this.commits.length === 0) {
       return html`
@@ -185,13 +203,15 @@ export class GitHistoryView extends JRPCClient {
           <div class="commit-panel-header">
             ${this.leftPanelHovered ? 'From Commit (Older)' : 'From'}
           </div>
-          <commit-list
-            .commits=${this.commits}
-            .selectedCommit=${this.fromCommit}
-            .serverURI=${this.serverURI}
-            @commit-select=${this.handleFromCommitSelect}
-            @commit-list-scroll=${this.handleCommitListScroll}
-          ></commit-list>
+          ${this.leftPanelHovered ? html`
+            <commit-list
+              .commits=${this.commits}
+              .selectedCommit=${this.fromCommit}
+              .serverURI=${this.serverURI}
+              @commit-select=${this.handleFromCommitSelect}
+              @commit-list-scroll=${this.handleCommitListScroll}
+            ></commit-list>
+          ` : this.renderCollapsedCommitHashes(this.fromCommit, true)}
           ${this.loadingMore ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
@@ -234,13 +254,15 @@ export class GitHistoryView extends JRPCClient {
           <div class="commit-panel-header">
             ${this.rightPanelHovered ? 'To Commit (Newer)' : 'To'}
           </div>
-          <commit-list
-            .commits=${this.commits}
-            .selectedCommit=${this.toCommit}
-            .serverURI=${this.serverURI}
-            @commit-select=${this.handleToCommitSelect}
-            @commit-list-scroll=${this.handleCommitListScroll}
-          ></commit-list>
+          ${this.rightPanelHovered ? html`
+            <commit-list
+              .commits=${this.commits}
+              .selectedCommit=${this.toCommit}
+              .serverURI=${this.serverURI}
+              @commit-select=${this.handleToCommitSelect}
+              @commit-list-scroll=${this.handleCommitListScroll}
+            ></commit-list>
+          ` : this.renderCollapsedCommitHashes(this.toCommit, false)}
           ${this.loadingMore ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
