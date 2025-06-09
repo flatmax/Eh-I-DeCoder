@@ -68,6 +68,7 @@ export class GitHistoryView extends JRPCClient {
       font-weight: 600;
       font-size: 14px;
       color: #24292e;
+      text-align: right;
     }
 
     .left-panel {

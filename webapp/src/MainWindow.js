@@ -60,8 +60,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     
     .mode-toggle {
       position: fixed;
-      top: 20px;
-      right: 20px;
+      top: 10px;
+      left: 30px;
       z-index: 1000;
       background: #2196F3;
       color: white;
