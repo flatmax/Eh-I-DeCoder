@@ -95,6 +95,59 @@ export class GitMergeView extends JRPCClient {
     this.viewManager.goToPreviousChunk();
   }
 
+  getSelectedText() {
+    console.log('GitMergeView: getSelectedText called');
+    
+    if (!this.viewManager?.mergeViewManager?.mergeView) {
+      console.log('GitMergeView: No merge view available');
+      return '';
+    }
+    
+    try {
+      if (this.unifiedView) {
+        // For unified view, get selection from the single editor
+        const view = this.viewManager.mergeViewManager.mergeView;
+        const selection = view.state.selection.main;
+        if (selection.empty) {
+          console.log('GitMergeView: No selection in unified view');
+          return '';
+        }
+        const selectedText = view.state.doc.sliceString(selection.from, selection.to);
+        console.log('GitMergeView: Found selected text in unified view:', selectedText);
+        return selectedText;
+      } else {
+        // For side-by-side view, check both panes
+        const mergeView = this.viewManager.mergeViewManager.mergeView;
+        
+        // Check left pane (a)
+        if (mergeView.a) {
+          const selectionA = mergeView.a.state.selection.main;
+          if (!selectionA.empty) {
+            const selectedText = mergeView.a.state.doc.sliceString(selectionA.from, selectionA.to);
+            console.log('GitMergeView: Found selected text in left pane:', selectedText);
+            return selectedText;
+          }
+        }
+        
+        // Check right pane (b)
+        if (mergeView.b) {
+          const selectionB = mergeView.b.state.selection.main;
+          if (!selectionB.empty) {
+            const selectedText = mergeView.b.state.doc.sliceString(selectionB.from, selectionB.to);
+            console.log('GitMergeView: Found selected text in right pane:', selectedText);
+            return selectedText;
+          }
+        }
+      }
+      
+      console.log('GitMergeView: No selection found in any pane');
+      return '';
+    } catch (error) {
+      console.error('GitMergeView: Error getting selected text:', error);
+      return '';
+    }
+  }
+
   renderHeader() {
     return html`
       <div class="git-merge-header">
