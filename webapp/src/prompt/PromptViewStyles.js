@@ -108,6 +108,30 @@ export const promptViewStyles = css`
     margin: 0;
   }
   
+  .mode-toggle {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  
+  .mode-toggle:hover {
+    background: #1976D2;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  
+  .mode-toggle:active {
+    transform: translateY(0);
+  }
+  
   .resize-handle {
     position: absolute;
     top: 0;

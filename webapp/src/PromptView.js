@@ -25,6 +25,7 @@ export class PromptView extends MessageHandler {
     isMinimized: { type: Boolean, state: false },
     coderType: { type: String, state: true },
     showScrollToBottom: { type: Boolean, state: true },
+    gitHistoryMode: { type: Boolean },
     // Drag properties
     isDragging: { type: Boolean, state: true },
     position: { type: Object, state: true },
@@ -41,6 +42,7 @@ export class PromptView extends MessageHandler {
     this.isMinimized = true; // Start minimized
     this.coderType = 'Send';
     this.showScrollToBottom = false;
+    this.gitHistoryMode = false;
     
     // Initialize managers
     this.dragHandler = new DragHandler(this);
@@ -59,6 +61,9 @@ export class PromptView extends MessageHandler {
     // Initialize resize state
     this.dialogWidth = window.innerWidth / 3; // Default width
     this.hasBeenResized = false;
+    
+    // Bind methods
+    this.handleModeToggle = this.handleModeToggle.bind(this);
   }
 
   static styles = promptViewStyles;
@@ -115,6 +120,14 @@ export class PromptView extends MessageHandler {
   
   updateDialogClass() {
     this.dialogStateManager.updateDialogClass();
+  }
+
+  handleModeToggle(event) {
+    event.stopPropagation(); // Prevent header click from triggering
+    this.dispatchEvent(new CustomEvent('mode-toggle', {
+      bubbles: true,
+      composed: true
+    }));
   }
 
   // Delegate to EventHandler

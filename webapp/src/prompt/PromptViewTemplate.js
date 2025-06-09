@@ -15,6 +15,13 @@ export function renderPromptView(component) {
         @mousedown=${component.handleDragStart}
         @click=${component.handleHeaderClick}>
         <h3 class="dialog-title">AI Assistant</h3>
+        <button 
+          class="mode-toggle" 
+          @click=${component.handleModeToggle} 
+          title="Toggle between File Explorer and Git History modes (Ctrl+G)"
+        >
+          ${component.gitHistoryMode ? '📁 File Mode' : '📊 History Mode'}
+        </button>
       </div>
       
       <div class="prompt-container">

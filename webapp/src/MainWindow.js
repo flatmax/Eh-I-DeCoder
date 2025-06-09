@@ -40,6 +40,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.handleOpenFile = this.handleOpenFile.bind(this);
     this.toggleGitHistoryMode = this.toggleGitHistoryMode.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleModeToggle = this.handleModeToggle.bind(this);
   }
   
   static styles = css`
@@ -54,33 +55,6 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       display: flex;
       height: 100vh;
       overflow: hidden;
-    }
-    
-    .mode-toggle {
-      position: fixed;
-      top: 10px;
-      left: 30px;
-      z-index: 1000;
-      background: #2196F3;
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      transition: all 0.2s ease;
-    }
-    
-    .mode-toggle:hover {
-      background: #1976D2;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    
-    .mode-toggle:active {
-      transform: translateY(0);
     }
     
     .resize-handle {
@@ -156,6 +130,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     }
   }
 
+  handleModeToggle(event) {
+    this.toggleGitHistoryMode();
+  }
+
   toggleGitHistoryMode() {
     this.gitHistoryMode = !this.gitHistoryMode;
     console.log(`Switched to ${this.gitHistoryMode ? 'Git History' : 'File Explorer'} mode`);
@@ -166,16 +144,15 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
    */
   render() {
     return html`
-      <!-- Mode Toggle Button -->
-      <button class="mode-toggle" @click=${this.toggleGitHistoryMode} title="Toggle between File Explorer and Git History modes (Ctrl+G)">
-        ${this.gitHistoryMode ? '📁 File Mode' : '📊 History Mode'}
-      </button>
-
       <!-- Main Content -->
       ${this.gitHistoryMode ? this.renderGitHistoryMode() : this.renderFileExplorerMode()}
       
       <!-- Single Floating Prompt View Dialog - Always Available and Always Visible -->
-      <prompt-view .serverURI=${this.serverURI}></prompt-view>
+      <prompt-view 
+        .serverURI=${this.serverURI}
+        .gitHistoryMode=${this.gitHistoryMode}
+        @mode-toggle=${this.handleModeToggle}
+      ></prompt-view>
     `;
   }
 
