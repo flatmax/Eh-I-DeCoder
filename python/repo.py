@@ -309,9 +309,9 @@ class Repo(BaseWrapper):
             self.log(f"create_file returning error: {error_msg}")
             return error_msg
     
-    def get_commit_history(self, max_count=100):
-        """Get commit history with detailed information"""
-        self.log(f"get_commit_history called with max_count: {max_count}")
+    def get_commit_history(self, max_count=50, branch=None):
+        """Get commit history with detailed information - optimized for performance"""
+        self.log(f"get_commit_history called with max_count: {max_count}, branch: {branch}")
         
         if not self.repo:
             error_msg = {"error": "No Git repository available"}
@@ -321,34 +321,29 @@ class Repo(BaseWrapper):
         try:
             commits = []
             
-            # Get commits from all branches
-            for commit in self.repo.iter_commits('--all', max_count=max_count):
-                # Get branch information for this commit
-                branch_name = None
+            # Use current branch if no branch specified - much faster than --all
+            if branch is None:
                 try:
-                    # Try to find which branch contains this commit
-                    branches = [ref.name.replace('origin/', '') for ref in self.repo.refs if commit in self.repo.iter_commits(ref)]
-                    if branches:
-                        # Prefer non-remote branches, then remote branches
-                        local_branches = [b for b in branches if not b.startswith('remotes/')]
-                        if local_branches:
-                            branch_name = local_branches[0]
-                        else:
-                            branch_name = branches[0].replace('remotes/origin/', '')
+                    branch = self.repo.active_branch.name
+                    self.log(f"Using current branch: {branch}")
                 except:
-                    pass
-                
+                    # Fallback to HEAD if no active branch (detached HEAD)
+                    branch = 'HEAD'
+                    self.log("Using HEAD (detached state)")
+            
+            # Get commits from specified branch only - much faster
+            for commit in self.repo.iter_commits(branch, max_count=max_count):
                 commit_data = {
                     'hash': commit.hexsha,
                     'author': commit.author.name,
                     'email': commit.author.email,
                     'date': commit.committed_datetime.isoformat(),
                     'message': commit.message.strip(),
-                    'branch': branch_name
+                    'branch': branch  # Use the branch we're iterating over
                 }
                 commits.append(commit_data)
             
-            self.log(f"get_commit_history returning {len(commits)} commits")
+            self.log(f"get_commit_history returning {len(commits)} commits from branch {branch}")
             return commits
             
         except Exception as e:
