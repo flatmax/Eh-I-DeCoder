@@ -19,6 +19,10 @@ class GitChangeHandler(FileSystemEventHandler):
         if event.event_type in ['opened', 'closed', 'accessed', 'closed_no_write']:
             return
             
+        # Ignore directory modification events - these are too noisy
+        if event.event_type == 'modified' and event.is_directory:
+            return
+            
         # Ignore .aider.chat.history.md file
         if ".aider.chat.history.md" in event.src_path:
             return
