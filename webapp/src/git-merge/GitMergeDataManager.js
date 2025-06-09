@@ -66,4 +66,37 @@ export class GitMergeDataManager {
       this.view.requestUpdate();
     }
   }
+
+  async loadConflictContent() {
+    if (!this.view.selectedFile) return;
+    
+    if (!this.view.call || !this.view.call['Repo.get_conflict_content']) {
+      console.log('GitMergeView: JRPC not ready yet for loadConflictContent');
+      return;
+    }
+    
+    try {
+      console.log('GitMergeView: Loading conflict content for', this.view.selectedFile);
+      const response = await this.view.call['Repo.get_conflict_content'](this.view.selectedFile);
+      
+      if (response.success) {
+        this.view.fromContent = response.ours || '';
+        this.view.toContent = response.theirs || '';
+        
+        // If there's a merged version with conflict markers, use it
+        if (response.merged) {
+          this.view.toContent = response.merged;
+        }
+        
+        console.log('GitMergeView: Loaded conflict content');
+      } else {
+        this.view.error = response.error || 'Failed to load conflict content';
+      }
+      
+    } catch (error) {
+      console.error('Error loading conflict content:', error);
+      this.view.error = `Failed to load conflict content: ${error.message}`;
+      this.view.requestUpdate();
+    }
+  }
 }

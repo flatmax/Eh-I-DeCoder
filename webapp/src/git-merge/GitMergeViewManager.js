@@ -23,19 +23,28 @@ export class GitMergeViewManager {
     
     try {
       this.mergeViewManager.filePath = this.view.selectedFile;
+      
+      // Determine if this is read-only mode
+      const readOnly = this.view.gitHistoryMode && !this.view.hasConflicts;
+      
       this.mergeViewManager.createMergeView(
         container,
         this.view.fromContent || '',
         this.view.toContent || '',
         this.view.unifiedView,
         this.view,
-        this.view.gitHistoryMode // Pass read-only flag
+        readOnly
       );
     } catch (error) {
       console.error('Error creating MergeView:', error);
       this.view.error = `Failed to create merge view: ${error.message}`;
       this.view.requestUpdate();
     }
+  }
+
+  getCurrentContent() {
+    if (!this.mergeViewManager) return '';
+    return this.mergeViewManager.getCurrentContent(this.view.unifiedView);
   }
 
   goToNextChunk() {

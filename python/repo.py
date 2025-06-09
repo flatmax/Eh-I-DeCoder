@@ -466,6 +466,31 @@ class Repo(BaseWrapper):
     def commit_file(self, file_path, commit_message):
         """Commit a specific file to the repository"""
         return self.git_operations.commit_file(file_path, commit_message)
+
+    # Interactive rebase methods
+    def start_interactive_rebase(self, from_commit, to_commit):
+        """Start an interactive rebase between two commits"""
+        return self.git_operations.start_interactive_rebase(from_commit, to_commit)
+
+    def execute_rebase(self, rebase_plan):
+        """Execute the interactive rebase with the given plan"""
+        return self.git_operations.execute_rebase(rebase_plan)
+
+    def get_conflict_content(self, file_path):
+        """Get the conflict content for a file (ours, theirs, and merged)"""
+        return self.git_operations.get_conflict_content(file_path)
+
+    def resolve_conflict(self, file_path, resolved_content):
+        """Resolve a conflict by saving the resolved content and staging the file"""
+        return self.git_operations.resolve_conflict(file_path, resolved_content)
+
+    def continue_rebase(self):
+        """Continue the rebase after resolving conflicts"""
+        return self.git_operations.continue_rebase()
+
+    def abort_rebase(self):
+        """Abort the current rebase"""
+        return self.git_operations.abort_rebase()
             
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files"""

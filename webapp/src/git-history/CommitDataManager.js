@@ -143,13 +143,30 @@ export class CommitDataManager {
     }
   }
 
+  sortCommitsByDate(commits) {
+    return commits.sort((a, b) => {
+      // Parse dates and sort newest first
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      
+      // If dates are invalid, fall back to string comparison
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+        return b.date.localeCompare(a.date);
+      }
+      
+      return dateB.getTime() - dateA.getTime();
+    });
+  }
+
   extractCommitsFromResponse(response) {
     if (!response) return [];
+    
+    let commits = [];
     
     if (typeof response === 'string' && response.includes('|')) {
       try {
         const lines = response.trim().split('\n');
-        const commits = lines.map(line => {
+        commits = lines.map(line => {
           const [hash, author, dateStr, ...messageParts] = line.split('|');
           const message = messageParts.join('|');
           return {
@@ -160,14 +177,14 @@ export class CommitDataManager {
           };
         }).filter(commit => commit.hash && commit.hash.length > 0);
         
-        return commits;
+        return this.sortCommitsByDate(commits);
       } catch (e) {
         console.error('Failed to parse git log output:', e);
       }
     }
     
     if (Array.isArray(response)) {
-      return response;
+      return this.sortCommitsByDate(response);
     }
     
     if (typeof response === 'string') {
@@ -187,18 +204,18 @@ export class CommitDataManager {
       }
       
       if (keys.length === 1 && Array.isArray(response[keys[0]])) {
-        return response[keys[0]];
+        return this.sortCommitsByDate(response[keys[0]]);
       }
       
       for (const propName of ['data', 'results', 'commits', 'history', 'log']) {
         if (response[propName] && Array.isArray(response[propName])) {
-          return response[propName];
+          return this.sortCommitsByDate(response[propName]);
         }
       }
       
       if (response.success === true && response.data) {
         if (Array.isArray(response.data)) {
-          return response.data;
+          return this.sortCommitsByDate(response.data);
         } else if (typeof response.data === 'object') {
           return this.extractCommitsFromResponse(response.data);
         }
@@ -206,7 +223,7 @@ export class CommitDataManager {
       
       for (const key of keys) {
         if (Array.isArray(response[key]) && response[key].length > 0) {
-          return response[key];
+          return this.sortCommitsByDate(response[key]);
         }
       }
     }
