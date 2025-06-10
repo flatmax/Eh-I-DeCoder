@@ -71,12 +71,6 @@ export class CardMarkdown extends LitElement {
         
         const actualLang = langMap[lang] || lang;
         
-        // Debug logging
-        if (actualLang === 'diff' || lang === 'patch') {
-          console.log('Highlighting diff/patch code:', { originalLang: lang, mappedLang: actualLang });
-          console.log('Diff language available:', !!window.Prism?.languages?.diff);
-        }
-        
         if (actualLang && window.Prism && window.Prism.languages[actualLang]) {
           try {
             return window.Prism.highlight(code, window.Prism.languages[actualLang], actualLang);
@@ -105,15 +99,9 @@ export class CardMarkdown extends LitElement {
     // Use requestAnimationFrame to ensure DOM is updated
     requestAnimationFrame(() => {
       if (window.Prism) {
-        // Debug: Check if diff language is available
-        console.log('Available Prism languages:', Object.keys(window.Prism.languages));
-        console.log('Diff language available:', !!window.Prism.languages.diff);
-        
         // Find all code blocks in this component's shadow DOM
         const codeBlocks = this.shadowRoot.querySelectorAll('pre code[class*="language-"]');
-        console.log('Found code blocks:', codeBlocks.length);
         codeBlocks.forEach((block, index) => {
-          console.log(`Block ${index} classes:`, block.className);
           window.Prism.highlightElement(block);
         });
       }
