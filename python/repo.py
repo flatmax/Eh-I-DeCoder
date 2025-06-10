@@ -87,12 +87,37 @@ class Repo(BaseWrapper):
             self.log(f"Repository working directory: {self.repo.working_dir}")
             self.log(f"Repository root directory: {self.repo.working_tree_dir}")
             
-            # Get the status information
-            branch_name = self.repo.active_branch.name
+            # Get the branch name, handling detached HEAD state
+            try:
+                branch_name = self.repo.active_branch.name
+                self.log(f"Active branch: {branch_name}")
+            except TypeError:
+                # Handle detached HEAD state (common during rebase)
+                try:
+                    # Try to get the current commit hash
+                    current_commit = self.repo.head.commit.hexsha
+                    branch_name = f"detached-{current_commit[:7]}"
+                    self.log(f"Detached HEAD state, using: {branch_name}")
+                except Exception as e:
+                    self.log(f"Error getting commit hash in detached state: {e}")
+                    branch_name = "detached-HEAD"
+            
+            # Get repository status information
             is_dirty = self.repo.is_dirty()
             untracked_files = self.repo.untracked_files
-            modified_files = [item.a_path for item in self.repo.index.diff(None)]
-            staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
+            
+            # Get modified and staged files, handling potential errors
+            try:
+                modified_files = [item.a_path for item in self.repo.index.diff(None)]
+            except Exception as e:
+                self.log(f"Error getting modified files: {e}")
+                modified_files = []
+            
+            try:
+                staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
+            except Exception as e:
+                self.log(f"Error getting staged files: {e}")
+                staged_files = []
             
             # Convert untracked files to relative paths (they should already be relative)
             # but ensure they're normalized
@@ -326,7 +351,7 @@ class Repo(BaseWrapper):
                 try:
                     branch = self.repo.active_branch.name
                     self.log(f"Using current branch: {branch}")
-                except:
+                except TypeError:
                     # Fallback to HEAD if no active branch (detached HEAD)
                     branch = 'HEAD'
                     self.log("Using HEAD (detached state)")
@@ -475,14 +500,26 @@ class Repo(BaseWrapper):
         """Amend the previous commit with staged changes"""
         return self.git_operations.commit_amend()
 
+    def get_raw_git_status(self):
+        """Get the raw git status output as it appears in the terminal"""
+        return self.git_operations.get_raw_git_status()
+
     # Interactive rebase methods - updated for webapp integration
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
         return self.git_operations.start_interactive_rebase(from_commit, to_commit)
 
+    def get_git_editor_status(self):
+        """Get comprehensive Git editor status - detects what Git is waiting for"""
+        return self.git_operations.get_git_editor_status()
+
     def get_rebase_status(self):
         """Get the current rebase status and todo file content"""
         return self.git_operations.get_rebase_status()
+
+    def save_git_editor_file(self, file_type, content):
+        """Save content to the appropriate Git editor file"""
+        return self.git_operations.save_git_editor_file(file_type, content)
 
     def save_rebase_todo(self, todo_content):
         """Save the rebase todo file content"""

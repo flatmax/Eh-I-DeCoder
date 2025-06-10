@@ -8,6 +8,7 @@ export class GitMergeRenderer {
   render() {
     return html`
       ${this.renderHeader()}
+      ${this.renderRawGitStatus()}
       ${this.renderContent()}
     `;
   }
@@ -16,8 +17,8 @@ export class GitMergeRenderer {
     return html`
       <div class="git-merge-header">
         <div class="commit-info">
-          ${this.view.rebaseTodoMode ? html`
-            <span class="rebase-todo-indicator">🔄 Editing Rebase Todo File</span>
+          ${this.view.gitEditorMode ? html`
+            <span class="git-editor-indicator">📝 ${this.view.gitEditorFile?.description || 'Git Editor'}</span>
           ` : this.view.rebaseCompleting ? html`
             <span class="rebase-indicator">🔄 Rebase Paused - User Action Required</span>
           ` : this.view.rebaseInProgress ? html`
@@ -32,7 +33,7 @@ export class GitMergeRenderer {
         
         <div class="header-controls">
           ${this.renderRebaseControls()}
-          ${!this.view.rebaseTodoMode && !this.view.rebaseCompleting ? html`
+          ${!this.view.rebaseCompleting && !this.view.gitEditorMode ? html`
             <button class="refresh-button" title="Refresh Rebase Status" @click=${() => this.view.refreshRebaseStatus()}>
               🔄
             </button>
@@ -46,19 +47,50 @@ export class GitMergeRenderer {
               <span class="nav-icon">▼</span>
             </button>
           ` : ''}
+          ${(this.view.rebaseInProgress || this.view.rebaseCompleting || this.view.gitEditorMode) ? html`
+            <button 
+              class="raw-status-toggle-button ${this.view.showRawGitStatus ? 'active' : ''}" 
+              title="Toggle Raw Git Status" 
+              @click=${() => this.view.toggleRawGitStatus()}>
+              Terminal
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  renderRawGitStatus() {
+    if (!this.view.showRawGitStatus || !this.view.rawGitStatus) return '';
+    
+    return html`
+      <div class="raw-git-status-container">
+        <div class="raw-git-status-header">
+          <span class="raw-git-status-title">Git Status (Terminal Output)</span>
+          <div class="raw-git-status-controls">
+            <button class="raw-git-status-refresh" @click=${() => this.view.refreshRawGitStatus()}>
+              🔄
+            </button>
+            <button class="raw-git-status-close" @click=${() => this.view.toggleRawGitStatus()}>
+              ✕
+            </button>
+          </div>
+        </div>
+        <div class="raw-git-status-content">
+          <pre>${this.view.rawGitStatus}</pre>
         </div>
       </div>
     `;
   }
 
   renderRebaseControls() {
-    if (this.view.rebaseTodoMode) {
+    if (this.view.gitEditorMode) {
       return html`
-        <button class="save-todo-button" @click=${() => this.view.rebaseManager.saveRebaseTodo()} ?disabled=${this.view.loading}>
-          ${this.view.loading ? 'Saving...' : 'Save & Continue Rebase'}
+        <button class="save-git-editor-button" @click=${() => this.view.rebaseManager.saveGitEditorFile()} ?disabled=${this.view.loading}>
+          ${this.view.loading ? 'Saving...' : 'Save & Continue'}
         </button>
         <button class="abort-button" @click=${() => this.view.rebaseManager.abortRebase()} ?disabled=${this.view.loading}>
-          Abort Rebase
+          Abort
         </button>
       `;
     }
@@ -131,21 +163,61 @@ export class GitMergeRenderer {
     `;
   }
 
-  renderRebaseTodoHelp() {
-    if (!this.view.rebaseTodoMode) return '';
+  renderGitEditorHelp() {
+    if (!this.view.gitEditorMode || !this.view.gitEditorFile) return '';
 
     return html`
-      <div class="rebase-todo-help">
-        <h4>Interactive Rebase Instructions</h4>
-        <p>Edit the rebase todo file below. Available commands:</p>
-        <ul>
-          <li><strong>pick</strong> - use commit as-is</li>
-          <li><strong>drop</strong> - remove commit</li>
-          <li><strong>squash</strong> - combine with previous commit</li>
-          <li><strong>edit</strong> - stop for amending</li>
-          <li><strong>reword</strong> - stop to edit commit message</li>
-        </ul>
-        <p>Reorder lines to reorder commits. Click "Save & Continue Rebase" when ready.</p>
+      <div class="git-editor-help">
+        <h4>${this.view.gitEditorFile.description}</h4>
+        <p>${this.view.gitEditorFile.instructions}</p>
+        <p>Click "Save & Continue" when you're done editing.</p>
+      </div>
+    `;
+  }
+
+  renderGitStatus() {
+    if (!this.view.gitStatus || (!this.view.rebaseInProgress && !this.view.rebaseCompleting && !this.view.gitEditorMode)) {
+      return '';
+    }
+
+    const status = this.view.gitStatus;
+    const hasChanges = (status.modified_files && status.modified_files.length > 0) ||
+                      (status.staged_files && status.staged_files.length > 0) ||
+                      (status.untracked_files && status.untracked_files.length > 0);
+
+    if (!hasChanges) return '';
+
+    return html`
+      <div class="git-status-panel">
+        <h4>Git Status</h4>
+        <div class="git-status-content">
+          ${status.staged_files && status.staged_files.length > 0 ? html`
+            <div class="status-section staged">
+              <h5>Staged Changes (${status.staged_files.length})</h5>
+              <ul>
+                ${status.staged_files.map(file => html`<li class="staged-file">📄 ${file}</li>`)}
+              </ul>
+            </div>
+          ` : ''}
+          
+          ${status.modified_files && status.modified_files.length > 0 ? html`
+            <div class="status-section modified">
+              <h5>Modified Files (${status.modified_files.length})</h5>
+              <ul>
+                ${status.modified_files.map(file => html`<li class="modified-file">📝 ${file}</li>`)}
+              </ul>
+            </div>
+          ` : ''}
+          
+          ${status.untracked_files && status.untracked_files.length > 0 ? html`
+            <div class="status-section untracked">
+              <h5>Untracked Files (${status.untracked_files.length})</h5>
+              <ul>
+                ${status.untracked_files.map(file => html`<li class="untracked-file">❓ ${file}</li>`)}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
   }
@@ -217,11 +289,11 @@ export class GitMergeRenderer {
   }
 
   renderFileTabs() {
-    if (this.view.rebaseTodoMode) {
+    if (this.view.gitEditorMode) {
       return html`
         <div class="file-tabs">
-          <button class="file-tab active rebase-todo">
-            📝 git-rebase-todo
+          <button class="file-tab active git-editor">
+            📝 ${this.view.gitEditorFile?.file || 'Git Editor'}
           </button>
         </div>
       `;
@@ -253,10 +325,11 @@ export class GitMergeRenderer {
       return html`<div class="error">${this.view.error}</div>`;
     }
     
-    if (this.view.rebaseTodoMode) {
+    if (this.view.gitEditorMode) {
       return html`
         <div class="merge-content">
-          ${this.renderRebaseTodoHelp()}
+          ${this.renderGitEditorHelp()}
+          ${this.renderGitStatus()}
           ${this.renderFileTabs()}
           <div class="merge-container"></div>
         </div>
@@ -268,6 +341,7 @@ export class GitMergeRenderer {
         <div class="rebase-completing">
           <h3>🔄 Rebase Paused</h3>
           ${this.renderRebaseMessage()}
+          ${this.renderGitStatus()}
           <p>The rebase is paused and waiting for your action. Use the buttons above to:</p>
           <ul>
             <li><strong>Continue Rebase</strong> - Continue with the rebase process</li>
@@ -294,6 +368,7 @@ export class GitMergeRenderer {
     return html`
       <div class="merge-content">
         ${this.renderConflictControls()}
+        ${this.renderGitStatus()}
         ${this.renderFileTabs()}
         <div class="merge-container"></div>
       </div>

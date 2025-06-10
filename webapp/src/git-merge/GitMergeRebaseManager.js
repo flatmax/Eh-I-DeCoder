@@ -23,38 +23,33 @@ export class GitMergeRebaseManager {
         
         this.view.rebaseStatus = data;
         
+        // Load git status when rebase is detected
+        await this.loadGitStatus();
+        
         if (data.rebase_type === 'interactive') {
+          // Check for conflicts first
           if (data.has_todo_content && data.todo_content && data.todo_content.trim()) {
-            if (!this.view.rebaseTodoMode) {
-              console.log('GitMergeView: Switching to rebase todo mode');
-              console.log('GitMergeView: Todo content:', data.todo_content);
-              
-              this.view.rebaseTodoMode = true;
-              this.view.rebaseTodoContent = data.todo_content;
-              this.view.selectedFile = 'git-rebase-todo';
-              this.view.fromContent = '';
-              this.view.toContent = data.todo_content;
-              
-              this.view.changedFiles = [];
-              this.view.rebaseInProgress = true;
-              this.view.rebaseCompleting = false;
-              this.view.unifiedView = true;
-              
-              console.log('GitMergeView: Found active rebase, loading todo file');
-              this.view.requestUpdate();
-            }
-          } else if (!data.has_todo_content || !data.todo_content || !data.todo_content.trim()) {
-            if (this.view.rebaseTodoMode) {
-              console.log('GitMergeView: Exiting rebase todo mode, checking for conflicts');
-              this.view.rebaseTodoMode = false;
-              this.view.rebaseInProgress = true;
-              
-              await this.checkForRebaseConflicts();
-            } else if (!this.view.rebaseCompleting && !this.view.hasConflicts) {
+            // We have todo content - switch to git editor mode for rebase todo
+            await this.handleGitEditorFile({
+              primary_file: {
+                type: 'rebase_todo',
+                file: 'git-rebase-todo',
+                content: data.todo_content,
+                description: 'Interactive Rebase Todo File',
+                instructions: 'Edit the rebase plan. Available commands: pick, drop, squash, edit, reword'
+              }
+            });
+          } else {
+            // No todo content - check for conflicts or completion
+            await this.checkForRebaseConflicts();
+            if (!this.view.hasConflicts) {
               console.log('GitMergeView: Rebase waiting for user action');
               this.view.rebaseCompleting = true;
               this.view.rebaseInProgress = true;
               this.view.rebaseMessage = "Rebase is paused and waiting for user action. Use the controls below to continue.";
+              
+              // Show raw git status by default when rebase is waiting
+              this.view.showRawGitStatus = true;
             }
           }
         }
@@ -65,8 +60,154 @@ export class GitMergeRebaseManager {
         }
         this.view.rebaseStatus = data;
       }
+
+      // Check for Git editor files regardless of rebase status
+      if (data && data.editor_status && data.editor_status.waiting_for_editor) {
+        await this.handleGitEditorFile(data.editor_status);
+      } else if (this.view.gitEditorMode && !this.view.rebaseCompleting) {
+        // Exit git editor mode if no longer waiting
+        this.exitGitEditorMode();
+      }
+      
     } catch (error) {
       console.error('GitMergeView: Error checking rebase status:', error);
+    }
+  }
+
+  async loadGitStatus() {
+    if (!this.view.call || !this.view.call['Repo.get_status']) {
+      return;
+    }
+
+    try {
+      console.log('GitMergeView: Loading git status');
+      const response = await this.view.call['Repo.get_status']();
+      const statusData = extractResponseData(response);
+      
+      if (statusData && !statusData.error) {
+        this.view.gitStatus = statusData;
+        console.log('GitMergeView: Git status loaded:', statusData);
+      } else {
+        console.error('GitMergeView: Error loading git status:', statusData?.error);
+        this.view.gitStatus = null;
+      }
+    } catch (error) {
+      console.error('GitMergeView: Error loading git status:', error);
+      this.view.gitStatus = null;
+    }
+
+    // Also load raw git status for terminal-like output
+    await this.loadRawGitStatus();
+  }
+
+  async loadRawGitStatus() {
+    if (!this.view.call || !this.view.call['Repo.get_raw_git_status']) {
+      return;
+    }
+
+    try {
+      console.log('GitMergeView: Loading raw git status');
+      const response = await this.view.call['Repo.get_raw_git_status']();
+      const statusData = extractResponseData(response);
+      
+      if (statusData && statusData.success && statusData.raw_status) {
+        this.view.rawGitStatus = statusData.raw_status;
+        console.log('GitMergeView: Raw git status loaded:', statusData.raw_status);
+      } else {
+        console.error('GitMergeView: Error loading raw git status:', statusData?.error);
+        this.view.rawGitStatus = null;
+      }
+    } catch (error) {
+      console.error('GitMergeView: Error loading raw git status:', error);
+      this.view.rawGitStatus = null;
+    }
+  }
+
+  async handleGitEditorFile(editorStatus) {
+    const primaryFile = editorStatus.primary_file;
+    
+    if (!primaryFile) return;
+    
+    console.log('GitMergeView: Git is waiting for editor file:', primaryFile);
+    
+    // Switch to git editor mode
+    if (!this.view.gitEditorMode || this.view.gitEditorFile?.type !== primaryFile.type) {
+      this.view.gitEditorMode = true;
+      this.view.gitEditorFile = primaryFile;
+      this.view.selectedFile = primaryFile.file;
+      this.view.fromContent = '';
+      this.view.toContent = primaryFile.content;
+      this.view.unifiedView = true;
+      
+      // Clear other modes
+      this.view.rebaseCompleting = false;
+      this.view.hasConflicts = false;
+      this.view.conflictFiles = [];
+      this.view.changedFiles = [];
+      this.view.rebaseInProgress = true;
+      
+      // Show raw git status by default in git editor mode
+      this.view.showRawGitStatus = true;
+      
+      console.log(`GitMergeView: Switched to Git editor mode for ${primaryFile.type}: ${primaryFile.file}`);
+      this.view.requestUpdate();
+    }
+  }
+
+  exitGitEditorMode() {
+    if (this.view.gitEditorMode) {
+      console.log('GitMergeView: Exiting Git editor mode');
+      this.view.gitEditorMode = false;
+      this.view.gitEditorFile = null;
+      
+      // Return to normal diff view if we have commits selected
+      if (this.view.fromCommit && this.view.toCommit) {
+        this.view.dataManager.loadChangedFiles();
+      }
+      
+      this.view.requestUpdate();
+    }
+  }
+
+  async saveGitEditorFile() {
+    if (!this.view.gitEditorMode || !this.view.gitEditorFile) {
+      return;
+    }
+
+    if (!this.view.call || !this.view.call['Repo.save_git_editor_file']) {
+      this.view.error = 'JRPC not ready for saving Git editor file';
+      return;
+    }
+
+    try {
+      this.view.loading = true;
+      
+      const content = this.view.viewManager.getCurrentContent();
+      const fileType = this.view.gitEditorFile.type;
+      
+      console.log('GitMergeView: Saving Git editor file:', fileType, 'content length:', content.length);
+      
+      const response = await this.view.call['Repo.save_git_editor_file'](fileType, content);
+      const data = extractResponseData(response);
+      
+      if (data && (data.success === true || (data.success === undefined && !data.error))) {
+        console.log('GitMergeView: Git editor file saved successfully');
+        
+        // Exit git editor mode
+        this.exitGitEditorMode();
+        
+        // Check status again to see what Git wants next
+        setTimeout(() => this.checkRebaseStatus(), 500);
+        
+      } else {
+        this.view.error = data?.error || 'Failed to save Git editor file';
+      }
+    } catch (error) {
+      console.error('GitMergeView: Error saving Git editor file:', error);
+      this.view.error = `Failed to save Git editor file: ${error.message}`;
+    } finally {
+      this.view.loading = false;
+      this.view.requestUpdate();
     }
   }
 
@@ -199,43 +340,6 @@ export class GitMergeRebaseManager {
       console.error('GitMergeView: Error executing rebase:', error);
       this.view.error = `Rebase execution failed: ${error.message}`;
       this.view.rebaseInProgress = false;
-    } finally {
-      this.view.loading = false;
-      this.view.requestUpdate();
-    }
-  }
-
-  async saveRebaseTodo() {
-    if (!this.view.rebaseTodoMode || !this.view.call || !this.view.call['Repo.save_rebase_todo']) {
-      return;
-    }
-
-    try {
-      this.view.loading = true;
-      
-      const todoContent = this.view.viewManager.getCurrentContent();
-      
-      console.log('GitMergeView: Saving rebase todo content:', todoContent);
-      
-      const response = await this.view.call['Repo.save_rebase_todo'](todoContent);
-      const data = extractResponseData(response);
-      
-      if (data && (data.success === true || (data.success === undefined && !data.error))) {
-        console.log('GitMergeView: Rebase todo file saved successfully');
-        
-        this.view.rebaseTodoMode = false;
-        this.view.rebaseInProgress = true;
-        this.view.rebaseCompleting = true;
-        this.view.rebaseMessage = "Todo file saved. Rebase will continue automatically.";
-        
-        console.log('GitMergeView: Exiting todo mode, rebase will continue automatically');
-        
-      } else {
-        this.view.error = data?.error || 'Failed to save rebase todo file';
-      }
-    } catch (error) {
-      console.error('GitMergeView: Error saving rebase todo:', error);
-      this.view.error = `Failed to save rebase todo: ${error.message}`;
     } finally {
       this.view.loading = false;
       this.view.requestUpdate();
@@ -422,12 +526,9 @@ export class GitMergeRebaseManager {
   completeRebase() {
     this.resetRebaseState();
     
-    this.view.dispatchEvent(new CustomEvent('rebase-completed', {
-      detail: { fromCommit: this.view.fromCommit, toCommit: this.view.toCommit },
-      bubbles: true
+    this.view.dispatchEvent(new CustomEvent('rebase-complete', {
+      detail: { message: 'Rebase completed successfully' }
     }));
-    
-    console.log('GitMergeView: Rebase completed successfully!');
   }
 
   resetRebaseState() {
@@ -437,11 +538,11 @@ export class GitMergeRebaseManager {
     this.view.hasConflicts = false;
     this.view.conflictFiles = [];
     this.view.currentRebaseStep = 0;
-    this.view.rebaseTodoMode = false;
-    this.view.rebaseTodoContent = '';
-    this.view.rebaseStatus = null;
     this.view.rebaseCompleting = false;
     this.view.rebaseMessage = '';
-    this.view.unifiedView = false;
+    this.view.gitEditorMode = false;
+    this.view.gitEditorFile = null;
+    this.view.showRawGitStatus = false;
+    this.view.requestUpdate();
   }
 }

@@ -27,13 +27,18 @@ export class GitMergeView extends JRPCClient {
     hasConflicts: { type: Boolean, state: true },
     conflictFiles: { type: Array, state: true },
     currentRebaseStep: { type: Number, state: true },
-    // Rebase todo file editing
-    rebaseTodoMode: { type: Boolean, state: true },
-    rebaseTodoContent: { type: String, state: true },
     rebaseStatus: { type: Object, state: true },
     // Rebase completion state
     rebaseCompleting: { type: Boolean, state: true },
-    rebaseMessage: { type: String, state: true }
+    rebaseMessage: { type: String, state: true },
+    // Git editor mode - unified handling for all Git editor files
+    gitEditorMode: { type: Boolean, state: true },
+    gitEditorFile: { type: Object, state: true },
+    // Git status information
+    gitStatus: { type: Object, state: true },
+    // Raw git status display
+    rawGitStatus: { type: String, state: true },
+    showRawGitStatus: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -54,11 +59,14 @@ export class GitMergeView extends JRPCClient {
     this.hasConflicts = false;
     this.conflictFiles = [];
     this.currentRebaseStep = 0;
-    this.rebaseTodoMode = false;
-    this.rebaseTodoContent = '';
     this.rebaseStatus = null;
     this.rebaseCompleting = false;
     this.rebaseMessage = '';
+    this.gitEditorMode = false;
+    this.gitEditorFile = null;
+    this.gitStatus = null;
+    this.rawGitStatus = null;
+    this.showRawGitStatus = false;
     
     // Initialize managers
     this.dataManager = new GitMergeDataManager(this);
@@ -84,7 +92,7 @@ export class GitMergeView extends JRPCClient {
     super.setupDone?.();
     this.rebaseManager.checkRebaseStatus();
     
-    if (this.fromCommit && this.toCommit && !this.rebaseTodoMode && !this.rebaseCompleting) {
+    if (this.fromCommit && this.toCommit && !this.gitEditorMode && !this.rebaseCompleting) {
       this.dataManager.loadChangedFiles();
     }
   }
@@ -93,7 +101,7 @@ export class GitMergeView extends JRPCClient {
     super.updated(changedProperties);
     
     if (changedProperties.has('fromCommit') || changedProperties.has('toCommit')) {
-      if (this.fromCommit && this.toCommit && this.call && !this.rebaseTodoMode && !this.rebaseCompleting) {
+      if (this.fromCommit && this.toCommit && this.call && !this.gitEditorMode && !this.rebaseCompleting) {
         this.dataManager.loadChangedFiles();
       }
     }
@@ -101,7 +109,7 @@ export class GitMergeView extends JRPCClient {
     if (changedProperties.has('selectedFile') || 
         changedProperties.has('fromContent') || 
         changedProperties.has('toContent') ||
-        changedProperties.has('rebaseTodoMode')) {
+        changedProperties.has('gitEditorMode')) {
       if (this.selectedFile && (this.fromContent !== undefined || this.toContent !== undefined)) {
         setTimeout(() => this.viewManager.updateMergeView(), 100);
       }
@@ -120,10 +128,23 @@ export class GitMergeView extends JRPCClient {
   }
 
   toggleViewMode() {
-    if (this.rebaseTodoMode) return;
+    if (this.gitEditorMode) return;
     
     this.unifiedView = !this.unifiedView;
     setTimeout(() => this.viewManager.updateMergeView(), 50);
+  }
+
+  toggleRawGitStatus() {
+    this.showRawGitStatus = !this.showRawGitStatus;
+    
+    // If showing and we don't have raw status, refresh it
+    if (this.showRawGitStatus && !this.rawGitStatus) {
+      this.rebaseManager.loadRawGitStatus();
+    }
+  }
+
+  async refreshRawGitStatus() {
+    await this.rebaseManager.loadRawGitStatus();
   }
 
   goToNextChunk() {
@@ -144,7 +165,7 @@ export class GitMergeView extends JRPCClient {
     }
     
     try {
-      if (this.unifiedView) {
+      if (this.unifiedView || this.gitEditorMode) {
         const view = this.viewManager.mergeViewManager.mergeView;
         const selection = view.state.selection.main;
         if (selection.empty) return '';
