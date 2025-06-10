@@ -71,7 +71,7 @@ export class RepoTree extends FileTree {
   }
   
   async performPostLoadingActions() {
-    this.repoManagers.expandModifiedFilePaths();
+    this.repoManagers.expandModifiedAndUntrackedFilePaths();
   }
 
   async handleFileClick(path, isFile) {

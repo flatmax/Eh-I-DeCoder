@@ -30,10 +30,14 @@ export class RepoTreeManagers {
     }
   }
 
-  expandModifiedFilePaths() {
+  expandModifiedAndUntrackedFilePaths() {
     const modifiedPaths = this.gitStatusManager.getModifiedFilePaths();
-    if (modifiedPaths.length > 0) {
-      modifiedPaths.forEach(filePath => {
+    const untrackedPaths = this.gitStatusManager.untrackedFiles || [];
+    
+    const allPathsToExpand = [...modifiedPaths, ...untrackedPaths];
+    
+    if (allPathsToExpand.length > 0) {
+      allPathsToExpand.forEach(filePath => {
         this.repoTree.treeExpansion.expandPathToFile(filePath);
       });
       this.repoTree.requestUpdate();
