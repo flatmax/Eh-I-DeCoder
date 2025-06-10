@@ -254,9 +254,15 @@ class GitOperations:
             return error_msg
         
         try:
+            # Set up environment to prevent interactive editors
+            env = os.environ.copy()
+            env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+            env['EDITOR'] = 'true'
+            env['VISUAL'] = 'true'
+            
             result = subprocess.run([
                 'git', 'commit', '-m', message
-            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 self.repo.log("Staged changes committed successfully")
@@ -281,9 +287,15 @@ class GitOperations:
             return error_msg
         
         try:
+            # Set up environment to prevent interactive editors
+            env = os.environ.copy()
+            env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+            env['EDITOR'] = 'true'
+            env['VISUAL'] = 'true'
+            
             result = subprocess.run([
                 'git', 'commit', '--amend', '--no-edit'
-            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 self.repo.log("Commit amended successfully")
@@ -461,10 +473,18 @@ class GitOperations:
             # This simulates what happens when an editor closes after editing the todo file
             try:
                 self.repo.log("Attempting to continue rebase after saving todo file")
+                
+                # Set up environment to prevent interactive editors
+                env = os.environ.copy()
+                env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+                env['EDITOR'] = 'true'
+                env['VISUAL'] = 'true'
+                env['GIT_SEQUENCE_EDITOR'] = 'true'
+                
                 result = subprocess.run([
                     'git', 'rebase', '--continue'
                 ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, 
-                  input='', timeout=30)
+                  input='', timeout=30, env=env)
                 
                 self.repo.log(f"Git rebase --continue result: returncode={result.returncode}")
                 self.repo.log(f"Git rebase --continue stdout: {result.stdout}")
@@ -527,9 +547,12 @@ class GitOperations:
                 script_path = f.name
             
             try:
-                # Set up environment for interactive rebase
+                # Set up environment for interactive rebase - prevent any editors
                 env = os.environ.copy()
                 env['GIT_SEQUENCE_EDITOR'] = f'cp {script_path}'
+                env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+                env['EDITOR'] = 'true'
+                env['VISUAL'] = 'true'
                 
                 # Start the rebase
                 result = subprocess.run([
@@ -665,9 +688,16 @@ class GitOperations:
             return error_msg
         
         try:
+            # Set up environment to prevent interactive editors
+            env = os.environ.copy()
+            env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+            env['EDITOR'] = 'true'
+            env['VISUAL'] = 'true'
+            env['GIT_SEQUENCE_EDITOR'] = 'true'
+            
             result = subprocess.run([
                 'git', 'rebase', '--continue'
-            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 self.repo.log("Rebase continued successfully")
@@ -711,9 +741,16 @@ class GitOperations:
             return error_msg
         
         try:
+            # Set up environment to prevent interactive editors
+            env = os.environ.copy()
+            env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
+            env['EDITOR'] = 'true'
+            env['VISUAL'] = 'true'
+            env['GIT_SEQUENCE_EDITOR'] = 'true'
+            
             result = subprocess.run([
                 'git', 'rebase', '--abort'
-            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
                 self.repo.log("Rebase aborted successfully")

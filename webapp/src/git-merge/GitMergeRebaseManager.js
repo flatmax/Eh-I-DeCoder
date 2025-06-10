@@ -3,21 +3,6 @@ import {extractResponseData} from '../Utils.js';
 export class GitMergeRebaseManager {
   constructor(gitMergeView) {
     this.view = gitMergeView;
-    this.rebaseCheckInterval = null;
-  }
-
-  startRebaseStatusChecking() {
-    this.checkRebaseStatus();
-    this.rebaseCheckInterval = setInterval(() => {
-      this.checkRebaseStatus();
-    }, 5000);
-  }
-
-  stopRebaseStatusChecking() {
-    if (this.rebaseCheckInterval) {
-      clearInterval(this.rebaseCheckInterval);
-      this.rebaseCheckInterval = null;
-    }
   }
 
   async checkRebaseStatus() {

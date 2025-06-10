@@ -57,7 +57,7 @@ export class GitMergeStyles {
         gap: 8px;
       }
 
-      .view-toggle-button {
+      .view-toggle-button, .refresh-button {
         background: #f1f8ff;
         border: 1px solid #c8e1ff;
         color: #0366d6;
@@ -68,8 +68,13 @@ export class GitMergeStyles {
         font-weight: 500;
       }
 
-      .view-toggle-button:hover {
+      .view-toggle-button:hover, .refresh-button:hover {
         background: #e1f5fe;
+      }
+
+      .refresh-button {
+        padding: 4px 6px;
+        font-size: 14px;
       }
 
       .rebase-button {

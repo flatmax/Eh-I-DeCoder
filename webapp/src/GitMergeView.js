@@ -73,13 +73,11 @@ export class GitMergeView extends JRPCClient {
     super.connectedCallback();
     this.addClass?.(this);
     this.viewManager.initialize();
-    this.rebaseManager.startRebaseStatusChecking();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.viewManager.cleanup();
-    this.rebaseManager.stopRebaseStatusChecking();
   }
 
   setupDone() {
@@ -134,6 +132,10 @@ export class GitMergeView extends JRPCClient {
 
   goToPreviousChunk() {
     this.viewManager.goToPreviousChunk();
+  }
+
+  async refreshRebaseStatus() {
+    await this.rebaseManager.checkRebaseStatus();
   }
 
   getSelectedText() {

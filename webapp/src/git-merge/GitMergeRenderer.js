@@ -33,6 +33,9 @@ export class GitMergeRenderer {
         <div class="header-controls">
           ${this.renderRebaseControls()}
           ${!this.view.rebaseTodoMode && !this.view.rebaseCompleting ? html`
+            <button class="refresh-button" title="Refresh Rebase Status" @click=${() => this.view.refreshRebaseStatus()}>
+              🔄
+            </button>
             <button class="view-toggle-button" @click=${() => this.view.toggleViewMode()}>
               ${this.view.unifiedView ? 'Side-by-Side' : 'Unified'}
             </button>
