@@ -29,13 +29,13 @@ export const promptViewStyles = css`
   :host(.maximized) {
     width: calc(100vw / 3);
     min-width: 400px;
-    height: 80vh;
-    max-height: calc(100vh - 40px);
+    height: 95vh;
+    max-height: calc(100vh - 20px);
   }
   
   :host(.maximized:not(.dragged)) {
     top: 50%;
-    left: 50%;
+    left: 25%;
     transform: translate(-50%, -50%) !important;
     bottom: auto;
     right: auto;
