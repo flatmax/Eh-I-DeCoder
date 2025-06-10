@@ -244,7 +244,61 @@ class GitOperations:
             self.repo.log(f"commit_file returning error: {error_msg}")
             return error_msg
 
-    # Interactive rebase methods
+    def commit_staged_changes(self, message="Rebase commit"):
+        """Commit all staged changes"""
+        self.repo.log(f"commit_staged_changes called with message: {message}")
+        
+        if not self.repo.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"commit_staged_changes returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            result = subprocess.run([
+                'git', 'commit', '-m', message
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                self.repo.log("Staged changes committed successfully")
+                return {"success": True, "message": "Staged changes committed successfully"}
+            else:
+                error_msg = {"error": f"Failed to commit staged changes: {result.stderr}"}
+                self.repo.log(f"commit_staged_changes returning error: {error_msg}")
+                return error_msg
+                
+        except Exception as e:
+            error_msg = {"error": f"Error committing staged changes: {e}"}
+            self.repo.log(f"commit_staged_changes returning error: {error_msg}")
+            return error_msg
+
+    def commit_amend(self):
+        """Amend the previous commit with staged changes"""
+        self.repo.log("commit_amend called")
+        
+        if not self.repo.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"commit_amend returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            result = subprocess.run([
+                'git', 'commit', '--amend', '--no-edit'
+            ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                self.repo.log("Commit amended successfully")
+                return {"success": True, "message": "Commit amended successfully"}
+            else:
+                error_msg = {"error": f"Failed to amend commit: {result.stderr}"}
+                self.repo.log(f"commit_amend returning error: {error_msg}")
+                return error_msg
+                
+        except Exception as e:
+            error_msg = {"error": f"Error amending commit: {e}"}
+            self.repo.log(f"commit_amend returning error: {error_msg}")
+            return error_msg
+
+    # Interactive rebase methods - updated for webapp integration
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
         self.repo.log(f"start_interactive_rebase called with from_commit: {from_commit}, to_commit: {to_commit}")
@@ -277,9 +331,166 @@ class GitOperations:
             self.repo.log(f"start_interactive_rebase returning error: {error_msg}")
             return error_msg
 
-    def execute_rebase(self, rebase_plan):
-        """Execute the interactive rebase with the given plan"""
-        self.repo.log(f"execute_rebase called with {len(rebase_plan)} commits")
+    def get_rebase_status(self):
+        """Get the current rebase status and todo file content"""
+        self.repo.log("get_rebase_status called")
+        
+        if not self.repo.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"get_rebase_status returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            git_dir = self.repo.repo.git_dir
+            rebase_merge_dir = os.path.join(git_dir, 'rebase-merge')
+            rebase_apply_dir = os.path.join(git_dir, 'rebase-apply')
+            
+            self.repo.log(f"Checking for rebase directories:")
+            self.repo.log(f"  rebase-merge: {rebase_merge_dir} (exists: {os.path.exists(rebase_merge_dir)})")
+            self.repo.log(f"  rebase-apply: {rebase_apply_dir} (exists: {os.path.exists(rebase_apply_dir)})")
+            
+            # Check if we're in a rebase
+            if os.path.exists(rebase_merge_dir):
+                # Interactive rebase
+                todo_file = os.path.join(rebase_merge_dir, 'git-rebase-todo')
+                done_file = os.path.join(rebase_merge_dir, 'done')
+                head_name_file = os.path.join(rebase_merge_dir, 'head-name')
+                onto_file = os.path.join(rebase_merge_dir, 'onto')
+                
+                self.repo.log(f"Interactive rebase detected. Checking files:")
+                self.repo.log(f"  todo file: {todo_file} (exists: {os.path.exists(todo_file)})")
+                self.repo.log(f"  done file: {done_file} (exists: {os.path.exists(done_file)})")
+                
+                todo_content = ""
+                done_content = ""
+                head_name = ""
+                onto = ""
+                
+                if os.path.exists(todo_file):
+                    with open(todo_file, 'r', encoding='utf-8') as f:
+                        todo_content = f.read()
+                    self.repo.log(f"Todo file content length: {len(todo_content)}")
+                    if todo_content.strip():
+                        self.repo.log(f"Todo file content preview: {todo_content[:200]}...")
+                    else:
+                        self.repo.log("Todo file is empty or contains only whitespace")
+                
+                if os.path.exists(done_file):
+                    with open(done_file, 'r', encoding='utf-8') as f:
+                        done_content = f.read()
+                    self.repo.log(f"Done file content length: {len(done_content)}")
+                
+                if os.path.exists(head_name_file):
+                    with open(head_name_file, 'r', encoding='utf-8') as f:
+                        head_name = f.read().strip()
+                    self.repo.log(f"Head name: {head_name}")
+                
+                if os.path.exists(onto_file):
+                    with open(onto_file, 'r', encoding='utf-8') as f:
+                        onto = f.read().strip()
+                    self.repo.log(f"Onto: {onto}")
+                
+                # Check if we have todo content or if the rebase is waiting for editor
+                has_todo_content = bool(todo_content.strip())
+                
+                result = {
+                    "in_rebase": True,
+                    "rebase_type": "interactive",
+                    "todo_content": todo_content,
+                    "done_content": done_content,
+                    "head_name": head_name,
+                    "onto": onto,
+                    "todo_file_path": todo_file,
+                    "has_todo_content": has_todo_content
+                }
+                
+                self.repo.log(f"Returning rebase status: in_rebase=True, has_todo_content={has_todo_content}")
+                return result
+                
+            elif os.path.exists(rebase_apply_dir):
+                # Non-interactive rebase
+                self.repo.log("Non-interactive rebase detected")
+                return {
+                    "in_rebase": True,
+                    "rebase_type": "apply",
+                    "message": "Non-interactive rebase in progress"
+                }
+            else:
+                self.repo.log("No rebase in progress")
+                return {
+                    "in_rebase": False
+                }
+                
+        except Exception as e:
+            error_msg = {"error": f"Error getting rebase status: {e}"}
+            self.repo.log(f"get_rebase_status returning error: {error_msg}")
+            return error_msg
+
+    def save_rebase_todo(self, todo_content):
+        """Save the rebase todo file content"""
+        self.repo.log("save_rebase_todo called")
+        self.repo.log(f"Todo content to save (length {len(todo_content)}): {todo_content[:200]}...")
+        
+        if not self.repo.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"save_rebase_todo returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            git_dir = self.repo.repo.git_dir
+            rebase_merge_dir = os.path.join(git_dir, 'rebase-merge')
+            todo_file = os.path.join(rebase_merge_dir, 'git-rebase-todo')
+            
+            if not os.path.exists(rebase_merge_dir):
+                error_msg = {"error": "No active rebase found"}
+                self.repo.log(f"save_rebase_todo returning error: {error_msg}")
+                return error_msg
+            
+            # Save the todo file
+            with open(todo_file, 'w', encoding='utf-8') as f:
+                f.write(todo_content)
+            
+            self.repo.log(f"Rebase todo file saved successfully to: {todo_file}")
+            
+            # Verify the file was written correctly
+            with open(todo_file, 'r', encoding='utf-8') as f:
+                saved_content = f.read()
+            self.repo.log(f"Verified saved content length: {len(saved_content)}")
+            
+            # After saving the todo file, we need to signal Git to continue
+            # This simulates what happens when an editor closes after editing the todo file
+            try:
+                self.repo.log("Attempting to continue rebase after saving todo file")
+                result = subprocess.run([
+                    'git', 'rebase', '--continue'
+                ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, 
+                  input='', timeout=30)
+                
+                self.repo.log(f"Git rebase --continue result: returncode={result.returncode}")
+                self.repo.log(f"Git rebase --continue stdout: {result.stdout}")
+                self.repo.log(f"Git rebase --continue stderr: {result.stderr}")
+                
+                if result.returncode == 0:
+                    self.repo.log("Rebase continued automatically after saving todo file")
+                else:
+                    self.repo.log(f"Rebase continue returned non-zero: {result.stderr}")
+                    # This might be normal if there are conflicts or other issues
+                    
+            except subprocess.TimeoutExpired:
+                self.repo.log("Rebase continue timed out - this may be normal")
+            except Exception as e:
+                self.repo.log(f"Error continuing rebase after todo save: {e}")
+            
+            return {"success": True, "message": "Rebase todo file saved successfully"}
+            
+        except Exception as e:
+            error_msg = {"error": f"Error saving rebase todo: {e}"}
+            self.repo.log(f"save_rebase_todo returning error: {error_msg}")
+            return error_msg
+
+    def execute_rebase(self, rebase_plan=None):
+        """Execute the interactive rebase with the given plan or continue existing rebase"""
+        self.repo.log(f"execute_rebase called")
         
         if not self.repo.repo:
             error_msg = {"error": "No Git repository available"}
@@ -287,6 +498,20 @@ class GitOperations:
             return error_msg
         
         try:
+            # Check if we're already in a rebase
+            rebase_status = self.get_rebase_status()
+            
+            if rebase_status.get("in_rebase"):
+                # Continue existing rebase
+                self.repo.log("Continuing existing rebase")
+                return self.continue_rebase()
+            
+            # Start new rebase if rebase_plan is provided
+            if not rebase_plan:
+                error_msg = {"error": "No rebase plan provided and no active rebase found"}
+                self.repo.log(f"execute_rebase returning error: {error_msg}")
+                return error_msg
+            
             # Create a temporary rebase script
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
                 for commit in rebase_plan:

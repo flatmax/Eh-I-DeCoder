@@ -33,16 +33,23 @@ class GitChangeHandler(FileSystemEventHandler):
             if event.src_path.endswith('.lock'):
                 return
                 
-            # Only monitor important git files that indicate actual repository state changes
-            important_git_files = [
-                os.path.join(self.repo.repo.git_dir, "index"),
-                os.path.join(self.repo.repo.git_dir, "HEAD"),
-                os.path.join(self.repo.repo.git_dir, "refs")
+            # Monitor important git files that indicate actual repository state changes
+            important_git_patterns = [
+                "index",           # Staging area changes
+                "HEAD",            # Branch/commit changes
+                "/refs/",          # Branch reference changes
+                "/logs/",          # Reference logs
+                "COMMIT_EDITMSG",  # Commit message file
+                "MERGE_HEAD",      # Merge state
+                "REBASE_HEAD"      # Rebase state
             ]
             
-            is_important = any(path in event.src_path for path in important_git_files)
+            # Check if this is an important git file
+            is_important = any(pattern in event.src_path for pattern in important_git_patterns)
             if not is_important:
                 return
+                
+            self.repo.log(f"Important git file changed: {event.src_path}")
         
         # For files outside .git directory, process all events (no .lock filtering)
         
@@ -89,7 +96,7 @@ class GitMonitor:
         self._observer.schedule(self._event_handler, working_tree_path, recursive=True)
         
         # Also monitor the .git directory for index changes
-        self._observer.schedule(self._event_handler, git_dir_path, recursive=False)
+        self._observer.schedule(self._event_handler, git_dir_path, recursive=True)
         
         # Start the observer
         self._observer.start()

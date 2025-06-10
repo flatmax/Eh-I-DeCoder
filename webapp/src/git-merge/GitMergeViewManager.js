@@ -25,13 +25,18 @@ export class GitMergeViewManager {
       this.mergeViewManager.filePath = this.view.selectedFile;
       
       // Determine if this is read-only mode
-      const readOnly = this.view.gitHistoryMode && !this.view.hasConflicts;
+      let readOnly = this.view.gitHistoryMode && !this.view.hasConflicts;
+      
+      // For rebase todo mode, make it editable
+      if (this.view.rebaseTodoMode) {
+        readOnly = false;
+      }
       
       this.mergeViewManager.createMergeView(
         container,
         this.view.fromContent || '',
         this.view.toContent || '',
-        this.view.unifiedView,
+        this.view.unifiedView || this.view.rebaseTodoMode, // Force unified view for rebase todo
         this.view,
         readOnly
       );
@@ -44,7 +49,7 @@ export class GitMergeViewManager {
 
   getCurrentContent() {
     if (!this.mergeViewManager) return '';
-    return this.mergeViewManager.getCurrentContent(this.view.unifiedView);
+    return this.mergeViewManager.getCurrentContent(this.view.unifiedView || this.view.rebaseTodoMode);
   }
 
   goToNextChunk() {

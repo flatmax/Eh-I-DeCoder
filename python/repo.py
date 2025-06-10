@@ -357,7 +357,7 @@ class Repo(BaseWrapper):
         
         if not self.repo:
             error_msg = {"error": "No Git repository available"}
-            self.log(f"get_changed_files returning error: {error_msg}")
+            self.repo.log(f"get_changed_files returning error: {error_msg}")
             return error_msg
         
         try:
@@ -467,13 +467,29 @@ class Repo(BaseWrapper):
         """Commit a specific file to the repository"""
         return self.git_operations.commit_file(file_path, commit_message)
 
-    # Interactive rebase methods
+    def commit_staged_changes(self, message="Rebase commit"):
+        """Commit all staged changes"""
+        return self.git_operations.commit_staged_changes(message)
+
+    def commit_amend(self):
+        """Amend the previous commit with staged changes"""
+        return self.git_operations.commit_amend()
+
+    # Interactive rebase methods - updated for webapp integration
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
         return self.git_operations.start_interactive_rebase(from_commit, to_commit)
 
-    def execute_rebase(self, rebase_plan):
-        """Execute the interactive rebase with the given plan"""
+    def get_rebase_status(self):
+        """Get the current rebase status and todo file content"""
+        return self.git_operations.get_rebase_status()
+
+    def save_rebase_todo(self, todo_content):
+        """Save the rebase todo file content"""
+        return self.git_operations.save_rebase_todo(todo_content)
+
+    def execute_rebase(self, rebase_plan=None):
+        """Execute the interactive rebase with the given plan or continue existing rebase"""
         return self.git_operations.execute_rebase(rebase_plan)
 
     def get_conflict_content(self, file_path):
