@@ -1,0 +1,57 @@
+# Changelog
+
+## [v1.1.0] - 2024-12-19
+
+### Added
+- **Git Integration & History Management (in alpha - needs more testing)**
+  - Comprehensive Git editor and status tracking functionality
+  - Interactive Git history view with commit browsing
+  - Git merge view with conflict resolution support
+  - Interactive rebase handling and monitoring
+  - Patch/diff highlighting for code changes
+  - Git status tracking with modified and untracked file expansion in tree view
+  - Pagination and infinite scroll support for commit history
+  - Branch-specific commit history with performance optimizations
+
+- **Chat History & Navigation**
+  - Chat history panel with infinite scrolling and file loading
+  - Tab navigation system for AI Assistant and Chat History
+  - Debug information display in chat history panel
+  - Scroll handling improvements with auto-scroll tracking
+
+- **UI/UX Enhancements**
+  - Advanced text selection methods for merge and git views
+  - Hover effects and dynamic panel sizing for git history view
+  - Collapsed commit hash view and read-only mode
+  - Disabled commit handling for from/to commit selection
+  - Mode toggle button integration in prompt view
+  - Improved scrolling and layout for CodeMirror editors
+
+### Changed
+- **Code Architecture & Refactoring**
+  - Modularized GitOperations by splitting into specialized operation classes
+  - Extracted commit data and resize logic into separate modules
+  - Modularized GitMergeView with separate data and view managers
+  - Improved prompt view dialog state and interaction handling
+  - Streamlined content parsing with separate card components
+  - Optimized get_commit_history with branch-specific improvements
+
+- **UI Improvements**
+  - Refactored tab navigation UI with improved styling and layout
+  - Adjusted maximized prompt view positioning and height
+  - Improved UI element positioning and alignment
+  - Enhanced scroll management with auto-scroll tracking
+
+### Fixed
+- Removed debug console logs from CardMarkdown code highlighting
+- Simplified text selection methods
+- Ignored directory modification events in git monitor
+- Removed showPromptView state for consistent prompt-view rendering
+- Fixed markdown header formatting in documentation
+
+### Technical Improvements
+- Enhanced streaming content parsing
+- Improved chat history panel with better scroll handling
+- Better Git conflict resolution support
+- Performance optimizations for commit history loading
+- Modular component architecture for better maintainability
