@@ -9,7 +9,7 @@
 Eh-I-DeCoder is a streamlined AI coding assistant that brings together the power of Git, Aider, and a user-friendly web interface. It's designed for a world where software is no longer just "coded," but "decoded."
 
 **"Eh ¿ De Coder"**  
-*"What the **** just happened here?"*
+*"What ... ¿ ... ? ... just happened here?"*
 
 ---
 
