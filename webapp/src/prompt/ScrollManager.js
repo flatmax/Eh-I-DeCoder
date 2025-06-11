@@ -5,6 +5,7 @@ export class ScrollManager {
   constructor(promptView) {
     this.promptView = promptView;
     this.scrollThreshold = 100; // Show button when scrolled up more than 100px from bottom
+    this.autoScrollEnabled = true; // Track if auto-scroll should happen
   }
   
   initialize() {
@@ -29,6 +30,10 @@ export class ScrollManager {
     if (this.promptView.showScrollToBottom !== shouldShowButton) {
       this.promptView.showScrollToBottom = shouldShowButton;
     }
+    
+    // Update auto-scroll state based on user's scroll position
+    // If user is near the bottom, enable auto-scroll
+    this.autoScrollEnabled = distanceFromBottom <= 50;
   }
   
   /**
@@ -40,6 +45,8 @@ export class ScrollManager {
       historyContainer.scrollTop = historyContainer.scrollHeight;
       // Hide the button immediately after scrolling
       this.promptView.showScrollToBottom = false;
+      // Re-enable auto-scroll since user manually scrolled to bottom
+      this.autoScrollEnabled = true;
     }
   }
   
@@ -50,47 +57,57 @@ export class ScrollManager {
     const historyContainer = this.promptView.shadowRoot.getElementById('messageHistory');
     if (historyContainer) {
       const { scrollTop, scrollHeight, clientHeight } = historyContainer;
-      // Consider "at bottom" if within 10px of actual bottom
-      return Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
+      // Consider "at bottom" if within 50px of actual bottom
+      return Math.abs(scrollHeight - clientHeight - scrollTop) <= 50;
     }
     return true;
   }
   
   /**
-   * Scroll to bottom if we were already at the bottom
+   * Force scroll to bottom with proper timing
    */
-  _scrollToBottomIfNeeded(shouldScrollToBottom) {
-    this.promptView.updateComplete.then(() => {
+  _forceScrollToBottom() {
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
       const historyContainer = this.promptView.shadowRoot.getElementById('messageHistory');
-      if (historyContainer && shouldScrollToBottom) {
+      if (historyContainer) {
         historyContainer.scrollTop = historyContainer.scrollHeight;
       }
     });
   }
   
   /**
+   * Scroll to bottom if conditions are met
+   */
+  _scrollToBottomIfNeeded() {
+    // Only auto-scroll if enabled and we're near the bottom
+    if (this.autoScrollEnabled) {
+      this._forceScrollToBottom();
+    }
+  }
+  
+  /**
    * Hook called when a message is added
    */
   onMessageAdded(role, content) {
-    // Check if we're at bottom before adding content
-    const shouldScrollToBottom = this._isScrolledToBottom();
+    // Always scroll to bottom when a new message is added
+    // This ensures we see new messages immediately
+    this.autoScrollEnabled = true;
     
-    // Only scroll to bottom if we were already there
-    this._scrollToBottomIfNeeded(shouldScrollToBottom);
+    // Wait for the component to update, then scroll
+    this.promptView.updateComplete.then(() => {
+      this._forceScrollToBottom();
+    });
   }
   
   /**
    * Hook called when a stream chunk is received
    */
   async onStreamChunk(chunk, final, role) {
-    // Check if we're at bottom before modifying content
-    const shouldScrollToBottom = this._isScrolledToBottom();
-    
-    // Only scroll to bottom if we were already there
-    await this.promptView.updateComplete;
-    const historyContainer = this.promptView.shadowRoot.getElementById('messageHistory');
-    if (historyContainer && shouldScrollToBottom) {
-      historyContainer.scrollTop = historyContainer.scrollHeight;
+    // Only auto-scroll during streaming if we were already at the bottom
+    if (this.autoScrollEnabled || this._isScrolledToBottom()) {
+      await this.promptView.updateComplete;
+      this._forceScrollToBottom();
     }
   }
   
@@ -98,21 +115,19 @@ export class ScrollManager {
    * Hook called when streaming is complete
    */
   async onStreamComplete() {
+    // Ensure we're at the bottom when streaming completes
     await this.promptView.updateComplete;
+    if (this.autoScrollEnabled) {
+      this._forceScrollToBottom();
+    }
   }
   
   /**
    * Hook called when a stream error occurs
    */
   async onStreamError(errorMessage) {
-    // Check if we're at bottom before modifying content
-    const shouldScrollToBottom = this._isScrolledToBottom();
-    
-    // Only scroll to bottom if we were already there
+    // Scroll to bottom to show error message
     await this.promptView.updateComplete;
-    const historyContainer = this.promptView.shadowRoot.getElementById('messageHistory');
-    if (historyContainer && shouldScrollToBottom) {
-      historyContainer.scrollTop = historyContainer.scrollHeight;
-    }
+    this._forceScrollToBottom();
   }
 }
