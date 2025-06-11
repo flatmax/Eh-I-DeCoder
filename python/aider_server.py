@@ -14,6 +14,7 @@ from jrpc_oo import JRPCServer
 from eh_i_decoder.io_wrapper import IOWrapper
 from eh_i_decoder.coder_wrapper import CoderWrapper
 from eh_i_decoder.repo import Repo
+from eh_i_decoder.chat_history import ChatHistory
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
@@ -78,6 +79,9 @@ async def main_starter_async():
         
         io_wrapper = IOWrapper(coder.io, port=args.port)
         jrpc_server.add_class(io_wrapper, 'IOWrapper')
+        
+        chat_history = ChatHistory()
+        jrpc_server.add_class(chat_history, 'ChatHistory')
         
         print(f"JSON-RPC server running on port {args.port}")
         

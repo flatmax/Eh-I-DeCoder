@@ -3,6 +3,7 @@
  */
 import { html } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
+import './ChatHistoryPanel.js';
 
 export function renderPromptView(component) {
   return html`
@@ -118,9 +119,7 @@ export function renderPromptView(component) {
         
         <!-- Chat History Tab -->
         <div class="tab-panel ${component.activeTab === 'history' ? 'active' : ''}">
-          <div class="chat-history-panel">
-            Chat History tab content will go here
-          </div>
+          <chat-history-panel .serverURI=${component.serverURI}></chat-history-panel>
         </div>
       </div>
     </div>

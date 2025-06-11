@@ -318,11 +318,4 @@ export const promptViewStyles = css`
   :host(.minimized) md-filled-text-field {
     --md-filled-text-field-container-shape: 4px;
   }
-  
-  .chat-history-panel {
-    padding: 20px;
-    text-align: center;
-    color: #666;
-    font-style: italic;
-  }
 `;
