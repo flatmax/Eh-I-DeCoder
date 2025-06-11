@@ -139,8 +139,7 @@ export const promptViewStyles = css`
   
   .tab-navigation {
     display: flex;
-    border-top: 1px solid #e0e0e0;
-    background: #fafafa;
+    gap: 4px;
   }
   
   :host(.minimized) .tab-navigation {
@@ -148,15 +147,15 @@ export const promptViewStyles = css`
   }
   
   .tab-button {
-    flex: 1;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: #666;
     transition: all 0.2s ease;
+    border-radius: 4px;
     border-bottom: 2px solid transparent;
   }
   
@@ -169,6 +168,7 @@ export const promptViewStyles = css`
     color: #2196F3;
     background: white;
     border-bottom-color: #2196F3;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
   
   .resize-handle {

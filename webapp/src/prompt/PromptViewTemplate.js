@@ -15,28 +15,26 @@ export function renderPromptView(component) {
         <div class="header-top"
           @mousedown=${component.handleDragStart}
           @click=${component.handleHeaderClick}>
-          <h3 class="dialog-title">AI Assistant</h3>
+          <div class="tab-navigation">
+            <button 
+              class="tab-button ${component.activeTab === 'assistant' ? 'active' : ''}"
+              @click=${(e) => component.handleTabClick(e, 'assistant')}
+            >
+              AI Assistant
+            </button>
+            <button 
+              class="tab-button ${component.activeTab === 'history' ? 'active' : ''}"
+              @click=${(e) => component.handleTabClick(e, 'history')}
+            >
+              Chat History
+            </button>
+          </div>
           <button 
             class="mode-toggle" 
             @click=${component.handleModeToggle} 
             title="Toggle between File Explorer and Git History modes (Ctrl+G)"
           >
             ${component.gitHistoryMode ? '📁 File Mode' : '📊 History Mode'}
-          </button>
-        </div>
-        
-        <div class="tab-navigation">
-          <button 
-            class="tab-button ${component.activeTab === 'assistant' ? 'active' : ''}"
-            @click=${(e) => component.handleTabClick(e, 'assistant')}
-          >
-            AI Assistant
-          </button>
-          <button 
-            class="tab-button ${component.activeTab === 'history' ? 'active' : ''}"
-            @click=${(e) => component.handleTabClick(e, 'history')}
-          >
-            Chat History
           </button>
         </div>
       </div>
