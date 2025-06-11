@@ -87,17 +87,22 @@ export const promptViewStyles = css`
   
   .dialog-header {
     display: flex;
+    flex-direction: column;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    user-select: none;
+  }
+  
+  .header-top {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
     min-height: 48px;
-    user-select: none;
     cursor: grab;
   }
   
-  .dialog-header:active {
+  .header-top:active {
     cursor: grabbing;
   }
   
@@ -132,6 +137,40 @@ export const promptViewStyles = css`
     transform: translateY(0);
   }
   
+  .tab-navigation {
+    display: flex;
+    border-top: 1px solid #e0e0e0;
+    background: #fafafa;
+  }
+  
+  :host(.minimized) .tab-navigation {
+    display: none;
+  }
+  
+  .tab-button {
+    flex: 1;
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+  }
+  
+  .tab-button:hover {
+    background: #f0f0f0;
+    color: #333;
+  }
+  
+  .tab-button.active {
+    color: #2196F3;
+    background: white;
+    border-bottom-color: #2196F3;
+  }
+  
   .resize-handle {
     position: absolute;
     top: 0;
@@ -158,6 +197,28 @@ export const promptViewStyles = css`
   /* Hide resize handles when minimized and not dragged */
   :host(.minimized:not(.dragged)) .resize-handle {
     display: none;
+  }
+  
+  .tab-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex: 1;
+  }
+  
+  .tab-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex: 1;
+  }
+  
+  .tab-panel.active {
+    display: flex;
   }
   
   .prompt-container {
@@ -256,5 +317,12 @@ export const promptViewStyles = css`
   
   :host(.minimized) md-filled-text-field {
     --md-filled-text-field-container-shape: 4px;
+  }
+  
+  .chat-history-panel {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
   }
 `;

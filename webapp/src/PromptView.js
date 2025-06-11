@@ -26,6 +26,8 @@ export class PromptView extends MessageHandler {
     coderType: { type: String, state: true },
     showScrollToBottom: { type: Boolean, state: true },
     gitHistoryMode: { type: Boolean },
+    // Tab properties
+    activeTab: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
     position: { type: Object, state: true },
@@ -43,6 +45,7 @@ export class PromptView extends MessageHandler {
     this.coderType = 'Send';
     this.showScrollToBottom = false;
     this.gitHistoryMode = false;
+    this.activeTab = 'assistant'; // Default to AI Assistant tab
     
     // Initialize managers
     this.dragHandler = new DragHandler(this);
@@ -64,6 +67,7 @@ export class PromptView extends MessageHandler {
     
     // Bind methods
     this.handleModeToggle = this.handleModeToggle.bind(this);
+    this.handleTabClick = this.handleTabClick.bind(this);
   }
 
   static styles = promptViewStyles;
@@ -128,6 +132,11 @@ export class PromptView extends MessageHandler {
       bubbles: true,
       composed: true
     }));
+  }
+
+  handleTabClick(event, tabName) {
+    event.stopPropagation(); // Prevent header click from triggering
+    this.activeTab = tabName;
   }
 
   // Delegate to EventHandler
