@@ -92,7 +92,6 @@ export class CardMarkdown extends LitElement {
     
     // Re-run Prism highlighting after content updates
     if (changedProperties.has('content')) {
-      console.log('CardMarkdown: Content updated, length:', this.content?.length || 0);
       this.highlightCode();
     }
   }
@@ -534,9 +533,7 @@ export class CardMarkdown extends LitElement {
     }
   `;
 
-  render() {
-    console.log('CardMarkdown: Rendering with content length:', this.content?.length || 0, 'role:', this.role);
-    
+  render() {    
     const classes = {
       card: true,
       'user-card': this.role === 'user',

@@ -3,7 +3,10 @@
  */
 import { html, css } from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import { CardMarkdown } from './CardMarkdown.js';
+import { repeat } from 'lit/directives/repeat.js';
+import './UserCard.js';
+import './AssistantCard.js';
+import './CommandsCard.js';
 
 export class ChatHistoryPanel extends JRPCClient {
   static properties = {
@@ -15,7 +18,8 @@ export class ChatHistoryPanel extends JRPCClient {
     hasMore: { type: Boolean, state: true },
     currentStartPos: { type: Number, state: true },
     fileSize: { type: Number, state: true },
-    isLoadingMore: { type: Boolean, state: true }
+    isLoadingMore: { type: Boolean, state: true },
+    parsedMessages: { type: Array, state: true }
   };
 
   constructor() {
@@ -31,6 +35,14 @@ export class ChatHistoryPanel extends JRPCClient {
     this.lastScrollHeight = 0;
     this.remoteTimeout = 300;
     this.shouldScrollToBottom = true; // Flag to control initial scroll
+    this.parsedMessages = [];
+    
+    // Streaming parser state
+    this.parseBuffer = '';
+    this.currentStreamRole = null;
+    this.currentStreamContent = [];
+    this.lastProcessedLength = 0;
+    this.lastLineWasEmpty = false; // Track empty lines to detect breaks between command blocks
     
     console.log('ChatHistoryPanel: Constructor called');
   }
@@ -94,9 +106,12 @@ export class ChatHistoryPanel extends JRPCClient {
       z-index: 1;
     }
 
-    card-markdown {
+    user-card,
+    assistant-card,
+    commands-card {
       display: block;
       width: 100%;
+      margin-bottom: 8px;
     }
 
     .debug-info {
@@ -128,11 +143,195 @@ export class ChatHistoryPanel extends JRPCClient {
       }
     }
 
-    // Log content changes for debugging
+    // Parse content when it changes using streaming approach
     if (changedProperties.has('content')) {
       console.log('ChatHistoryPanel: Content changed, new length:', this.content?.length || 0);
-      console.log('ChatHistoryPanel: Content preview:', this.content?.substring(0, 200) + '...');
+      this.parseContentStreaming();
     }
+  }
+
+  parseContentStreaming() {
+    if (!this.content || typeof this.content !== 'string') {
+      this.parsedMessages = [];
+      this.resetParsingState();
+      return;
+    }
+
+    // Get only the new content since last parse
+    const newContent = this.content.substring(this.lastProcessedLength);
+    if (!newContent) {
+      return; // No new content to process
+    }
+
+    console.log('ChatHistoryPanel: Processing new content chunk:', newContent.length, 'chars');
+    
+    // Process the new chunk
+    this.parseStreamChunk(newContent);
+    
+    // Update the last processed position
+    this.lastProcessedLength = this.content.length;
+    
+    console.log('ChatHistoryPanel: Parsed messages count:', this.parsedMessages.length);
+  }
+
+  parseStreamChunk(newChunk) {
+    // Append to buffer for incomplete lines
+    this.parseBuffer = this.parseBuffer + newChunk;
+    
+    const lines = this.parseBuffer.split('\n');
+    // Keep the last line in buffer (might be incomplete)
+    this.parseBuffer = lines.pop() || '';
+    
+    // Process all complete lines
+    for (const line of lines) {
+      this.processCompleteLine(line);
+    }
+  }
+
+  processCompleteLine(line) {
+    const trimmedLine = line.trim();
+    const isEmpty = trimmedLine === '';
+    let newRole = null;
+    
+    // Check for role change
+    if (line.startsWith('#### ')) {
+      newRole = 'user';
+    } else if (line.startsWith('> ')) {
+      newRole = 'command';
+    } else {
+      // Lines without prefixes are assistant content
+      newRole = 'assistant';
+    }
+    
+    // Special handling for command blocks: if we encounter a new command line
+    // after empty lines, treat it as a new command block
+    if (newRole === 'command' && this.currentStreamRole === 'command' && this.lastLineWasEmpty) {
+      // Finalize the current command block and start a new one
+      this.finalizeCurrentMessage();
+      this.startNewMessage(newRole, line);
+    } else if (newRole !== this.currentStreamRole) {
+      // Role change - finalize current message and start new one
+      this.finalizeCurrentMessage();
+      this.startNewMessage(newRole, line);
+    } else {
+      // Same role, just add to current message
+      this.addToCurrentMessage(line);
+    }
+    
+    // Track if this line was empty for next iteration
+    this.lastLineWasEmpty = isEmpty;
+  }
+
+  finalizeCurrentMessage() {
+    if (this.currentStreamRole !== null && this.currentStreamContent.length > 0) {
+      const content = this.currentStreamContent.join('\n').trim();
+      if (content) {
+        // Create a new array to trigger reactivity
+        this.parsedMessages = [...this.parsedMessages, {
+          role: this.currentStreamRole,
+          content: content
+        }];
+      }
+    }
+  }
+
+  startNewMessage(role, line) {
+    this.currentStreamRole = role;
+    this.currentStreamContent = [line];
+  }
+
+  addToCurrentMessage(line) {
+    this.currentStreamContent.push(line);
+  }
+
+  resetParsingState() {
+    this.parseBuffer = '';
+    this.currentStreamRole = null;
+    this.currentStreamContent = [];
+    this.lastProcessedLength = 0;
+    this.lastLineWasEmpty = false;
+  }
+
+  // Full reparse method for when we need to start fresh (e.g., when prepending content)
+  parseContentFull(content) {
+    if (!content || typeof content !== 'string') {
+      return [];
+    }
+
+    const messages = [];
+    const lines = content.split('\n');
+    let currentRole = null;
+    let currentContent = [];
+    let lastLineWasEmpty = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      const isEmpty = trimmedLine === '';
+      let newRole = null;
+
+      // Determine the role based on prefix
+      if (line.startsWith('#### ')) {
+        newRole = 'user';
+      } else if (line.startsWith('> ')) {
+        newRole = 'command';
+      } else {
+        // Lines without prefixes are assistant content
+        newRole = 'assistant';
+      }
+
+      // Special handling for command blocks: if we encounter a new command line
+      // after empty lines, treat it as a new command block
+      if (newRole === 'command' && currentRole === 'command' && lastLineWasEmpty) {
+        // Save previous command message
+        if (currentContent.length > 0) {
+          const content = currentContent.join('\n').trim();
+          if (content) {
+            messages.push({
+              role: currentRole,
+              content: content
+            });
+          }
+        }
+        // Start new command message
+        currentRole = newRole;
+        currentContent = [line];
+      } else if (newRole !== currentRole) {
+        // Role change - save previous message if we have content
+        if (currentRole !== null && currentContent.length > 0) {
+          const content = currentContent.join('\n').trim();
+          if (content) {
+            messages.push({
+              role: currentRole,
+              content: content
+            });
+          }
+        }
+
+        // Start new message
+        currentRole = newRole;
+        currentContent = [line];
+      } else {
+        // Same role, just add to current message
+        currentContent.push(line);
+      }
+      
+      // Track if this line was empty for next iteration
+      lastLineWasEmpty = isEmpty;
+    }
+
+    // Don't forget the last message
+    if (currentRole !== null && currentContent.length > 0) {
+      const content = currentContent.join('\n').trim();
+      if (content) {
+        messages.push({
+          role: currentRole,
+          content: content
+        });
+      }
+    }
+
+    return messages;
   }
 
   setupDone(){
@@ -171,6 +370,9 @@ export class ChatHistoryPanel extends JRPCClient {
         console.log('ChatHistoryPanel: Extracted response data:', responseData);
         
         if (responseData) {
+          // Reset parsing state for fresh start
+          this.resetParsingState();
+          
           this.content = responseData.content || '';
           this.currentStartPos = responseData.start_pos || 0;
           this.hasMore = responseData.has_more || false;
@@ -239,16 +441,28 @@ export class ChatHistoryPanel extends JRPCClient {
         const scrollHeight = this.scrollContainer.scrollHeight;
         console.log('ChatHistoryPanel: Current scroll position:', { scrollTop, scrollHeight });
 
-        // Prepend new content
-        this.content = responseData.content + this.content;
+        // When prepending content, we need to do a full reparse
+        // because the streaming parser assumes content is appended
+        const newFullContent = responseData.content + this.content;
+        
+        // Reset parsing state and do full parse
+        this.resetParsingState();
+        this.parsedMessages = this.parseContentFull(newFullContent);
+        
+        // Update content and state
+        this.content = newFullContent;
         this.currentStartPos = responseData.start_pos || 0;
         this.hasMore = responseData.has_more || false;
+        
+        // Reset the last processed length to the full content length
+        this.lastProcessedLength = this.content.length;
         
         console.log('ChatHistoryPanel: Content updated:', {
           newContentLength: responseData.content.length,
           totalContentLength: this.content.length,
           newStartPos: this.currentStartPos,
-          hasMore: this.hasMore
+          hasMore: this.hasMore,
+          parsedMessagesCount: this.parsedMessages.length
         });
 
         // Wait for DOM update
@@ -339,7 +553,8 @@ export class ChatHistoryPanel extends JRPCClient {
       error: this.error,
       contentLength: this.content.length,
       hasMore: this.hasMore,
-      isLoadingMore: this.isLoadingMore
+      isLoadingMore: this.isLoadingMore,
+      parsedMessagesCount: this.parsedMessages.length
     });
     
     if (this.loading) {
@@ -372,14 +587,27 @@ export class ChatHistoryPanel extends JRPCClient {
       
       <div class="chat-history-container">
         <div class="content-wrapper">
-          ${this.content ? html`
-            <card-markdown .content=${this.content} role="assistant"></card-markdown>
+          ${this.parsedMessages.length > 0 ? html`
+            ${repeat(
+              this.parsedMessages,
+              (message, i) => i,
+              message => {
+                if (message.role === 'user') {
+                  return html`<user-card .content=${message.content}></user-card>`;
+                } else if (message.role === 'assistant') {
+                  return html`<assistant-card .content=${message.content}></assistant-card>`;
+                } else if (message.role === 'command') {
+                  return html`<commands-card .content=${message.content}></commands-card>`;
+                }
+              }
+            )}
           ` : html`
             <div class="debug-info">
-              No content available. 
+              No messages parsed. 
               Content length: ${this.content?.length || 0}
               File size: ${this.fileSize}
               Has more: ${this.hasMore}
+              Raw content preview: ${this.content?.substring(0, 200) || 'No content'}
             </div>
           `}
         </div>
