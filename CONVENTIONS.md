@@ -18,9 +18,12 @@ self.get_remotes in py
 this.getCall to get the call object with the method names available for RPC
 self.get_call() (assume get_call exists) in py
 
-RPC usage :
+JRPC-OO usage :
 js promise : this.call['Class.method'](args)
 py async : self.get_call()['Class.method'](args)
 
+JRPC-OO response :
+The return value is an object of {remote UUID : return data, ... }. utils.js function extractResponseData returns the data from the first UUID, as well as data for other forms.
+
 webapp js :
-customElements.define are put in the webapp directory and the class implementation in the webapp/src
+customElements.define are separated from their classes - customElements.define calls are put in the `webapp` directory and the class implementation in the `webapp/src` directory or its sub-directories as required.

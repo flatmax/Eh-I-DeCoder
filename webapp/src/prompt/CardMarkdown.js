@@ -6,8 +6,11 @@ import { classMap } from 'lit/directives/class-map.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { marked } from 'marked';
 
-// Import Prism.js and language components
+// Import Prism.js core first
 import 'prismjs';
+
+// Import language components - diff should be imported early
+import 'prismjs/components/prism-diff.js';
 import 'prismjs/components/prism-javascript.js';
 import 'prismjs/components/prism-python.js';
 import 'prismjs/components/prism-json.js';
@@ -36,6 +39,7 @@ export class CardMarkdown extends LitElement {
     this.content = '';
     this.role = 'assistant'; // default
     this.setupMarked();
+    console.log('CardMarkdown: Constructor called with role:', this.role);
   }
 
   setupMarked() {
@@ -62,7 +66,8 @@ export class CardMarkdown extends LitElement {
           'make': 'makefile',
           'autotools': 'makefile',
           'automake': 'makefile',
-          'autoconf': 'bash'
+          'autoconf': 'bash',
+          'patch': 'diff'
         };
         
         const actualLang = langMap[lang] || lang;
@@ -97,7 +102,7 @@ export class CardMarkdown extends LitElement {
       if (window.Prism) {
         // Find all code blocks in this component's shadow DOM
         const codeBlocks = this.shadowRoot.querySelectorAll('pre code[class*="language-"]');
-        codeBlocks.forEach(block => {
+        codeBlocks.forEach((block, index) => {
           window.Prism.highlightElement(block);
         });
       }
@@ -322,6 +327,56 @@ export class CardMarkdown extends LitElement {
       color: #690;
     }
 
+    /* Diff/Patch highlighting - Light theme */
+    .token.deleted,
+    .token.diff .token.deleted {
+      color: #d73a49 !important;
+      background-color: #ffeef0 !important;
+    }
+
+    .token.inserted,
+    .token.diff .token.inserted {
+      color: #28a745 !important;
+      background-color: #f0fff4 !important;
+    }
+
+    .token.prefix.unchanged,
+    .token.prefix.inserted,
+    .token.prefix.deleted {
+      color: #6f42c1;
+      font-weight: bold;
+    }
+
+    .token.coord {
+      color: #6f42c1;
+      font-weight: bold;
+    }
+
+    .token.diff-header {
+      color: #6f42c1;
+      font-weight: bold;
+    }
+
+    /* Specific diff line styling */
+    .language-diff .token.deleted {
+      display: block;
+      width: 100%;
+      color: #d73a49;
+      background-color: #ffeef0;
+    }
+
+    .language-diff .token.inserted {
+      display: block;
+      width: 100%;
+      color: #28a745;
+      background-color: #f0fff4;
+    }
+
+    .language-diff .token.coord {
+      color: #6f42c1;
+      font-weight: bold;
+    }
+
     /* Command output styling */
     .output-message {
       margin: 4px 0;
@@ -426,9 +481,59 @@ export class CardMarkdown extends LitElement {
     .command-card .token.recipe {
       color: #ce9178;
     }
+
+    /* Diff/Patch highlighting - Dark theme for command cards */
+    .command-card .token.deleted,
+    .command-card .token.diff .token.deleted {
+      color: #f85149 !important;
+      background-color: rgba(248, 81, 73, 0.15) !important;
+    }
+
+    .command-card .token.inserted,
+    .command-card .token.diff .token.inserted {
+      color: #56d364 !important;
+      background-color: rgba(86, 211, 100, 0.15) !important;
+    }
+
+    .command-card .token.prefix.unchanged,
+    .command-card .token.prefix.inserted,
+    .command-card .token.prefix.deleted {
+      color: #c586c0;
+      font-weight: bold;
+    }
+
+    .command-card .token.coord {
+      color: #c586c0;
+      font-weight: bold;
+    }
+
+    .command-card .token.diff-header {
+      color: #c586c0;
+      font-weight: bold;
+    }
+
+    /* Dark theme specific diff line styling */
+    .command-card .language-diff .token.deleted {
+      display: block;
+      width: 100%;
+      color: #f85149;
+      background-color: rgba(248, 81, 73, 0.15);
+    }
+
+    .command-card .language-diff .token.inserted {
+      display: block;
+      width: 100%;
+      color: #56d364;
+      background-color: rgba(86, 211, 100, 0.15);
+    }
+
+    .command-card .language-diff .token.coord {
+      color: #c586c0;
+      font-weight: bold;
+    }
   `;
 
-  render() {
+  render() {    
     const classes = {
       card: true,
       'user-card': this.role === 'user',
@@ -455,3 +560,6 @@ export class CardMarkdown extends LitElement {
     `;
   }
 }
+
+// Register the custom element
+customElements.define('card-markdown', CardMarkdown);

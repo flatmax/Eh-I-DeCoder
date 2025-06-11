@@ -9,6 +9,9 @@ export class DragHandler {
     this.resizeType = null; // 'right' only
     this.initialWidth = 0;
     this.initialMouseX = 0;
+    this.dragStartTime = 0;
+    this.dragThreshold = 5; // pixels to move before considering it a drag
+    this.dragStartPosition = { x: 0, y: 0 };
     
     // Bind methods to maintain context
     this.handleDrag = this.handleDrag.bind(this);
@@ -18,8 +21,8 @@ export class DragHandler {
   }
   
   initialize() {
-    // Apply initial position
-    if (this.promptView.hasBeenDragged) {
+    // Apply initial position if dragged
+    if (this.promptView.hasBeenDragged && this.promptView.position) {
       this.promptView.style.transform = `translate3d(${this.promptView.position.x}px, ${this.promptView.position.y}px, 0)`;
     }
     
@@ -55,7 +58,11 @@ export class DragHandler {
     // Ignore non-left button clicks or if already dragging/resizing
     if (event.button !== 0 || this.promptView.isDragging || this.isResizing) return;
     
-    // Get current position
+    // Store drag start time and position for threshold detection
+    this.dragStartTime = Date.now();
+    this.dragStartPosition = { x: event.clientX, y: event.clientY };
+    
+    // Get current position from the actual rendered element
     const rect = this.promptView.getBoundingClientRect();
     
     // Calculate the offset between mouse position and dialog top-left
@@ -64,26 +71,23 @@ export class DragHandler {
       y: event.clientY - rect.top
     };
     
-    // Store initial position
+    // Store the current actual position as our starting point
     this.promptView.position = { 
       x: rect.left, 
       y: rect.top 
     };
     
+    // Mark as potentially dragging (but not actually dragging until threshold is met)
+    this.promptView.isDragging = true;
+    
     // Add dragging class to disable transitions during drag
     this.promptView.classList.add('dragging');
     this.promptView.style.cursor = 'grabbing';
     
-    // Mark as dragging
-    this.promptView.isDragging = true;
-    
-    // Update position with translate3d for hardware acceleration
-    this.promptView.style.transform = `translate3d(${this.promptView.position.x}px, ${this.promptView.position.y}px, 0)`;
-    
     // Prevent default to avoid text selection
     event.preventDefault();
     
-    console.log('Drag start:', this.promptView.position);
+    console.log('Drag start initiated at:', this.promptView.position, 'with offset:', this.dragOffset);
   }
   
   handleResizeStart(event, resizeType) {
@@ -116,29 +120,55 @@ export class DragHandler {
   handleDrag(event) {
     if (!this.promptView.isDragging) return;
     
-    // Calculate new position
+    // Check if we've moved enough to consider this a real drag
+    const deltaX = Math.abs(event.clientX - this.dragStartPosition.x);
+    const deltaY = Math.abs(event.clientY - this.dragStartPosition.y);
+    const totalDelta = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    // If we haven't moved enough, don't start actual dragging yet
+    if (totalDelta < this.dragThreshold) {
+      return;
+    }
+    
+    // Now we're actually dragging - mark as dragged and switch to transform positioning
+    if (!this.promptView.hasBeenDragged) {
+      this.promptView.hasBeenDragged = true;
+      
+      // Switch to transform-based positioning immediately
+      // Clear any CSS positioning and use transform instead
+      this.promptView.style.top = '0';
+      this.promptView.style.left = '0';
+      this.promptView.style.bottom = 'auto';
+      this.promptView.style.right = 'auto';
+      this.promptView.style.transform = `translate3d(${this.promptView.position.x}px, ${this.promptView.position.y}px, 0)`;
+      
+      // Update dialog state manager to reflect dragged state
+      this.promptView.dialogStateManager.updateDialogClass();
+    }
+    
+    // Calculate new position based on mouse position and drag offset
     const x = event.clientX - this.dragOffset.x;
     const y = event.clientY - this.dragOffset.y;
     
+    // Constrain to viewport bounds
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const dialogRect = this.promptView.getBoundingClientRect();
+    
+    const constrainedX = Math.max(0, Math.min(viewportWidth - dialogRect.width, x));
+    const constrainedY = Math.max(0, Math.min(viewportHeight - dialogRect.height, y));
+    
     // Update position state
-    this.promptView.position = { x, y };
+    this.promptView.position = { x: constrainedX, y: constrainedY };
     
     // Apply position using translate3d for hardware acceleration
-    this.promptView.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    
-    // Mark as dragged
-    this.promptView.hasBeenDragged = true;
+    this.promptView.style.transform = `translate3d(${constrainedX}px, ${constrainedY}px, 0)`;
     
     // Set flag to prevent click handler from firing
     this.promptView._wasDragging = true;
     
     // Prevent default behavior
     event.preventDefault();
-    
-    // Debug
-    if (event.clientX % 100 < 1) {
-      console.log('Dragging to:', x, y);
-    }
   }
   
   handleResize(event) {
@@ -176,18 +206,32 @@ export class DragHandler {
   handleDragEnd(event) {
     if (!this.promptView.isDragging) return;
     
+    // Check if this was actually a drag or just a click
+    const deltaX = Math.abs(event.clientX - this.dragStartPosition.x);
+    const deltaY = Math.abs(event.clientY - this.dragStartPosition.y);
+    const totalDelta = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const timeDelta = Date.now() - this.dragStartTime;
+    
+    // If it was a small movement and quick, treat it as a click, not a drag
+    if (totalDelta < this.dragThreshold && timeDelta < 200) {
+      console.log('Drag end: treating as click (small movement/quick)');
+      this.promptView._wasDragging = false;
+    } else {
+      console.log('Drag end: was actual drag');
+      this.promptView._wasDragging = true;
+    }
+    
     // Update dragging state
     this.promptView.isDragging = false;
     
     // Reset cursor
     this.promptView.style.cursor = '';
     
-    // Keep dragged state and final position
+    // Remove dragging class and ensure correct class is applied
     this.promptView.classList.remove('dragging');
-    this.promptView.classList.add('dragged');
+    this.promptView.dialogStateManager.updateDialogClass();
     
-    console.log('Drag ended at:', this.promptView.position.x, this.promptView.position.y);
-    console.log('Final transform:', this.promptView.style.transform);
+    console.log('Drag ended at:', this.promptView.position?.x, this.promptView.position?.y, 'wasDragging:', this.promptView._wasDragging);
   }
   
   handleResizeEnd(event) {
@@ -202,7 +246,6 @@ export class DragHandler {
     
     // Remove resizing class
     this.promptView.classList.remove('resizing');
-    this.promptView.classList.add('resized');
     
     console.log('Resize ended at width:', this.promptView.dialogWidth);
   }

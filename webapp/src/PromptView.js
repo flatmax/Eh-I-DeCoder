@@ -25,6 +25,9 @@ export class PromptView extends MessageHandler {
     isMinimized: { type: Boolean, state: false },
     coderType: { type: String, state: true },
     showScrollToBottom: { type: Boolean, state: true },
+    gitHistoryMode: { type: Boolean },
+    // Tab properties
+    activeTab: { type: String, state: true },
     // Drag properties
     isDragging: { type: Boolean, state: true },
     position: { type: Object, state: true },
@@ -38,9 +41,11 @@ export class PromptView extends MessageHandler {
     super();
     this.inputValue = '';
     this.showVoiceInput = true;
-    this.isMinimized = false;
+    this.isMinimized = true; // Start minimized
     this.coderType = 'Send';
     this.showScrollToBottom = false;
+    this.gitHistoryMode = false;
+    this.activeTab = 'assistant'; // Default to AI Assistant tab
     
     // Initialize managers
     this.dragHandler = new DragHandler(this);
@@ -54,20 +59,31 @@ export class PromptView extends MessageHandler {
       x: window.innerWidth / 6, 
       y: 20
     };
-    this.hasBeenDragged = true;
+    this.hasBeenDragged = false; // Start as not dragged
     
     // Initialize resize state
     this.dialogWidth = window.innerWidth / 3; // Default width
     this.hasBeenResized = false;
+    
+    // Bind methods
+    this.handleModeToggle = this.handleModeToggle.bind(this);
+    this.handleTabClick = this.handleTabClick.bind(this);
   }
 
   static styles = promptViewStyles;
 
   connectedCallback() {
     super.connectedCallback();
+    
+    // Initialize managers
     this.dragHandler.initialize();
     this.dialogStateManager.initialize();
     this.scrollManager.initialize();
+    
+    // Force initial state update
+    this.updateComplete.then(() => {
+      this.dialogStateManager.updateDialogClass();
+    });
   }
   
   disconnectedCallback() {
@@ -108,6 +124,19 @@ export class PromptView extends MessageHandler {
   
   updateDialogClass() {
     this.dialogStateManager.updateDialogClass();
+  }
+
+  handleModeToggle(event) {
+    event.stopPropagation(); // Prevent header click from triggering
+    this.dispatchEvent(new CustomEvent('mode-toggle', {
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  handleTabClick(event, tabName) {
+    event.stopPropagation(); // Prevent header click from triggering
+    this.activeTab = tabName;
   }
 
   // Delegate to EventHandler

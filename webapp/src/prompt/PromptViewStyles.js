@@ -6,43 +6,70 @@ import { css } from 'lit';
 export const promptViewStyles = css`
   :host {
     position: fixed;
-    z-index: 1000;
+    z-index: 2000;
     transition: all 0.3s ease;
     font-family: sans-serif;
+    pointer-events: auto;
   }
   
   :host(.minimized) {
+    width: calc(100vw / 6);
+    min-width: 300px;
+    height: 120px;
+  }
+  
+  :host(.minimized:not(.dragged)) {
     bottom: 20px;
     right: 20px;
-    width: calc(100vw / 6);
-    height: 120px;
+    top: auto;
+    left: auto;
+    transform: none !important;
+  }
+  
+  :host(.maximized) {
+    width: calc(100vw / 3);
+    min-width: 400px;
+    height: 95vh;
+    max-height: calc(100vh - 20px);
+  }
+  
+  :host(.maximized:not(.dragged)) {
+    top: 50%;
+    left: 25%;
+    transform: translate(-50%, -50%) !important;
+    bottom: auto;
+    right: auto;
   }
   
   :host(.dragged) {
     position: fixed !important;
     bottom: auto !important;
     right: auto !important;
-    top: auto !important;
+    top: 0 !important;
     left: 0 !important;
-  }
-  
-  :host(.maximized) {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100vw / 3);
-    height: 100vh;
-    max-height: calc(100vh - 40px);
+    /* Transform will be set via JavaScript */
   }
   
   :host(.dragging) {
-    transition: none;
-    position: absolute;
+    transition: none !important;
+    user-select: none;
   }
   
   :host(.resizing) {
-    transition: none;
+    transition: none !important;
     user-select: none;
+  }
+  
+  /* Default state - show as minimized in bottom right */
+  :host(:not(.minimized):not(.maximized)) {
+    bottom: 20px;
+    right: 20px;
+    width: calc(100vw / 6);
+    min-width: 300px;
+    height: 120px;
+    top: auto;
+    left: auto;
+    transform: none !important;
   }
   
   .dialog-container {
@@ -60,17 +87,22 @@ export const promptViewStyles = css`
   
   .dialog-header {
     display: flex;
+    flex-direction: column;
+    background: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    user-select: none;
+  }
+  
+  .header-top {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: #f5f5f5;
-    border-bottom: 1px solid #e0e0e0;
     min-height: 48px;
-    user-select: none;
     cursor: grab;
   }
   
-  .dialog-header:active {
+  .header-top:active {
     cursor: grabbing;
   }
   
@@ -79,6 +111,64 @@ export const promptViewStyles = css`
     font-size: 14px;
     color: #333;
     margin: 0;
+  }
+  
+  .mode-toggle {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  
+  .mode-toggle:hover {
+    background: #1976D2;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  
+  .mode-toggle:active {
+    transform: translateY(0);
+  }
+  
+  .tab-navigation {
+    display: flex;
+    gap: 4px;
+  }
+  
+  :host(.minimized) .tab-navigation {
+    display: none;
+  }
+  
+  .tab-button {
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+    border-bottom: 2px solid transparent;
+  }
+  
+  .tab-button:hover {
+    background: #f0f0f0;
+    color: #333;
+  }
+  
+  .tab-button.active {
+    color: #2196F3;
+    background: white;
+    border-bottom-color: #2196F3;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
   
   .resize-handle {
@@ -104,9 +194,31 @@ export const promptViewStyles = css`
     border-radius: 0 8px 8px 0;
   }
   
-  /* Hide resize handles when minimized */
-  :host(.minimized) .resize-handle {
+  /* Hide resize handles when minimized and not dragged */
+  :host(.minimized:not(.dragged)) .resize-handle {
     display: none;
+  }
+  
+  .tab-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex: 1;
+  }
+  
+  .tab-panel {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    flex: 1;
+  }
+  
+  .tab-panel.active {
+    display: flex;
   }
   
   .prompt-container {

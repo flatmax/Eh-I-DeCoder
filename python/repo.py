@@ -87,12 +87,37 @@ class Repo(BaseWrapper):
             self.log(f"Repository working directory: {self.repo.working_dir}")
             self.log(f"Repository root directory: {self.repo.working_tree_dir}")
             
-            # Get the status information
-            branch_name = self.repo.active_branch.name
+            # Get the branch name, handling detached HEAD state
+            try:
+                branch_name = self.repo.active_branch.name
+                self.log(f"Active branch: {branch_name}")
+            except TypeError:
+                # Handle detached HEAD state (common during rebase)
+                try:
+                    # Try to get the current commit hash
+                    current_commit = self.repo.head.commit.hexsha
+                    branch_name = f"detached-{current_commit[:7]}"
+                    self.log(f"Detached HEAD state, using: {branch_name}")
+                except Exception as e:
+                    self.log(f"Error getting commit hash in detached state: {e}")
+                    branch_name = "detached-HEAD"
+            
+            # Get repository status information
             is_dirty = self.repo.is_dirty()
             untracked_files = self.repo.untracked_files
-            modified_files = [item.a_path for item in self.repo.index.diff(None)]
-            staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
+            
+            # Get modified and staged files, handling potential errors
+            try:
+                modified_files = [item.a_path for item in self.repo.index.diff(None)]
+            except Exception as e:
+                self.log(f"Error getting modified files: {e}")
+                modified_files = []
+            
+            try:
+                staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
+            except Exception as e:
+                self.log(f"Error getting staged files: {e}")
+                staged_files = []
             
             # Convert untracked files to relative paths (they should already be relative)
             # but ensure they're normalized
@@ -309,10 +334,139 @@ class Repo(BaseWrapper):
             self.log(f"create_file returning error: {error_msg}")
             return error_msg
     
+    def get_commit_history(self, max_count=50, branch=None, skip=0):
+        """Get commit history with detailed information - optimized for performance with pagination support"""
+        self.log(f"get_commit_history called with max_count: {max_count}, branch: {branch}, skip: {skip}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_commit_history returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            commits = []
+            
+            # Use current branch if no branch specified - much faster than --all
+            if branch is None:
+                try:
+                    branch = self.repo.active_branch.name
+                    self.log(f"Using current branch: {branch}")
+                except TypeError:
+                    # Fallback to HEAD if no active branch (detached HEAD)
+                    branch = 'HEAD'
+                    self.log("Using HEAD (detached state)")
+            
+            # Get commits from specified branch with skip and max_count for pagination
+            for commit in self.repo.iter_commits(branch, max_count=max_count, skip=skip):
+                commit_data = {
+                    'hash': commit.hexsha,
+                    'author': commit.author.name,
+                    'email': commit.author.email,
+                    'date': commit.committed_datetime.isoformat(),
+                    'message': commit.message.strip(),
+                    'branch': branch  # Use the branch we're iterating over
+                }
+                commits.append(commit_data)
+            
+            self.log(f"get_commit_history returning {len(commits)} commits from branch {branch} (skip: {skip})")
+            return commits
+            
+        except Exception as e:
+            error_msg = {"error": f"Error getting commit history: {e}"}
+            self.log(f"get_commit_history returning error: {error_msg}")
+            return error_msg
+    
+    def get_changed_files(self, from_commit, to_commit):
+        """Get list of files changed between two commits"""
+        self.log(f"get_changed_files called with from_commit: {from_commit}, to_commit: {to_commit}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.repo.log(f"get_changed_files returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            # Get the commit objects
+            from_commit_obj = self.repo.commit(from_commit)
+            to_commit_obj = self.repo.commit(to_commit)
+            
+            # Get the diff between the commits
+            diff = from_commit_obj.diff(to_commit_obj)
+            
+            # Extract file paths from the diff
+            changed_files = []
+            for diff_item in diff:
+                # Handle different types of changes (added, deleted, modified, renamed)
+                if diff_item.a_path:
+                    changed_files.append(diff_item.a_path)
+                if diff_item.b_path and diff_item.b_path != diff_item.a_path:
+                    changed_files.append(diff_item.b_path)
+            
+            # Remove duplicates and sort
+            changed_files = sorted(list(set(changed_files)))
+            
+            self.log(f"get_changed_files returning {len(changed_files)} files")
+            return changed_files
+            
+        except Exception as e:
+            error_msg = {"error": f"Error getting changed files: {e}"}
+            self.log(f"get_changed_files returning error: {error_msg}")
+            return error_msg
+    
     # Delegate methods to component modules
     def get_file_content(self, file_path, version='working'):
-        """Get the content of a file from either HEAD or working directory"""
-        return self.git_operations.get_file_content(file_path, version)
+        """Get the content of a file from either HEAD, working directory, or specific commit"""
+        self.log(f"get_file_content called for {file_path}, version: {version}")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            if version == 'HEAD':
+                # Get file content from HEAD commit
+                try:
+                    blob = self.repo.head.commit.tree[file_path]
+                    content = blob.data_stream.read().decode('utf-8')
+                    self.log(f"HEAD content loaded for {file_path}, length: {len(content)}")
+                    return content
+                except KeyError:
+                    # File doesn't exist in HEAD (new file)
+                    self.log(f"File {file_path} not found in HEAD (new file)")
+                    return ""
+            elif version == 'working':
+                # Get file content from working directory
+                full_path = os.path.join(self.repo.working_tree_dir, file_path)
+                if os.path.exists(full_path):
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    self.log(f"Working content loaded for {file_path}, length: {len(content)}")
+                    return content
+                else:
+                    self.log(f"File {file_path} not found in working directory")
+                    return ""
+            else:
+                # Treat version as a commit hash
+                try:
+                    commit = self.repo.commit(version)
+                    blob = commit.tree[file_path]
+                    content = blob.data_stream.read().decode('utf-8')
+                    self.log(f"Content loaded for {file_path} at commit {version[:8]}, length: {len(content)}")
+                    return content
+                except (KeyError, git.exc.BadName):
+                    # File doesn't exist in this commit
+                    self.log(f"File {file_path} not found in commit {version}")
+                    return ""
+                
+        except UnicodeDecodeError as e:
+            error_msg = {"error": f"File {file_path} contains binary data or invalid encoding: {e}"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
+        except Exception as e:
+            error_msg = {"error": f"Error reading file {file_path}: {e}"}
+            self.log(f"get_file_content returning error: {error_msg}")
+            return error_msg
             
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
@@ -337,6 +491,59 @@ class Repo(BaseWrapper):
     def commit_file(self, file_path, commit_message):
         """Commit a specific file to the repository"""
         return self.git_operations.commit_file(file_path, commit_message)
+
+    def commit_staged_changes(self, message="Rebase commit"):
+        """Commit all staged changes"""
+        return self.git_operations.commit_staged_changes(message)
+
+    def commit_amend(self):
+        """Amend the previous commit with staged changes"""
+        return self.git_operations.commit_amend()
+
+    def get_raw_git_status(self):
+        """Get the raw git status output as it appears in the terminal"""
+        return self.git_operations.get_raw_git_status()
+
+    # Interactive rebase methods - updated for webapp integration
+    def start_interactive_rebase(self, from_commit, to_commit):
+        """Start an interactive rebase between two commits"""
+        return self.git_operations.start_interactive_rebase(from_commit, to_commit)
+
+    def get_git_editor_status(self):
+        """Get comprehensive Git editor status - detects what Git is waiting for"""
+        return self.git_operations.get_git_editor_status()
+
+    def get_rebase_status(self):
+        """Get the current rebase status and todo file content"""
+        return self.git_operations.get_rebase_status()
+
+    def save_git_editor_file(self, file_type, content):
+        """Save content to the appropriate Git editor file"""
+        return self.git_operations.save_git_editor_file(file_type, content)
+
+    def save_rebase_todo(self, todo_content):
+        """Save the rebase todo file content"""
+        return self.git_operations.save_rebase_todo(todo_content)
+
+    def execute_rebase(self, rebase_plan=None):
+        """Execute the interactive rebase with the given plan or continue existing rebase"""
+        return self.git_operations.execute_rebase(rebase_plan)
+
+    def get_conflict_content(self, file_path):
+        """Get the conflict content for a file (ours, theirs, and merged)"""
+        return self.git_operations.get_conflict_content(file_path)
+
+    def resolve_conflict(self, file_path, resolved_content):
+        """Resolve a conflict by saving the resolved content and staging the file"""
+        return self.git_operations.resolve_conflict(file_path, resolved_content)
+
+    def continue_rebase(self):
+        """Continue the rebase after resolving conflicts"""
+        return self.git_operations.continue_rebase()
+
+    def abort_rebase(self):
+        """Abort the current rebase"""
+        return self.git_operations.abort_rebase()
             
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files"""

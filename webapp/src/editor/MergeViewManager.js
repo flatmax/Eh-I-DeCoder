@@ -21,7 +21,7 @@ export class MergeViewManager {
     }
   }
 
-  createMergeView(container, headContent, workingContent, unifiedView, editor) {
+  createMergeView(container, headContent, workingContent, unifiedView, editor, readOnly = false) {
     // Destroy existing merge view
     this.destroy();
     
@@ -47,11 +47,12 @@ export class MergeViewManager {
             getLanguageExtension(this.filePath),
             ...commonEditorTheme,
             keymap.of(commonKeymap),
+            ...(readOnly ? [EditorState.readOnly.of(true)] : []),
             unifiedMergeView({
               original: headContent || '',
               highlightChanges: true,
               gutter: true,
-              mergeControls: true
+              mergeControls: !readOnly
             })
           ],
           parent: container,
@@ -66,7 +67,7 @@ export class MergeViewManager {
               basicSetup,
               searchConfig,
               getLanguageExtension(this.filePath),
-              EditorState.readOnly.of(true), // Make left pane read-only
+              EditorState.readOnly.of(true), // Left pane is always read-only
               ...commonEditorTheme
             ]
           },
@@ -77,11 +78,12 @@ export class MergeViewManager {
               searchConfig,
               getLanguageExtension(this.filePath),
               ...commonEditorTheme,
-              keymap.of(commonKeymap)
+              keymap.of(commonKeymap),
+              ...(readOnly ? [EditorState.readOnly.of(true)] : [])
             ]
           },
           // Enhanced merge view options
-          revertControls: true,
+          revertControls: !readOnly,
           highlightChanges: true,
           gutter: true,
           lineNumbers: true,
@@ -90,7 +92,7 @@ export class MergeViewManager {
         });
       }
       
-      console.log(`MergeView created successfully (mode: ${unifiedView ? 'unified' : 'side-by-side'})`);
+      console.log(`MergeView created successfully (mode: ${unifiedView ? 'unified' : 'side-by-side'}, readOnly: ${readOnly})`);
       return this.mergeView;
     } catch (error) {
       console.error('Error creating MergeView:', error);
