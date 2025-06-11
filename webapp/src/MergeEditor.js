@@ -37,6 +37,7 @@ export class MergeEditor extends JRPCClient {
     
     this.toggleViewMode = this.toggleViewMode.bind(this);
     this.onChangeTracked = this.onChangeTracked.bind(this);
+    this.handleWordClick = this.handleWordClick.bind(this);
   }
   
   connectedCallback() {
@@ -47,12 +48,30 @@ export class MergeEditor extends JRPCClient {
     this.mergeViewManager = new MergeViewManager(this.shadowRoot, this.filePath);
     this.fileContentLoader = new FileContentLoader(this);
     this.changeTracker = new ChangeTracker(this.onChangeTracked);
+    
+    // Set up word click handler
+    this.mergeViewManager.setWordClickHandler(this.handleWordClick);
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
     this.mergeViewManager?.destroy();
     this.changeTracker?.cleanup();
+  }
+
+  /**
+   * Handle Ctrl+click on words in the merge view
+   * @param {string} word - The clicked word
+   */
+  handleWordClick(word) {
+    console.log('Word clicked:', word);
+    
+    // Dispatch custom event to notify parent components (like PromptView)
+    this.dispatchEvent(new CustomEvent('word-clicked', {
+      detail: { word },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   onChangeTracked(hasChanges) {

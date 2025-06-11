@@ -68,6 +68,7 @@ export class PromptView extends MessageHandler {
     // Bind methods
     this.handleModeToggle = this.handleModeToggle.bind(this);
     this.handleTabClick = this.handleTabClick.bind(this);
+    this.handleWordClicked = this.handleWordClicked.bind(this);
   }
 
   static styles = promptViewStyles;
@@ -80,6 +81,9 @@ export class PromptView extends MessageHandler {
     this.dialogStateManager.initialize();
     this.scrollManager.initialize();
     
+    // Listen for word-clicked events from MergeEditor
+    document.addEventListener('word-clicked', this.handleWordClicked);
+    
     // Force initial state update
     this.updateComplete.then(() => {
       this.dialogStateManager.updateDialogClass();
@@ -91,6 +95,45 @@ export class PromptView extends MessageHandler {
     this.dragHandler.cleanup();
     this.dialogStateManager.cleanup();
     this.scrollManager.cleanup();
+    
+    // Remove event listener
+    document.removeEventListener('word-clicked', this.handleWordClicked);
+  }
+
+  /**
+   * Handle word-clicked events from MergeEditor
+   * @param {CustomEvent} event - The word-clicked event
+   */
+  handleWordClicked(event) {
+    const { word } = event.detail;
+    if (!word) return;
+    
+    // Add the word to the current input value
+    const currentValue = this.inputValue || '';
+    const newValue = currentValue ? `${currentValue} ${word}` : word;
+    
+    this.inputValue = newValue;
+    this.requestUpdate();
+    
+    // Focus the input field and position cursor at the end
+    this.updateComplete.then(() => {
+      const textField = this.shadowRoot.querySelector('md-filled-text-field');
+      if (textField) {
+        textField.focus();
+        // Set cursor to end of text
+        setTimeout(() => {
+          const input = textField.shadowRoot?.querySelector('input');
+          if (input) {
+            input.setSelectionRange(newValue.length, newValue.length);
+          }
+        }, 10);
+      }
+    });
+    
+    // If the prompt view is minimized, maximize it to show the updated input
+    if (this.isMinimized) {
+      this.maximize();
+    }
   }
   
   // Delegate methods to managers

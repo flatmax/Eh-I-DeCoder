@@ -12,6 +12,7 @@ export class MergeViewManager {
     this.shadowRoot = shadowRoot;
     this.filePath = filePath;
     this.mergeView = null;
+    this.wordClickHandler = null;
   }
 
   destroy() {
@@ -19,6 +20,78 @@ export class MergeViewManager {
       this.mergeView.destroy();
       this.mergeView = null;
     }
+  }
+
+  /**
+   * Set the handler function for word clicks
+   * @param {Function} handler - Function to call when a word is Ctrl+clicked
+   */
+  setWordClickHandler(handler) {
+    this.wordClickHandler = handler;
+  }
+
+  /**
+   * Get the word at a specific position in the editor
+   * @param {EditorView} view - The CodeMirror view
+   * @param {number} pos - The position in the document
+   * @returns {string|null} - The word at the position, or null if not found
+   */
+  getWordAtPosition(view, pos) {
+    const doc = view.state.doc;
+    const line = doc.lineAt(pos);
+    const lineText = line.text;
+    const lineStart = line.from;
+    const relativePos = pos - lineStart;
+    
+    // Regular expression to match identifiers, keywords, and other code elements
+    // Matches letters, numbers, underscores, dollar signs, and hyphens (common in various languages)
+    const wordRegex = /[a-zA-Z_$][a-zA-Z0-9_$-]*/g;
+    let match;
+    
+    while ((match = wordRegex.exec(lineText)) !== null) {
+      const wordStart = match.index;
+      const wordEnd = match.index + match[0].length;
+      
+      // Check if the click position is within this word
+      if (relativePos >= wordStart && relativePos <= wordEnd) {
+        return match[0];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Create a click handler extension for CodeMirror
+   * @returns {Extension} - CodeMirror extension for handling clicks
+   */
+  createClickHandler() {
+    return EditorView.domEventHandlers({
+      mousedown: (event, view) => {
+        // Only handle Ctrl+click (or Cmd+click on Mac)
+        if (!(event.ctrlKey || event.metaKey)) {
+          return false;
+        }
+        
+        // Get the position of the click
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (pos === null) {
+          return false;
+        }
+        
+        // Get the word at this position
+        const word = this.getWordAtPosition(view, pos);
+        if (word && this.wordClickHandler) {
+          // Prevent default behavior and call our handler
+          event.preventDefault();
+          event.stopPropagation();
+          this.wordClickHandler(word);
+          return true;
+        }
+        
+        return false;
+      }
+    });
   }
 
   createMergeView(container, headContent, workingContent, unifiedView, editor, readOnly = false) {
@@ -47,6 +120,7 @@ export class MergeViewManager {
             getLanguageExtension(this.filePath),
             ...commonEditorTheme,
             keymap.of(commonKeymap),
+            this.createClickHandler(),
             ...(readOnly ? [EditorState.readOnly.of(true)] : []),
             unifiedMergeView({
               original: headContent || '',
@@ -68,7 +142,8 @@ export class MergeViewManager {
               searchConfig,
               getLanguageExtension(this.filePath),
               EditorState.readOnly.of(true), // Left pane is always read-only
-              ...commonEditorTheme
+              ...commonEditorTheme,
+              this.createClickHandler()
             ]
           },
           b: {
@@ -79,6 +154,7 @@ export class MergeViewManager {
               getLanguageExtension(this.filePath),
               ...commonEditorTheme,
               keymap.of(commonKeymap),
+              this.createClickHandler(),
               ...(readOnly ? [EditorState.readOnly.of(true)] : [])
             ]
           },
