@@ -224,7 +224,15 @@ export class ChatHistoryPanel extends JRPCClient {
 
   finalizeCurrentMessage() {
     if (this.currentStreamRole !== null && this.currentStreamContent.length > 0) {
-      const content = this.currentStreamContent.join('\n').trim();
+      let content = this.currentStreamContent.join('\n').trim();
+      
+      // Strip the "#### " prefix from each line of user messages
+      if (this.currentStreamRole === 'user') {
+        content = content.split('\n').map(line => {
+          return line.startsWith('#### ') ? line.substring(5) : line;
+        }).join('\n');
+      }
+      
       if (content) {
         // Create a new array to trigger reactivity
         this.parsedMessages = [...this.parsedMessages, {
@@ -285,7 +293,15 @@ export class ChatHistoryPanel extends JRPCClient {
       if (newRole === 'command' && currentRole === 'command' && lastLineWasEmpty) {
         // Save previous command message
         if (currentContent.length > 0) {
-          const content = currentContent.join('\n').trim();
+          let content = currentContent.join('\n').trim();
+          
+          // Strip the "#### " prefix from each line of user messages
+          if (currentRole === 'user') {
+            content = content.split('\n').map(line => {
+              return line.startsWith('#### ') ? line.substring(5) : line;
+            }).join('\n');
+          }
+          
           if (content) {
             messages.push({
               role: currentRole,
@@ -299,7 +315,15 @@ export class ChatHistoryPanel extends JRPCClient {
       } else if (newRole !== currentRole) {
         // Role change - save previous message if we have content
         if (currentRole !== null && currentContent.length > 0) {
-          const content = currentContent.join('\n').trim();
+          let content = currentContent.join('\n').trim();
+          
+          // Strip the "#### " prefix from each line of user messages
+          if (currentRole === 'user') {
+            content = content.split('\n').map(line => {
+              return line.startsWith('#### ') ? line.substring(5) : line;
+            }).join('\n');
+          }
+          
           if (content) {
             messages.push({
               role: currentRole,
@@ -322,7 +346,15 @@ export class ChatHistoryPanel extends JRPCClient {
 
     // Don't forget the last message
     if (currentRole !== null && currentContent.length > 0) {
-      const content = currentContent.join('\n').trim();
+      let content = currentContent.join('\n').trim();
+      
+      // Strip the "#### " prefix from each line of user messages
+      if (currentRole === 'user') {
+        content = content.split('\n').map(line => {
+          return line.startsWith('#### ') ? line.substring(5) : line;
+        }).join('\n');
+      }
+      
       if (content) {
         messages.push({
           role: currentRole,
