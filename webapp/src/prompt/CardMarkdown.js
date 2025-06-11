@@ -39,6 +39,7 @@ export class CardMarkdown extends LitElement {
     this.content = '';
     this.role = 'assistant'; // default
     this.setupMarked();
+    console.log('CardMarkdown: Constructor called with role:', this.role);
   }
 
   setupMarked() {
@@ -91,6 +92,7 @@ export class CardMarkdown extends LitElement {
     
     // Re-run Prism highlighting after content updates
     if (changedProperties.has('content')) {
+      console.log('CardMarkdown: Content updated, length:', this.content?.length || 0);
       this.highlightCode();
     }
   }
@@ -533,6 +535,8 @@ export class CardMarkdown extends LitElement {
   `;
 
   render() {
+    console.log('CardMarkdown: Rendering with content length:', this.content?.length || 0, 'role:', this.role);
+    
     const classes = {
       card: true,
       'user-card': this.role === 'user',
@@ -559,3 +563,6 @@ export class CardMarkdown extends LitElement {
     `;
   }
 }
+
+// Register the custom element
+customElements.define('card-markdown', CardMarkdown);

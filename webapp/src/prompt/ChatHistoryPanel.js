@@ -98,16 +98,40 @@ export class ChatHistoryPanel extends JRPCClient {
       display: block;
       width: 100%;
     }
+
+    .debug-info {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      padding: 8px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
   `;
 
   firstUpdated() {
     console.log('ChatHistoryPanel: First updated');
-    this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
-    if (this.scrollContainer) {
-      this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
-      console.log('ChatHistoryPanel: Scroll listener added');
-    } else {
-      console.warn('ChatHistoryPanel: Could not find scroll container');
+    // Don't try to find scroll container here - it may not be rendered yet
+    // We'll find it when we need it in other methods
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    
+    // Set up scroll container after any update
+    if (!this.scrollContainer) {
+      this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
+      if (this.scrollContainer) {
+        this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
+        console.log('ChatHistoryPanel: Scroll listener added');
+      }
+    }
+
+    // Log content changes for debugging
+    if (changedProperties.has('content')) {
+      console.log('ChatHistoryPanel: Content changed, new length:', this.content?.length || 0);
+      console.log('ChatHistoryPanel: Content preview:', this.content?.substring(0, 200) + '...');
     }
   }
 
@@ -171,11 +195,14 @@ export class ChatHistoryPanel extends JRPCClient {
 
       this.loading = false;
 
-      // Scroll to bottom after content loads
+      // Scroll to bottom after content loads and DOM updates
       await this.updateComplete;
       if (this.shouldScrollToBottom) {
-        this.scrollToBottom();
-        this.shouldScrollToBottom = false; // Only scroll to bottom on initial load
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+          this.scrollToBottom();
+          this.shouldScrollToBottom = false; // Only scroll to bottom on initial load
+        }, 100);
       }
       console.log('ChatHistoryPanel: Initial content load complete');
 
@@ -277,11 +304,24 @@ export class ChatHistoryPanel extends JRPCClient {
   }
 
   scrollToBottom() {
+    // Try to find scroll container if we don't have it
+    if (!this.scrollContainer) {
+      this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
+    }
+    
     if (this.scrollContainer) {
       this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
       console.log('ChatHistoryPanel: Scrolled to bottom');
     } else {
-      console.warn('ChatHistoryPanel: Cannot scroll - no scroll container');
+      console.warn('ChatHistoryPanel: Cannot scroll - no scroll container found');
+      // Try again after a short delay
+      setTimeout(() => {
+        this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
+        if (this.scrollContainer) {
+          this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
+          console.log('ChatHistoryPanel: Scrolled to bottom (delayed)');
+        }
+      }, 200);
     }
   }
 
@@ -332,7 +372,16 @@ export class ChatHistoryPanel extends JRPCClient {
       
       <div class="chat-history-container">
         <div class="content-wrapper">
-          <card-markdown .content=${this.content} role="assistant"></card-markdown>
+          ${this.content ? html`
+            <card-markdown .content=${this.content} role="assistant"></card-markdown>
+          ` : html`
+            <div class="debug-info">
+              No content available. 
+              Content length: ${this.content?.length || 0}
+              File size: ${this.fileSize}
+              Has more: ${this.hasMore}
+            </div>
+          `}
         </div>
       </div>
     `;
