@@ -40,15 +40,18 @@ export class ChatHistoryPanel extends JRPCClient {
     
     this.messageParser = new MessageParser();
     this.scrollManager = new ChatScrollManager(this);
+    console.log('ChatHistoryPanel::constructor')
   }
 
   static styles = ChatHistoryStyles.styles;
 
   firstUpdated() {
+    console.log('ChatHistoryPanel::firstUpdated')
     // No logging needed here
   }
 
   updated(changedProperties) {
+    console.log('ChatHistoryPanel::updated')
     super.updated(changedProperties);
     
     this.scrollManager.setupScrollContainer();
@@ -59,7 +62,27 @@ export class ChatHistoryPanel extends JRPCClient {
     }
   }
 
-  setupDone(){
+  connectedCallback() {
+    console.log('ChatHistoryPanel::connectedCallback')
+    super.connectedCallback();
+    this.addClass?.(this);
+  }
+  
+  disconnectedCallback() {
+    console.log('ChatHistoryPanel::disconnectedCallback')
+    super.disconnectedCallback();
+  }
+  
+  attributeChangedCallback() {
+    console.log('ChatHistoryPanel::attributeChangedCallback')
+  }
+  
+  adoptedCallback() {
+    console.log('ChatHistoryPanel::adoptedCallback')
+  }
+  
+  setupDone() {
+    console.log('ChatHistoryPanel::setupDone')
     this.loadInitialContent();
   }
 
@@ -238,3 +261,5 @@ export class ChatHistoryPanel extends JRPCClient {
     `;
   }
 }
+
+customElements.define('chat-history-panel', ChatHistoryPanel);
