@@ -234,6 +234,21 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       updateChildComponents(this, 'git-history-view', 'serverURI', this.serverURI)
     ]).then(() => {
       console.log('All child components updated with server URI');
+      
+      // // Now call serverChanged on all child components that have this method
+      // const childComponents = [
+      //   this.shadowRoot.querySelector('prompt-view'),
+      //   this.shadowRoot.querySelector('app-sidebar'),
+      //   this.shadowRoot.querySelector('merge-editor'),
+      //   this.shadowRoot.querySelector('git-history-view')
+      // ];
+      
+      // childComponents.forEach(component => {
+      //   if (component && typeof component.serverChanged === 'function') {
+      //     console.log(`Calling serverChanged on ${component.tagName}`);
+      //     component.serverChanged();
+      //   }
+      // });
     });
     
     super.serverChanged();
