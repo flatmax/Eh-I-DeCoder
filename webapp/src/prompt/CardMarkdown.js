@@ -220,60 +220,189 @@ export class CardMarkdown extends LitElement {
       text-decoration: underline;
     }
 
-    /* Prism.js theme overrides */
+    /* Prism.js theme - Tomorrow Night */
+    code[class*="language-"],
+    pre[class*="language-"] {
+      color: #ccc;
+      background: none;
+      font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+      font-size: 0.875em;
+      text-align: left;
+      white-space: pre;
+      word-spacing: normal;
+      word-break: normal;
+      word-wrap: normal;
+      line-height: 1.5;
+      -moz-tab-size: 4;
+      -o-tab-size: 4;
+      tab-size: 4;
+      -webkit-hyphens: none;
+      -moz-hyphens: none;
+      -ms-hyphens: none;
+      hyphens: none;
+    }
+
+    /* Code blocks */
+    pre[class*="language-"] {
+      padding: 1em;
+      margin: 0.5em 0;
+      overflow: auto;
+    }
+
+    :not(pre) > code[class*="language-"],
+    pre[class*="language-"] {
+      background: #2d2d2d;
+    }
+
+    /* Inline code */
+    :not(pre) > code[class*="language-"] {
+      padding: 0.1em;
+      border-radius: 0.3em;
+      white-space: normal;
+    }
+
     .token.comment,
+    .token.block-comment,
     .token.prolog,
     .token.doctype,
     .token.cdata {
-      color: #6a737d;
+      color: #999;
     }
 
     .token.punctuation {
-      color: #24292e;
+      color: #ccc;
+    }
+
+    .token.tag,
+    .token.attr-name,
+    .token.namespace,
+    .token.deleted {
+      color: #e2777a;
+    }
+
+    .token.function-name {
+      color: #6196cc;
+    }
+
+    .token.boolean,
+    .token.number,
+    .token.function {
+      color: #f08d49;
     }
 
     .token.property,
-    .token.tag,
-    .token.boolean,
-    .token.number,
+    .token.class-name,
     .token.constant,
-    .token.symbol,
-    .token.deleted {
-      color: #005cc5;
+    .token.symbol {
+      color: #f8c555;
     }
 
     .token.selector,
-    .token.attr-name,
+    .token.important,
+    .token.atrule,
+    .token.keyword,
+    .token.builtin {
+      color: #cc99cd;
+    }
+
     .token.string,
     .token.char,
-    .token.builtin,
-    .token.inserted {
-      color: #032f62;
+    .token.attr-value,
+    .token.regex,
+    .token.variable {
+      color: #7ec699;
     }
 
     .token.operator,
     .token.entity,
-    .token.url,
+    .token.url {
+      color: #67cdcc;
+    }
+
+    .token.important,
+    .token.bold {
+      font-weight: bold;
+    }
+    
+    .token.italic {
+      font-style: italic;
+    }
+
+    .token.entity {
+      cursor: help;
+    }
+
+    .token.inserted {
+      color: #7ec699;
+    }
+
+    .token.deleted {
+      color: #e2777a;
+    }
+
+    /* Language-specific styles */
     .language-css .token.string,
     .style .token.string {
-      color: #d73a49;
+      color: #7ec699;
     }
 
-    .token.atrule,
-    .token.attr-value,
-    .token.keyword {
-      color: #d73a49;
+    .language-javascript .token.keyword,
+    .language-typescript .token.keyword,
+    .language-jsx .token.keyword,
+    .language-tsx .token.keyword {
+      color: #cc99cd;
     }
 
-    .token.function,
-    .token.class-name {
-      color: #6f42c1;
+    .language-python .token.keyword {
+      color: #cc99cd;
     }
 
-    .token.regex,
-    .token.important,
-    .token.variable {
-      color: #e36209;
+    .language-python .token.builtin {
+      color: #f08d49;
+    }
+
+    /* Diff highlighting */
+    .token.coord {
+      color: #f8c555;
+    }
+
+    .token.diff.deleted {
+      color: #e2777a;
+      background-color: rgba(255, 0, 0, 0.1);
+    }
+
+    .token.diff.inserted {
+      color: #7ec699;
+      background-color: rgba(0, 255, 0, 0.1);
+    }
+
+    /* Line numbers */
+    .line-numbers .line-numbers-rows {
+      position: absolute;
+      pointer-events: none;
+      top: 0;
+      font-size: 100%;
+      left: -3.8em;
+      width: 3em;
+      letter-spacing: -1px;
+      border-right: 1px solid #999;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    .line-numbers-rows > span {
+      display: block;
+      counter-increment: linenumber;
+    }
+
+    .line-numbers-rows > span:before {
+      content: counter(linenumber);
+      color: #999;
+      display: block;
+      padding-right: 0.8em;
+      text-align: right;
     }
   `;
 
@@ -292,6 +421,26 @@ export class CardMarkdown extends LitElement {
       console.error('Markdown parsing error:', e);
       return this.content;
     }
+  }
+
+  updated() {
+    // After the component updates, manually highlight any code blocks that might not have been highlighted
+    this.shadowRoot.querySelectorAll('pre code').forEach((block) => {
+      // Check if it's already highlighted
+      if (!block.classList.contains('language-')) {
+        // Try to detect language from class or use plaintext
+        const pre = block.parentElement;
+        const langClass = Array.from(pre.classList).find(c => c.startsWith('language-'));
+        if (langClass) {
+          block.classList.add(langClass);
+        }
+      }
+      
+      // Re-highlight the block
+      if (window.Prism) {
+        Prism.highlightElement(block);
+      }
+    });
   }
 
   render() {
