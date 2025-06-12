@@ -62,67 +62,104 @@ export class CardMarkdown extends LitElement {
   static styles = css`
     :host {
       display: block;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
+      width: 100%;
     }
 
     .card {
       background: white;
       border-radius: 8px;
-      padding: 16px;
+      padding: 12px 16px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      width: auto;
+      max-width: 85%;
+      box-sizing: border-box;
+      display: inline-block;
     }
 
     .card.user {
       background: #e3f2fd;
-      margin-left: 20%;
+      margin-left: auto;
+      margin-right: 0;
+      float: right;
+      clear: both;
     }
 
     .card.assistant {
       background: #f5f5f5;
-      margin-right: 20%;
+      margin-left: 0;
+      margin-right: auto;
+      float: left;
+      clear: both;
     }
 
     .card.command {
       background: #fff3e0;
       font-family: monospace;
       white-space: pre-wrap;
+      margin-left: 0;
+      margin-right: auto;
+      float: left;
+      clear: both;
+    }
+
+    /* Clear floats after each card */
+    :host::after {
+      content: "";
+      display: table;
+      clear: both;
     }
 
     .card-header {
-      font-size: 12px;
+      font-size: 11px;
       color: #666;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
       text-transform: uppercase;
+      font-weight: 500;
     }
 
     .card-content {
-      line-height: 1.6;
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
-    /* Markdown styles */
+    /* Compact markdown styles for small messages */
+    .card-content > *:first-child {
+      margin-top: 0;
+    }
+
+    .card-content > *:last-child {
+      margin-bottom: 0;
+    }
+
     .card-content h1,
     .card-content h2,
     .card-content h3,
     .card-content h4,
     .card-content h5,
     .card-content h6 {
-      margin-top: 16px;
-      margin-bottom: 8px;
+      margin-top: 12px;
+      margin-bottom: 6px;
     }
 
     .card-content p {
-      margin: 8px 0;
+      margin: 6px 0;
     }
 
     .card-content ul,
     .card-content ol {
-      margin: 8px 0;
-      padding-left: 24px;
+      margin: 6px 0;
+      padding-left: 20px;
+    }
+
+    .card-content li {
+      margin: 2px 0;
     }
 
     .card-content code {
       background: rgba(0, 0, 0, 0.05);
-      padding: 2px 4px;
+      padding: 1px 4px;
       border-radius: 3px;
       font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
       font-size: 0.9em;
@@ -132,9 +169,9 @@ export class CardMarkdown extends LitElement {
       background: #f6f8fa;
       border: 1px solid #e1e4e8;
       border-radius: 6px;
-      padding: 16px;
+      padding: 12px;
       overflow-x: auto;
-      margin: 8px 0;
+      margin: 6px 0;
     }
 
     .card-content pre code {
@@ -146,22 +183,22 @@ export class CardMarkdown extends LitElement {
     }
 
     .card-content blockquote {
-      border-left: 4px solid #dfe2e5;
-      margin: 8px 0;
-      padding-left: 16px;
+      border-left: 3px solid #dfe2e5;
+      margin: 6px 0;
+      padding-left: 12px;
       color: #6a737d;
     }
 
     .card-content table {
       border-collapse: collapse;
-      margin: 8px 0;
+      margin: 6px 0;
       width: 100%;
     }
 
     .card-content th,
     .card-content td {
       border: 1px solid #dfe2e5;
-      padding: 6px 13px;
+      padding: 4px 8px;
     }
 
     .card-content th {

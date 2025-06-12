@@ -13,7 +13,7 @@ export class ChatHistoryStyles {
       .chat-history-container {
         flex: 1;
         overflow-y: auto;
-        padding: 16px;
+        padding: 12px;
         background-color: #f9f9f9;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 14px;
@@ -48,6 +48,9 @@ export class ChatHistoryStyles {
       .content-wrapper {
         word-wrap: break-word;
         max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       .file-info {
@@ -66,7 +69,6 @@ export class ChatHistoryStyles {
       commands-card {
         display: block;
         width: 100%;
-        margin-bottom: 8px;
       }
 
       .debug-info {
