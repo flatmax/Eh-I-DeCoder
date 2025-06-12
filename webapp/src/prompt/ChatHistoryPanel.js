@@ -40,14 +40,12 @@ export class ChatHistoryPanel extends JRPCClient {
     
     this.messageParser = new MessageParser();
     this.scrollManager = new ChatScrollManager(this);
-    
-    console.log('ChatHistoryPanel: Constructor called');
   }
 
   static styles = ChatHistoryStyles.styles;
 
   firstUpdated() {
-    console.log('ChatHistoryPanel: First updated');
+    // No logging needed here
   }
 
   updated(changedProperties) {
@@ -57,30 +55,20 @@ export class ChatHistoryPanel extends JRPCClient {
 
     // Parse content when it changes
     if (changedProperties.has('content')) {
-      console.log('ChatHistoryPanel: Content changed, new length:', this.content?.length || 0);
       this.parsedMessages = this.messageParser.parseContent(this.content);
     }
   }
 
   setupDone(){
-    console.log('ChatHistoryPanel: setupDone called');
-    console.log('ChatHistoryPanel: this.call =', this.call);
-    console.log('ChatHistoryPanel: Available methods:', this.call ? Object.keys(this.call) : 'No call object');
     this.loadInitialContent();
   }
 
   async loadInitialContent() {
-    console.log('ChatHistoryPanel: loadInitialContent called');
-    
     try {
       this.loading = true;
       this.error = null;
       
-      console.log('ChatHistoryPanel: About to call ChatHistory.get_latest_content');
-      console.log('ChatHistoryPanel: this.call =', this.call);
-      
       if (!this.call) {
-        console.error('ChatHistoryPanel: JRPC call object not available');
         throw new Error('JRPC call object not available');
       }
       
@@ -90,7 +78,6 @@ export class ChatHistoryPanel extends JRPCClient {
       }
 
       const response = await this.call['ChatHistory.get_latest_content']();
-      console.log('ChatHistoryPanel: Raw response received:', response);
       
       // Extract the actual data from the UUID-wrapped response
       let data = null;
@@ -101,7 +88,6 @@ export class ChatHistoryPanel extends JRPCClient {
         if (keys.length > 0 && keys[0].match(/^[0-9a-f-]+$/i)) {
           // Looks like a UUID key, extract the value
           data = response[keys[0]];
-          console.log('ChatHistoryPanel: Extracted data from UUID key:', keys[0], data);
         } else {
           // Not UUID wrapped, use as is
           data = response;
@@ -110,22 +96,12 @@ export class ChatHistoryPanel extends JRPCClient {
         data = response;
       }
       
-      console.log('ChatHistoryPanel: Processing data:', data);
-      
       // Now check if data has the expected structure
       if (data && typeof data === 'object' && 'content' in data) {
         this.content = data.content || '';
         this.currentStartPos = data.start_pos || 0;
         this.hasMore = data.has_more || false;
         this.fileSize = data.file_size || 0;
-        
-        console.log('ChatHistoryPanel: Content loaded:', {
-          contentLength: this.content.length,
-          currentStartPos: this.currentStartPos,
-          hasMore: this.hasMore,
-          fileSize: this.fileSize,
-          contentPreview: this.content.substring(0, 100)
-        });
       } else {
         console.warn('ChatHistoryPanel: Response does not have expected structure:', data);
         this.content = '';
@@ -138,31 +114,23 @@ export class ChatHistoryPanel extends JRPCClient {
       // Scroll to bottom after content loads and DOM updates
       await this.updateComplete;
       this.scrollManager.scrollToBottomOnInitialLoad();
-      console.log('ChatHistoryPanel: Initial content load complete');
 
     } catch (error) {
       console.error('ChatHistoryPanel: Error loading chat history:', error);
-      console.error('ChatHistoryPanel: Error stack:', error.stack);
       this.error = `Failed to load chat history: ${error.message}`;
       this.loading = false;
     }
   }
 
   async loadMoreContent() {
-    console.log('ChatHistoryPanel: loadMoreContent called');
-    console.log('ChatHistoryPanel: isLoadingMore =', this.isLoadingMore, 'hasMore =', this.hasMore);
-    
     if (this.isLoadingMore || !this.hasMore) {
-      console.log('ChatHistoryPanel: Skipping loadMoreContent - already loading or no more content');
       return;
     }
 
     try {
       this.isLoadingMore = true;
-      console.log('ChatHistoryPanel: About to call load_previous_chunk_remote with currentStartPos =', this.currentStartPos);
 
       const response = await this.call['ChatHistory.load_previous_chunk_remote'](this.currentStartPos);
-      console.log('ChatHistoryPanel: loadMoreContent raw response:', response);
       
       // Extract the actual data from the UUID-wrapped response
       let data = null;
@@ -171,15 +139,12 @@ export class ChatHistoryPanel extends JRPCClient {
         const keys = Object.keys(response);
         if (keys.length > 0 && keys[0].match(/^[0-9a-f-]+$/i)) {
           data = response[keys[0]];
-          console.log('ChatHistoryPanel: Extracted data from UUID key for loadMore:', keys[0]);
         } else {
           data = response;
         }
       } else {
         data = response;
       }
-      
-      console.log('ChatHistoryPanel: Processing loadMore data:', data);
       
       if (data && typeof data === 'object' && 'content' in data && data.content) {
         // Store current scroll position
@@ -189,13 +154,6 @@ export class ChatHistoryPanel extends JRPCClient {
         this.content = data.content + this.content;
         this.currentStartPos = data.start_pos || 0;
         this.hasMore = data.has_more || false;
-        
-        console.log('ChatHistoryPanel: Content updated:', {
-          newContentLength: data.content.length,
-          totalContentLength: this.content.length,
-          newStartPos: this.currentStartPos,
-          hasMore: this.hasMore
-        });
 
         // Wait for DOM update
         await this.updateComplete;
@@ -208,10 +166,8 @@ export class ChatHistoryPanel extends JRPCClient {
 
     } catch (error) {
       console.error('ChatHistoryPanel: Error loading more content:', error);
-      console.error('ChatHistoryPanel: Error stack:', error.stack);
     } finally {
       this.isLoadingMore = false;
-      console.log('ChatHistoryPanel: loadMoreContent complete');
     }
   }
 
@@ -224,15 +180,6 @@ export class ChatHistoryPanel extends JRPCClient {
   }
 
   render() {
-    console.log('ChatHistoryPanel: Rendering with state:', {
-      loading: this.loading,
-      error: this.error,
-      contentLength: this.content.length,
-      hasMore: this.hasMore,
-      isLoadingMore: this.isLoadingMore,
-      parsedMessagesCount: this.parsedMessages.length
-    });
-    
     if (this.loading) {
       return html`
         <div class="loading-indicator">

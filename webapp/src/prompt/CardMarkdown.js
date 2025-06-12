@@ -39,117 +39,67 @@ export class CardMarkdown extends LitElement {
     this.content = '';
     this.role = 'assistant'; // default
     this.setupMarked();
-    console.log('CardMarkdown: Constructor called with role:', this.role);
   }
 
   setupMarked() {
-    // Configure marked to use Prism for syntax highlighting
+    // Configure marked to use Prism.js for syntax highlighting
     marked.setOptions({
-      highlight: (code, lang) => {
-        // Map common language aliases
-        const langMap = {
-          'js': 'javascript',
-          'ts': 'typescript',
-          'py': 'python',
-          'html': 'markup',
-          'xml': 'markup',
-          'sh': 'bash',
-          'shell': 'bash',
-          'c++': 'cpp',
-          'cxx': 'cpp',
-          'cc': 'cpp',
-          'h': 'c',
-          'hpp': 'cpp',
-          'hxx': 'cpp',
-          'm': 'matlab',
-          'makefile': 'makefile',
-          'make': 'makefile',
-          'autotools': 'makefile',
-          'automake': 'makefile',
-          'autoconf': 'bash',
-          'patch': 'diff'
-        };
-        
-        const actualLang = langMap[lang] || lang;
-        
-        if (actualLang && window.Prism && window.Prism.languages[actualLang]) {
+      highlight: function(code, lang) {
+        if (lang && Prism.languages[lang]) {
           try {
-            return window.Prism.highlight(code, window.Prism.languages[actualLang], actualLang);
-          } catch (err) {
-            console.warn('Prism highlighting failed for language:', actualLang, err);
+            return Prism.highlight(code, Prism.languages[lang], lang);
+          } catch (e) {
+            console.error('Prism highlighting error:', e);
           }
         }
         return code;
       },
-      langPrefix: 'language-',
       breaks: true,
       gfm: true
-    });
-  }
-
-  updated(changedProperties) {
-    super.updated(changedProperties);
-    
-    // Re-run Prism highlighting after content updates
-    if (changedProperties.has('content')) {
-      this.highlightCode();
-    }
-  }
-
-  highlightCode() {
-    // Use requestAnimationFrame to ensure DOM is updated
-    requestAnimationFrame(() => {
-      if (window.Prism) {
-        // Find all code blocks in this component's shadow DOM
-        const codeBlocks = this.shadowRoot.querySelectorAll('pre code[class*="language-"]');
-        codeBlocks.forEach((block, index) => {
-          window.Prism.highlightElement(block);
-        });
-      }
     });
   }
 
   static styles = css`
     :host {
       display: block;
-      margin-bottom: 12px;
-      width: 100%;
+      margin-bottom: 16px;
     }
-    
+
     .card {
+      background: white;
       border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-      max-width: 90%;
-    }
-    
-    .user-card {
-      background-color: #e1f5fe;
-      margin-left: auto;
-    }
-    
-    .assistant-card {
-      background-color: #f1f1f1;
-      margin-right: auto;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
-    .command-card {
-      background-color: #2d2d2d;
-      margin-right: auto;
-    }
-    
-    .card-content {
-      padding: 12px 16px;
-      font-family: sans-serif;
-      overflow-x: auto;
+    .card.user {
+      background: #e3f2fd;
+      margin-left: 20%;
     }
 
-    .command-card .card-content {
+    .card.assistant {
+      background: #f5f5f5;
+      margin-right: 20%;
+    }
+
+    .card.command {
+      background: #fff3e0;
       font-family: monospace;
-      color: #f8f8f8;
+      white-space: pre-wrap;
     }
 
-    /* Markdown styling */
+    .card-header {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .card-content {
+      line-height: 1.6;
+    }
+
+    /* Markdown styles */
     .card-content h1,
     .card-content h2,
     .card-content h3,
@@ -158,67 +108,91 @@ export class CardMarkdown extends LitElement {
     .card-content h6 {
       margin-top: 16px;
       margin-bottom: 8px;
-      font-weight: 600;
     }
 
     .card-content p {
       margin: 8px 0;
-      line-height: 1.5;
     }
 
     .card-content ul,
     .card-content ol {
       margin: 8px 0;
-      padding-left: 20px;
+      padding-left: 24px;
     }
 
-    .card-content li {
-      margin: 4px 0;
+    .card-content code {
+      background: rgba(0, 0, 0, 0.05);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.9em;
     }
 
     .card-content pre {
-      background-color: #f8f8f8;
+      background: #f6f8fa;
       border: 1px solid #e1e4e8;
       border-radius: 6px;
       padding: 16px;
       overflow-x: auto;
-      margin: 16px 0;
-      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-      font-size: 85%;
-      line-height: 1.45;
-    }
-    
-    .card-content code {
-      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-      font-size: 85%;
-      background-color: rgba(175, 184, 193, 0.2);
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
+      margin: 8px 0;
     }
 
-    /* Remove background from code inside pre blocks */
     .card-content pre code {
       background: none;
       padding: 0;
       border-radius: 0;
-      color: inherit;
+      font-size: 0.875em;
+      line-height: 1.45;
     }
 
-    /* Prism.js syntax highlighting theme - Light theme */
+    .card-content blockquote {
+      border-left: 4px solid #dfe2e5;
+      margin: 8px 0;
+      padding-left: 16px;
+      color: #6a737d;
+    }
+
+    .card-content table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      width: 100%;
+    }
+
+    .card-content th,
+    .card-content td {
+      border: 1px solid #dfe2e5;
+      padding: 6px 13px;
+    }
+
+    .card-content th {
+      background: #f6f8fa;
+      font-weight: 600;
+    }
+
+    .card-content img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .card-content a {
+      color: #0366d6;
+      text-decoration: none;
+    }
+
+    .card-content a:hover {
+      text-decoration: underline;
+    }
+
+    /* Prism.js theme overrides */
     .token.comment,
     .token.prolog,
     .token.doctype,
     .token.cdata {
-      color: #708090;
-      font-style: italic;
+      color: #6a737d;
     }
 
     .token.punctuation {
-      color: #999999;
-    }
-
-    .token.namespace {
-      opacity: 0.7;
+      color: #24292e;
     }
 
     .token.property,
@@ -228,7 +202,7 @@ export class CardMarkdown extends LitElement {
     .token.constant,
     .token.symbol,
     .token.deleted {
-      color: #905;
+      color: #005cc5;
     }
 
     .token.selector,
@@ -237,7 +211,7 @@ export class CardMarkdown extends LitElement {
     .token.char,
     .token.builtin,
     .token.inserted {
-      color: #690;
+      color: #032f62;
     }
 
     .token.operator,
@@ -245,321 +219,64 @@ export class CardMarkdown extends LitElement {
     .token.url,
     .language-css .token.string,
     .style .token.string {
-      color: #9a6e3a;
-      background: none;
+      color: #d73a49;
     }
 
     .token.atrule,
     .token.attr-value,
     .token.keyword {
-      color: #07a;
+      color: #d73a49;
     }
 
     .token.function,
     .token.class-name {
-      color: #DD4A68;
+      color: #6f42c1;
     }
 
     .token.regex,
     .token.important,
     .token.variable {
-      color: #e90;
-    }
-
-    .token.important,
-    .token.bold {
-      font-weight: bold;
-    }
-
-    .token.italic {
-      font-style: italic;
-    }
-
-    .token.entity {
-      cursor: help;
-    }
-
-    /* Additional token types for better highlighting */
-    .token.method,
-    .token.function-name {
-      color: #6f42c1;
-    }
-
-    .token.parameter {
       color: #e36209;
-    }
-
-    .token.interpolation {
-      color: #032f62;
-    }
-
-    .token.interpolation-punctuation {
-      color: #d73a49;
-    }
-
-    /* C/C++ specific tokens */
-    .token.directive,
-    .token.directive-hash {
-      color: #9a6e3a;
-      font-weight: bold;
-    }
-
-    .token.macro {
-      color: #e90;
-    }
-
-    /* MATLAB specific tokens */
-    .token.matrix {
-      color: #905;
-    }
-
-    .token.transpose {
-      color: #07a;
-    }
-
-    /* Makefile specific tokens */
-    .token.target {
-      color: #DD4A68;
-      font-weight: bold;
-    }
-
-    .token.recipe {
-      color: #690;
-    }
-
-    /* Diff/Patch highlighting - Light theme */
-    .token.deleted,
-    .token.diff .token.deleted {
-      color: #d73a49 !important;
-      background-color: #ffeef0 !important;
-    }
-
-    .token.inserted,
-    .token.diff .token.inserted {
-      color: #28a745 !important;
-      background-color: #f0fff4 !important;
-    }
-
-    .token.prefix.unchanged,
-    .token.prefix.inserted,
-    .token.prefix.deleted {
-      color: #6f42c1;
-      font-weight: bold;
-    }
-
-    .token.coord {
-      color: #6f42c1;
-      font-weight: bold;
-    }
-
-    .token.diff-header {
-      color: #6f42c1;
-      font-weight: bold;
-    }
-
-    /* Specific diff line styling */
-    .language-diff .token.deleted {
-      display: block;
-      width: 100%;
-      color: #d73a49;
-      background-color: #ffeef0;
-    }
-
-    .language-diff .token.inserted {
-      display: block;
-      width: 100%;
-      color: #28a745;
-      background-color: #f0fff4;
-    }
-
-    .language-diff .token.coord {
-      color: #6f42c1;
-      font-weight: bold;
-    }
-
-    /* Command output styling */
-    .output-message {
-      margin: 4px 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.4;
-    }
-
-    .output-type-output {
-      color: #f8f8f8;
-    }
-
-    .output-type-error {
-      color: #ff5555;
-    }
-
-    .output-type-warning {
-      color: #ffb86c;
-    }
-
-    .output-type-print {
-      color: #8be9fd;
-    }
-
-    /* Plain text styling for user content */
-    .plain-text {
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.4;
-    }
-
-    /* Dark theme for command cards */
-    .command-card pre {
-      background-color: #1e1e1e;
-      border-color: #444;
-      color: #f8f8f8;
-    }
-
-    .command-card .token.comment,
-    .command-card .token.prolog,
-    .command-card .token.doctype,
-    .command-card .token.cdata {
-      color: #6a9955;
-    }
-
-    .command-card .token.string {
-      color: #ce9178;
-    }
-
-    .command-card .token.keyword {
-      color: #569cd6;
-    }
-
-    .command-card .token.function {
-      color: #dcdcaa;
-    }
-
-    .command-card .token.number {
-      color: #b5cea8;
-    }
-
-    .command-card .token.property,
-    .command-card .token.tag,
-    .command-card .token.boolean,
-    .command-card .token.constant,
-    .command-card .token.symbol {
-      color: #4ec9b0;
-    }
-
-    .command-card .token.operator {
-      color: #d4d4d4;
-    }
-
-    .command-card .token.punctuation {
-      color: #d4d4d4;
-    }
-
-    /* Dark theme for C/C++ */
-    .command-card .token.directive,
-    .command-card .token.directive-hash {
-      color: #c586c0;
-    }
-
-    .command-card .token.macro {
-      color: #4fc1ff;
-    }
-
-    /* Dark theme for MATLAB */
-    .command-card .token.matrix {
-      color: #4ec9b0;
-    }
-
-    .command-card .token.transpose {
-      color: #569cd6;
-    }
-
-    /* Dark theme for Makefile */
-    .command-card .token.target {
-      color: #dcdcaa;
-    }
-
-    .command-card .token.recipe {
-      color: #ce9178;
-    }
-
-    /* Diff/Patch highlighting - Dark theme for command cards */
-    .command-card .token.deleted,
-    .command-card .token.diff .token.deleted {
-      color: #f85149 !important;
-      background-color: rgba(248, 81, 73, 0.15) !important;
-    }
-
-    .command-card .token.inserted,
-    .command-card .token.diff .token.inserted {
-      color: #56d364 !important;
-      background-color: rgba(86, 211, 100, 0.15) !important;
-    }
-
-    .command-card .token.prefix.unchanged,
-    .command-card .token.prefix.inserted,
-    .command-card .token.prefix.deleted {
-      color: #c586c0;
-      font-weight: bold;
-    }
-
-    .command-card .token.coord {
-      color: #c586c0;
-      font-weight: bold;
-    }
-
-    .command-card .token.diff-header {
-      color: #c586c0;
-      font-weight: bold;
-    }
-
-    /* Dark theme specific diff line styling */
-    .command-card .language-diff .token.deleted {
-      display: block;
-      width: 100%;
-      color: #f85149;
-      background-color: rgba(248, 81, 73, 0.15);
-    }
-
-    .command-card .language-diff .token.inserted {
-      display: block;
-      width: 100%;
-      color: #56d364;
-      background-color: rgba(86, 211, 100, 0.15);
-    }
-
-    .command-card .language-diff .token.coord {
-      color: #c586c0;
-      font-weight: bold;
     }
   `;
 
-  render() {    
+  processContent() {
+    if (!this.content) return '';
+    
+    // For command role, don't process as markdown
+    if (this.role === 'command') {
+      return this.content;
+    }
+    
+    // Process as markdown
+    try {
+      return marked(this.content);
+    } catch (e) {
+      console.error('Markdown parsing error:', e);
+      return this.content;
+    }
+  }
+
+  render() {
     const classes = {
       card: true,
-      'user-card': this.role === 'user',
-      'assistant-card': this.role === 'assistant',
-      'command-card': this.role === 'command'
+      [this.role]: true
     };
 
-    // For user inputs, display as plain text without markdown parsing
-    if (this.role === 'user') {
-      return html`
-        <div class=${classMap(classes)}>
-          <div class="card-content plain-text">${this.content || ''}</div>
-        </div>
-      `;
-    }
-
-    // Parse markdown content for assistant and command roles
-    const parsedContent = marked(this.content || '');
+    const processedContent = this.processContent();
 
     return html`
       <div class=${classMap(classes)}>
-        <div class="card-content">${unsafeHTML(parsedContent)}</div>
+        <div class="card-header">${this.role}</div>
+        <div class="card-content">
+          ${this.role === 'command' 
+            ? html`<pre>${this.content}</pre>`
+            : unsafeHTML(processedContent)
+          }
+        </div>
       </div>
     `;
   }
 }
 
-// Register the custom element
 customElements.define('card-markdown', CardMarkdown);

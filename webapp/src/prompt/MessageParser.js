@@ -79,7 +79,6 @@ export class MessageParser {
       }
     }
 
-    console.log('MessageParser: Parsed messages count:', messages.length);
     return messages;
   }
 
