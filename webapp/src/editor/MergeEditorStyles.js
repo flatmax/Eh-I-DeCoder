@@ -14,9 +14,8 @@ export const mergeEditorStyles = css`
     flex-direction: column;
     height: 100%;
     width: 100%;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    background: #1e1e1e;
+    color: #d4d4d4;
   }
   
   .save-button {
@@ -24,171 +23,265 @@ export const mergeEditorStyles = css`
     bottom: 24px;
     right: 24px;
     z-index: 10;
-    --md-fab-container-color: #1976d2;
+    --md-fab-container-color: #0e639c;
     --md-fab-icon-color: white;
-    --md-sys-color-primary: #1976d2;
   }
 
   .merge-header {
-    padding: 12px;
-    border-bottom: 1px solid #ddd;
-    background: #f8f9fa;
-    display: grid;
-    grid-template-columns: 1fr auto auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    min-height: 40px;
     gap: 16px;
   }
   
-  .header-left { justify-self: start; }
-  .header-center { text-align: center; }
-  .header-buttons { justify-self: start; display: flex; gap: 8px; }
-  .header-right { justify-self: end; }
-  
-  .view-toggle-button, .nav-button {
-    background: #f0f0f0;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+  .header-left {
+    flex: 1;
   }
   
-  .view-toggle-button {
-    padding: 4px 8px;
-    font-size: 12px;
-    margin-right: 8px;
+  .header-center {
+    padding: 0 16px;
   }
   
-  .nav-button {
-    width: 32px;
-    height: 32px;
+  .header-right {
+    flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .view-toggle-button:hover, .nav-button:hover { background: #e0e0e0; }
-  .view-toggle-button:active, .nav-button:active { background: #d0d0d0; }
-  
-  .nav-icon {
-    font-size: 12px;
-    color: #444;
+    justify-content: flex-end;
   }
 
   .merge-header h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: #cccccc;
+    font-family: monospace;
   }
 
   .label {
-    padding: 4px 8px;
+    padding: 4px 12px;
     border-radius: 3px;
     font-size: 12px;
     font-weight: 500;
   }
 
-  .head-label { background: #e3f2fd; color: #1976d2; }
-  .working-label { background: #fff3e0; color: #f57c00; }
-  .unified-label { background: linear-gradient(to right, #e3f2fd, #fff3e0); color: #333; }
+  .head-label { 
+    background: rgba(78, 201, 176, 0.2);
+    color: #4ec9b0;
+  }
+  
+  .working-label { 
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+  }
   
   .unsaved-indicator {
-    color: #f44336;
+    color: #ffd700;
     font-weight: bold;
-    margin-left: 5px;
+    margin-left: 8px;
+  }
+
+  .language-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #888;
+  }
+
+  .language-status.connected {
+    color: #4ec9b0;
   }
 
   .merge-container {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
+    background: #1e1e1e;
+  }
+
+  #editor {
+    height: 100%;
+    width: 100%;
   }
 
   .loading, .error, .no-file {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 200px;
+    height: 100%;
     color: #666;
     font-style: italic;
   }
 
-  .error { color: #d32f2f; }
+  .error { color: #f44336; }
 
-  .merge-container :global(.cm-merge-view) {
+  /* CodeMirror merge view specific styles */
+  .cm-merge-view {
+    height: 100% !important;
     display: flex !important;
     flex-direction: row !important;
-    height: 100%;
-    width: 100%;
   }
 
-  .merge-container :global(.cm-merge-view > .cm-editorPane) {
-    flex-grow: 1;
-    flex-basis: 0;
-    overflow: hidden;
-    height: 100%;
-    position: relative;
-  }
-
-  .merge-container :global(.cm-editor) {
+  .cm-merge-a,
+  .cm-merge-b {
+    flex: 1 !important;
+    height: 100% !important;
+    overflow: hidden !important;
     position: relative !important;
-    box-sizing: border-box !important;
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100%;
   }
 
-  .merge-container :global(.cm-scroller) {
-    flex-grow: 1 !important;
-    overflow: auto !important;
-    box-sizing: border-box !important;
-    position: relative !important;
+  .cm-merge-gap {
+    width: 2% !important;
+    min-width: 20px !important;
+    background: #2d2d30 !important;
+  }
+
+  /* Ensure editors fill their containers */
+  .cm-editor {
+    height: 100% !important;
+  }
+
+  .cm-editor.cm-focused {
     outline: none !important;
-    font-family: Monaco, Menlo, "Ubuntu Mono", monospace;
   }
 
-  .merge-container :global(.cm-content) {
-    box-sizing: border-box !important;
-    position: relative !important;
+  /* Force scrollbars to be visible */
+  .cm-scroller {
+    overflow: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #424242 #1e1e1e;
   }
 
-  .merge-container :global(.cm-merge-view .cm-merge-gap) {
-    background: #f5f5f5;
-    border-left: 1px solid #ddd;
-    border-right: 1px solid #ddd;
+  /* VS Code-style diff colors - no underlines */
+  .cm-merge-revert {
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 2px 8px;
+    margin: 0 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+
+  .cm-merge-revert:hover {
+    background: #1177bb;
+  }
+
+  .cm-deletedChunk {
+    background-color: rgba(255, 0, 0, 0.15);
+    text-decoration: none !important;
+  }
+
+  .cm-deletedLine {
+    background-color: rgba(255, 0, 0, 0.2);
+    text-decoration: none !important;
+  }
+
+  .cm-insertedChunk {
+    background-color: rgba(0, 255, 0, 0.15);
+    text-decoration: none !important;
+  }
+
+  .cm-insertedLine {
+    background-color: rgba(0, 255, 0, 0.2);
+    text-decoration: none !important;
+  }
+
+  .cm-changedChunk {
+    background-color: rgba(255, 255, 0, 0.15);
+    text-decoration: none !important;
+  }
+
+  .cm-changedLine {
+    background-color: rgba(255, 255, 0, 0.2);
+    text-decoration: none !important;
+  }
+
+  /* Gutter styling */
+  .cm-gutter-lint {
+    width: 8px;
+  }
+
+  .cm-diff-gutter-insert {
+    background-color: #4ec9b0;
+    width: 3px;
+    margin-left: 2px;
+  }
+
+  .cm-diff-gutter-delete {
+    background-color: #f44747;
+    width: 3px;
+    margin-left: 2px;
+  }
+
+  .cm-diff-gutter-change {
+    background-color: #ffd700;
+    width: 3px;
+    margin-left: 2px;
+  }
+
+  /* VS Code-style scrollbar with change indicators */
+  .cm-scroller::-webkit-scrollbar {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .cm-scroller::-webkit-scrollbar-track {
+    background: #1e1e1e !important;
+  }
+
+  .cm-scroller::-webkit-scrollbar-thumb {
+    background: #424242 !important;
+    border: 3px solid #1e1e1e !important;
+    border-radius: 7px !important;
+  }
+
+  .cm-scroller::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f !important;
+  }
+
+  .cm-scroller::-webkit-scrollbar-corner {
+    background: #1e1e1e !important;
+  }
+
+  /* Change indicators in scrollbar */
+  .cm-merge-a .cm-scroller,
+  .cm-merge-b .cm-scroller {
     position: relative;
   }
-  
-  .merge-container :global(.cm-merge-view .cm-merge-gap .cm-merge-controls) {
-    position: sticky;
-    top: 30px;
-    padding: 5px;
-    background: #f0f0f0;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 0 2px;
+
+  /* Scrollbar change indicators overlay */
+  .scrollbar-changes {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 14px;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
   }
-  
-  .merge-container :global(.cm-merge-view .cm-merge-controls button) {
-    margin: 2px 0;
-    padding: 2px 4px;
-    font-size: 11px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    background: white;
-    cursor: pointer;
+
+  .scrollbar-change-marker {
+    position: absolute;
+    right: 3px;
+    width: 8px;
+    min-height: 2px;
+    border-radius: 1px;
   }
-  
-  .merge-container :global(.cm-merge-view .cm-merge-controls button:hover) {
-    background: #e6e6e6;
+
+  .scrollbar-change-marker.added {
+    background-color: #4ec9b0;
   }
-  
-  .merge-container :global(.cm-diff-chunk) { background: rgba(180, 180, 255, 0.1); }
-  .merge-container :global(.cm-diff-insert-line) { background: rgba(0, 255, 0, 0.1); border-left: 3px solid rgba(0, 200, 0, 0.8); }
-  .merge-container :global(.cm-diff-delete-line) { background: rgba(255, 0, 0, 0.1); border-left: 3px solid rgba(200, 0, 0, 0.8); }
-  .merge-container :global(.cm-diff-insert) { background: rgba(0, 255, 0, 0.15); border-radius: 2px; }
-  .merge-container :global(.cm-diff-delete) { background: rgba(255, 0, 0, 0.15); border-radius: 2px; }
+
+  .scrollbar-change-marker.deleted {
+    background-color: #f44747;
+  }
+
+  .scrollbar-change-marker.modified {
+    background-color: #ffd700;
+  }
 `;
