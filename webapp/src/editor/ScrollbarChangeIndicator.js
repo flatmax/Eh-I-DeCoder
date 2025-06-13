@@ -1,3 +1,4 @@
+import { EditorView } from 'codemirror';
 import { ViewPlugin } from '@codemirror/view';
 
 export function createScrollbarChangeIndicator() {
