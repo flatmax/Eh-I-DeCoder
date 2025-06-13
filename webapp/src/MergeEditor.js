@@ -1,300 +1,462 @@
-import {html, LitElement} from 'lit';
+import {html, LitElement, css} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {LineHighlight} from './editor/LineHighlight.js';
-import {MergeViewManager} from './editor/MergeViewManager.js';
+import {basicSetup, EditorView} from 'codemirror';
+import {EditorState} from '@codemirror/state';
+import {javascript} from '@codemirror/lang-javascript';
+import {python} from '@codemirror/lang-python';
+import {html as htmlLang} from '@codemirror/lang-html';
+import {css as cssLang} from '@codemirror/lang-css';
+import {json} from '@codemirror/lang-json';
+import {markdown} from '@codemirror/lang-markdown';
+import {oneDark} from '@codemirror/theme-one-dark';
 import {FileContentLoader} from './editor/FileContentLoader.js';
-import {ChangeTracker} from './editor/ChangeTracker.js';
-import {mergeEditorStyles} from './editor/MergeEditorStyles.js';
+import {languageClient} from './editor/LanguageClient.js';
+import {createLanguageClientExtension} from './editor/LanguageClientExtension.js';
+import {extractResponseData} from './Utils.js';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
-    filePath: { type: String },
-    headContent: { type: String, state: true },
-    workingContent: { type: String, state: true },
-    loading: { type: Boolean, state: true },
-    error: { type: String, state: true },
     serverURI: { type: String },
-    hasUnsavedChanges: { type: Boolean, state: true },
-    unifiedView: { type: Boolean, state: true },
-    currentFilePath: { type: String, state: true }
+    currentFile: { type: String, state: true },
+    isLoading: { type: Boolean, state: true },
+    hasChanges: { type: Boolean, state: true },
+    languageClientConnected: { type: Boolean, state: true }
   };
-  
+
   constructor() {
     super();
-    this.filePath = '';
-    this.headContent = '';
-    this.workingContent = '';
-    this.loading = false;
-    this.error = null;
-    this.hasUnsavedChanges = false;
-    this.unifiedView = false;
-    this.currentFilePath = '';
-    
-    this.lineHighlight = null;
-    this.mergeViewManager = null;
-    this.fileContentLoader = null;
-    this.changeTracker = null;
-    
-    this.toggleViewMode = this.toggleViewMode.bind(this);
-    this.onChangeTracked = this.onChangeTracked.bind(this);
-    this.handleWordClick = this.handleWordClick.bind(this);
-  }
-  
-  connectedCallback() {
-    super.connectedCallback();
-    this.addClass?.(this);
-    
-    this.lineHighlight = new LineHighlight(this.shadowRoot);
-    this.mergeViewManager = new MergeViewManager(this.shadowRoot, this.filePath);
-    this.fileContentLoader = new FileContentLoader(this);
-    this.changeTracker = new ChangeTracker(this.onChangeTracked);
-    
-    // Set up word click handler
-    this.mergeViewManager.setWordClickHandler(this.handleWordClick);
-  }
-  
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.mergeViewManager?.destroy();
-    this.changeTracker?.cleanup();
+    this.currentFile = null;
+    this.isLoading = false;
+    this.hasChanges = false;
+    this.languageClientConnected = false;
+    this.editorView = null;
+    this.fileLoader = null;
+    this.originalContent = '';
   }
 
-  /**
-   * Handle Ctrl+click on words in the merge view
-   * @param {string} word - The clicked word
-   */
-  handleWordClick(word) {
-    console.log('Word clicked:', word);
+  static styles = css`
+    :host {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+
+    .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: #2d2d30;
+      border-bottom: 1px solid #3e3e42;
+      min-height: 40px;
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .file-path {
+      color: #cccccc;
+      font-family: monospace;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-left: 8px;
+    }
+
+    .status-indicator.saved {
+      background: #4ec9b0;
+    }
+
+    .status-indicator.modified {
+      background: #ffd700;
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      padding: 6px 12px;
+      background: #0e639c;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1177bb;
+    }
+
+    button:disabled {
+      background: #3e3e42;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .editor-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .cm-editor {
+      height: 100%;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(30, 30, 30, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #3e3e42;
+      border-top-color: #0e639c;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .language-status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .language-status.connected {
+      color: #4ec9b0;
+    }
+  `;
+
+  async connectedCallback() {
+    super.connectedCallback();
     
-    // Dispatch custom event to notify parent components (like PromptView)
-    this.dispatchEvent(new CustomEvent('word-clicked', {
-      detail: { word },
+    // Initialize language client connection
+    this.initializeLanguageClient();
+  }
+
+  async initializeLanguageClient() {
+    try {
+      await languageClient.connect();
+      this.languageClientConnected = true;
+      console.log('Language client connected successfully');
+    } catch (error) {
+      console.error('Failed to connect language client:', error);
+      this.languageClientConnected = false;
+      
+      // Retry connection after delay
+      setTimeout(() => this.initializeLanguageClient(), 5000);
+    }
+  }
+
+  async remoteIsUp() {
+    console.log('MergeEditor: Remote is up');
+    this.fileLoader = new FileContentLoader(this);
+  }
+
+  async setupDone() {
+    console.log('MergeEditor: Setup done');
+    
+    // Listen for file open events
+    this.addEventListener('open-file', this.handleOpenFile.bind(this));
+    
+    // Listen for go-to-definition events from the editor
+    this.addEventListener('go-to-definition', this.handleGoToDefinition.bind(this));
+    
+    // Listen for show-references events from the editor
+    this.addEventListener('show-references', this.handleShowReferences.bind(this));
+  }
+
+  render() {
+    return html`
+      <div class="editor-header">
+        <div class="file-info">
+          ${this.currentFile ? html`
+            <span class="file-path">${this.currentFile}</span>
+            <span class="status-indicator ${this.hasChanges ? 'modified' : 'saved'}"></span>
+          ` : html`
+            <span class="file-path">No file open</span>
+          `}
+          <div class="language-status ${this.languageClientConnected ? 'connected' : ''}">
+            <span>LSP:</span>
+            <span>${this.languageClientConnected ? 'Connected' : 'Disconnected'}</span>
+          </div>
+        </div>
+        <div class="editor-actions">
+          <button 
+            @click=${this.saveFile} 
+            ?disabled=${!this.hasChanges || this.isLoading}
+          >
+            Save
+          </button>
+          <button 
+            @click=${this.reloadFile} 
+            ?disabled=${!this.currentFile || this.isLoading}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+      <div class="editor-container">
+        ${this.isLoading ? html`
+          <div class="loading-overlay">
+            <div class="loading-spinner"></div>
+          </div>
+        ` : ''}
+        <div id="editor"></div>
+      </div>
+    `;
+  }
+
+  async firstUpdated() {
+    this.initializeEditor();
+  }
+
+  initializeEditor() {
+    const container = this.shadowRoot.getElementById('editor');
+    if (!container) return;
+
+    // Create initial editor state
+    const startState = EditorState.create({
+      doc: '',
+      extensions: [
+        basicSetup,
+        oneDark,
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            this.handleContentChange();
+          }
+        })
+      ]
+    });
+
+    // Create editor view
+    this.editorView = new EditorView({
+      state: startState,
+      parent: container
+    });
+  }
+
+  async loadFileContent(filePath) {
+    if (!this.fileLoader) {
+      console.error('File loader not initialized');
+      return;
+    }
+
+    this.isLoading = true;
+    this.currentFile = filePath;
+
+    try {
+      const { workingContent } = await this.fileLoader.loadFileContent(filePath);
+      this.originalContent = workingContent;
+      
+      // Update editor with new content and language-specific extensions
+      this.updateEditor(workingContent, filePath);
+      
+      this.hasChanges = false;
+      this.isLoading = false;
+    } catch (error) {
+      console.error('Failed to load file:', error);
+      this.isLoading = false;
+    }
+  }
+
+  updateEditor(content, filePath) {
+    if (!this.editorView) return;
+
+    // Get language-specific extension
+    const langExtension = this.getLanguageExtension(filePath);
+    
+    // Create language client extension if connected
+    const extensions = [
+      basicSetup,
+      oneDark,
+      langExtension,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          this.handleContentChange();
+        }
+      })
+    ];
+
+    // Add language client extension if connected
+    if (this.languageClientConnected) {
+      extensions.push(createLanguageClientExtension(languageClient, filePath));
+    }
+
+    // Create new state with content and extensions
+    const newState = EditorState.create({
+      doc: content,
+      extensions
+    });
+
+    // Update the editor
+    this.editorView.setState(newState);
+  }
+
+  getLanguageExtension(filePath) {
+    const ext = filePath.split('.').pop().toLowerCase();
+    
+    switch (ext) {
+      case 'js':
+      case 'jsx':
+        return javascript({ jsx: true });
+      case 'ts':
+      case 'tsx':
+        return javascript({ jsx: true, typescript: true });
+      case 'py':
+        return python();
+      case 'html':
+        return htmlLang();
+      case 'css':
+        return cssLang();
+      case 'json':
+        return json();
+      case 'md':
+        return markdown();
+      default:
+        return [];
+    }
+  }
+
+  handleContentChange() {
+    if (!this.editorView) return;
+    
+    const currentContent = this.editorView.state.doc.toString();
+    this.hasChanges = currentContent !== this.originalContent;
+  }
+
+  async saveFile() {
+    if (!this.currentFile || !this.hasChanges || !this.fileLoader) return;
+
+    this.isLoading = true;
+
+    try {
+      const content = this.editorView.state.doc.toString();
+      await this.fileLoader.saveFileContent(this.currentFile, content);
+      
+      this.originalContent = content;
+      this.hasChanges = false;
+      this.isLoading = false;
+      
+      // Notify user of successful save
+      this.dispatchEvent(new CustomEvent('file-saved', {
+        detail: { filePath: this.currentFile },
+        bubbles: true,
+        composed: true
+      }));
+    } catch (error) {
+      console.error('Failed to save file:', error);
+      this.isLoading = false;
+    }
+  }
+
+  async reloadFile() {
+    if (!this.currentFile) return;
+    
+    // Confirm if there are unsaved changes
+    if (this.hasChanges) {
+      const confirm = window.confirm('You have unsaved changes. Are you sure you want to reload?');
+      if (!confirm) return;
+    }
+    
+    await this.loadFileContent(this.currentFile);
+  }
+
+  scrollToLine(lineNumber) {
+    if (!this.editorView) return;
+    
+    const line = this.editorView.state.doc.line(lineNumber);
+    if (!line) return;
+    
+    // Scroll to line and place cursor there
+    this.editorView.dispatch({
+      selection: { anchor: line.from },
+      scrollIntoView: true
+    });
+    
+    // Focus the editor
+    this.editorView.focus();
+  }
+
+  handleOpenFile(event) {
+    const { filePath, lineNumber } = event.detail;
+    this.loadFileContent(filePath);
+    
+    if (lineNumber) {
+      // Wait for content to load before scrolling
+      setTimeout(() => this.scrollToLine(lineNumber), 100);
+    }
+  }
+
+  handleGoToDefinition(event) {
+    const definition = event.detail;
+    if (!definition) return;
+    
+    // Handle array of locations or single location
+    const location = Array.isArray(definition) ? definition[0] : definition;
+    if (!location) return;
+    
+    // Extract file path and position from location
+    const filePath = location.uri.replace('file://', '');
+    const lineNumber = location.range.start.line + 1;
+    
+    // Open file at definition
+    this.dispatchEvent(new CustomEvent('open-file', {
+      detail: { filePath, lineNumber },
       bubbles: true,
       composed: true
     }));
   }
 
-  onChangeTracked(hasChanges) {
-    this.hasUnsavedChanges = hasChanges;
-    this.requestUpdate();
-  }
-  
-  getCurrentContent() {
-    if (!this.mergeViewManager) return this.workingContent;
-    return this.mergeViewManager.getCurrentContent(this.unifiedView) || this.workingContent;
-  }
-  
-  /**
-   * Get the currently selected text from the merge view
-   * @returns {string} The selected text, or empty string if no selection
-   */
-  getSelectedText() {
-    if (!this.mergeViewManager?.mergeView) return '';
+  handleShowReferences(event) {
+    const references = event.detail;
+    if (!references || references.length === 0) return;
     
-    try {
-      if (this.unifiedView) {
-        // For unified view, get selection from the single editor
-        const view = this.mergeViewManager.mergeView;
-        const selection = view.state.selection.main;
-        if (selection.empty) return '';
-        return view.state.doc.sliceString(selection.from, selection.to);
-      } else {
-        // For side-by-side view, check both panes (prioritize the working directory pane)
-        const viewB = this.mergeViewManager.mergeView.b; // Working directory pane
-        const viewA = this.mergeViewManager.mergeView.a; // HEAD pane
-        
-        // Check working directory pane first
-        if (viewB) {
-          const selectionB = viewB.state.selection.main;
-          if (!selectionB.empty) {
-            return viewB.state.doc.sliceString(selectionB.from, selectionB.to);
-          }
-        }
-        
-        // Fall back to HEAD pane if no selection in working directory
-        if (viewA) {
-          const selectionA = viewA.state.selection.main;
-          if (!selectionA.empty) {
-            return viewA.state.doc.sliceString(selectionA.from, selectionA.to);
-          }
-        }
-        
-        return '';
-      }
-    } catch (error) {
-      console.error('Error getting selected text:', error);
-      return '';
-    }
-  }
-  
-  scrollToLine(lineNumber) {
-    if (!this.mergeViewManager || !lineNumber) return;
+    // For now, just log references
+    console.log('References found:', references);
     
-    const view = this.mergeViewManager.scrollToLine(lineNumber, this.unifiedView);
-    if (view) {
-      this.lineHighlight.scrollToLine(view, lineNumber);
-    }
-  }
-  
-  toggleViewMode() {
-    this.unifiedView = !this.unifiedView;
-    this.updateMergeView();
+    // TODO: Show references in a panel or dialog
+    // This could be implemented as a separate component
   }
 
-  goToNextChunk() {
-    this.mergeViewManager?.goToNextChunk(this.unifiedView);
-  }
-  
-  goToPreviousChunk() {
-    this.mergeViewManager?.goToPreviousChunk(this.unifiedView);
-  }
-  
-  async saveChanges() {
-    if (!this.filePath || !this.hasUnsavedChanges) return;
+  disconnectedCallback() {
+    super.disconnectedCallback();
     
-    try {
-      const content = this.getCurrentContent();
-      await this.fileContentLoader.saveFileContent(this.filePath, content);
-      this.changeTracker.resetChangeTracking(content);
-    } catch (error) {
-      console.error('Error saving file:', error);
-      this.error = `Failed to save file: ${error.message}`;
-      this.requestUpdate();
+    // Clean up editor
+    if (this.editorView) {
+      this.editorView.destroy();
     }
   }
-
-  async loadFileContent(filePath, lineNumber = null) {
-    if (!filePath) return;
-    
-    if (filePath === this.currentFilePath && this.mergeViewManager?.mergeView) {
-      console.log(`File ${filePath} already loaded`);
-      if (lineNumber !== null) {
-        console.log(`Scrolling to line ${lineNumber}`);
-        setTimeout(() => this.scrollToLine(lineNumber), 50);
-      }
-      return;
-    }
-    
-    try {
-      this.loading = true;
-      this.error = null;
-      this.filePath = filePath;
-      this.currentFilePath = filePath;
-      
-      const { headContent, workingContent } = await this.fileContentLoader.loadFileContent(filePath);
-      this.headContent = headContent;
-      this.workingContent = workingContent;
-      
-      this.changeTracker.resetChangeTracking(this.workingContent);
-      this.mergeViewManager.filePath = filePath;
-      this.updateMergeView();
-      
-      if (lineNumber !== null) {
-        setTimeout(() => this.scrollToLine(lineNumber), 300);
-      }
-      
-    } catch (error) {
-      console.error('Error loading file content:', error);
-      this.error = `Failed to load file content: ${error.message}`;
-    } finally {
-      this.loading = false;
-      this.requestUpdate();
-    }
-  }
-  
-  updateMergeView() {
-    const container = this.shadowRoot.querySelector('.merge-container');
-    if (!container || !this.mergeViewManager) return;
-    
-    try {
-      this.mergeViewManager.createMergeView(
-        container, 
-        this.headContent, 
-        this.workingContent, 
-        this.unifiedView, 
-        this
-      );
-
-      this.changeTracker.setupChangeDetection(() => this.getCurrentContent());
-      
-    } catch (error) {
-      console.error('Error creating MergeView:', error);
-      this.error = `Failed to create merge view: ${error.message}`;
-      this.requestUpdate();
-    }
-  }
-  
-  updated(changedProperties) {
-    super.updated(changedProperties);
-    
-    if (changedProperties.has('headContent') || changedProperties.has('workingContent')) {
-      if (this.headContent || this.workingContent || this.filePath) {
-        setTimeout(() => this.updateMergeView(), 100);
-      }
-    }
-    
-    this.updateComplete.then(() => {
-      const buttons = this.shadowRoot.querySelectorAll('.nav-button');
-      if (buttons) {
-        const prevButton = buttons[0];
-        const nextButton = buttons[1];
-        if (prevButton) prevButton.title = "Previous Change (Alt+p)";
-        if (nextButton) nextButton.title = "Next Change (Alt+n)";
-      }
-    });
-  }
-
-  renderHeader() {
-    return html`
-      <div class="merge-header">
-        <div class="header-left">
-          ${!this.unifiedView 
-            ? html`<span class="label head-label">HEAD</span>`
-            : html`<span class="label unified-label">Unified View</span>`
-          }
-        </div>
-        <div class="header-center">
-          <h3>${this.filePath} ${this.hasUnsavedChanges ? html`<span class="unsaved-indicator">*</span>` : ''}</h3>
-        </div>
-        <div class="header-buttons">
-          <button class="view-toggle-button" title="${this.unifiedView ? 'Switch to Side-by-Side View' : 'Switch to Unified View'}" @click=${this.toggleViewMode}>
-            ${this.unifiedView ? 'Side-by-Side' : 'Unified'}
-          </button>
-          <button class="nav-button" title="Previous Change (Alt+p)" @click=${this.goToPreviousChunk}>
-            <span class="nav-icon">▲</span>
-          </button>
-          <button class="nav-button" title="Next Change (Alt+n)" @click=${this.goToNextChunk}>
-            <span class="nav-icon">▼</span>
-          </button>
-        </div>
-        <div class="header-right">
-          ${!this.unifiedView ? html`<span class="label working-label">Working Directory</span>` : ''}
-        </div>
-      </div>
-    `;
-  }
-
-  renderContent() {
-    if (this.loading) return html`<div class="loading">Loading file content...</div>`;
-    if (this.error) return html`<div class="error">${this.error}</div>`;
-    if (!this.filePath) return html`<div class="no-file">Select a file from the Repository tab to view changes</div>`;
-    return html`<div class="merge-container"></div>`;
-  }
-  
-  render() {
-    return html`
-      <div class="merge-editor-container">
-        ${this.renderHeader()}
-        ${this.renderContent()}
-        ${this.hasUnsavedChanges ? 
-          html`<md-fab class="save-button" aria-label="Save changes" @click=${this.saveChanges}>
-                 <md-icon>save</md-icon>
-               </md-fab>` : 
-          ''
-        }
-      </div>
-    `;
-  }
-  
-  static styles = mergeEditorStyles;
 }
+
+customElements.define('merge-editor', MergeEditor);
