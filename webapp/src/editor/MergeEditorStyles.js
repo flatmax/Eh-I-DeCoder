@@ -7,6 +7,7 @@ export const mergeEditorStyles = css`
     height: 100%;
     width: 100%;
     position: relative;
+    overflow: hidden;
   }
 
   .merge-editor-container {
@@ -16,6 +17,7 @@ export const mergeEditorStyles = css`
     width: 100%;
     background: #1e1e1e;
     color: #d4d4d4;
+    overflow: hidden;
   }
   
   .save-button {
@@ -36,6 +38,7 @@ export const mergeEditorStyles = css`
     border-bottom: 1px solid #3e3e42;
     min-height: 40px;
     gap: 16px;
+    flex-shrink: 0;
   }
   
   .header-left {
@@ -100,11 +103,13 @@ export const mergeEditorStyles = css`
     overflow: hidden;
     position: relative;
     background: #1e1e1e;
+    min-height: 0;
   }
 
   #editor {
     height: 100%;
     width: 100%;
+    overflow: hidden;
   }
 
   .loading, .error, .no-file {
@@ -123,6 +128,7 @@ export const mergeEditorStyles = css`
     height: 100% !important;
     display: flex !important;
     flex-direction: row !important;
+    overflow: hidden !important;
   }
 
   .cm-merge-a,
@@ -131,28 +137,36 @@ export const mergeEditorStyles = css`
     height: 100% !important;
     overflow: hidden !important;
     position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .cm-merge-gap {
     width: 2% !important;
     min-width: 20px !important;
     background: #2d2d30 !important;
+    flex-shrink: 0 !important;
   }
 
   /* Ensure editors fill their containers */
   .cm-editor {
     height: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
 
   .cm-editor.cm-focused {
     outline: none !important;
   }
 
-  /* Force scrollbars to be visible */
+  /* Force scrollbars to be visible and contained */
   .cm-scroller {
     overflow: auto !important;
     scrollbar-width: thin;
     scrollbar-color: #424242 #1e1e1e;
+    height: 100% !important;
+    max-height: 100% !important;
   }
 
   /* VS Code-style diff colors - no underlines */
@@ -228,16 +242,20 @@ export const mergeEditorStyles = css`
   .cm-scroller::-webkit-scrollbar {
     width: 14px !important;
     height: 14px !important;
+    display: block !important;
+    visibility: visible !important;
   }
 
   .cm-scroller::-webkit-scrollbar-track {
     background: #1e1e1e !important;
+    visibility: visible !important;
   }
 
   .cm-scroller::-webkit-scrollbar-thumb {
     background: #424242 !important;
     border: 3px solid #1e1e1e !important;
     border-radius: 7px !important;
+    visibility: visible !important;
   }
 
   .cm-scroller::-webkit-scrollbar-thumb:hover {
@@ -246,6 +264,14 @@ export const mergeEditorStyles = css`
 
   .cm-scroller::-webkit-scrollbar-corner {
     background: #1e1e1e !important;
+  }
+
+  /* Firefox scrollbar styling */
+  @supports (scrollbar-width: thin) {
+    .cm-scroller {
+      scrollbar-width: thin !important;
+      scrollbar-color: #424242 #1e1e1e !important;
+    }
   }
 
   /* Change indicators in scrollbar */

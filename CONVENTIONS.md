@@ -19,8 +19,8 @@ this.getCall to get the call object with the method names available for RPC
 self.get_call() (assume get_call exists) in py
 
 JRPC-OO usage :
-javascript promise : this.call['Class.method'](args)
-python async : self.get_call()['Class.method'](args)
+js promise : this.call['Class.method'](args)
+py async : self.get_call()['Class.method'](args)
 
 JRPC-OO response :
 The return value is an object of {remote UUID : return data, ... }. utils.js function extractResponseData returns the data from the first UUID, as well as data for other forms.

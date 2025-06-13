@@ -30,6 +30,7 @@ export class MergeViewManager {
     this.container.style.height = '100%';
     this.container.style.width = '100%';
     this.container.style.display = 'block';
+    this.container.style.overflow = 'hidden';
     
     // Get language-specific extension
     const langExtension = getLanguageExtension(filePath);
@@ -43,12 +44,34 @@ export class MergeViewManager {
           height: "100%",
           fontSize: "14px"
         },
+        ".cm-editor": {
+          height: "100%"
+        },
         ".cm-scroller": { 
           overflow: "auto !important",
-          fontFamily: "Monaco, Menlo, 'Ubuntu Mono', monospace"
+          fontFamily: "Monaco, Menlo, 'Ubuntu Mono', monospace",
+          height: "100%",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#424242 #1e1e1e"
+        },
+        ".cm-scroller::-webkit-scrollbar": {
+          width: "14px",
+          height: "14px"
+        },
+        ".cm-scroller::-webkit-scrollbar-track": {
+          background: "#1e1e1e"
+        },
+        ".cm-scroller::-webkit-scrollbar-thumb": {
+          background: "#424242",
+          border: "3px solid #1e1e1e",
+          borderRadius: "7px"
+        },
+        ".cm-scroller::-webkit-scrollbar-thumb:hover": {
+          background: "#4f4f4f"
         },
         ".cm-content": {
-          padding: "4px 0"
+          padding: "4px 0",
+          minHeight: "100%"
         },
         ".cm-line": {
           padding: "0 4px"
@@ -150,6 +173,13 @@ export class MergeViewManager {
             console.log('Requesting measure for editors');
             this.mergeView.a.requestMeasure();
             this.mergeView.b.requestMeasure();
+            
+            // Force scrollbar visibility
+            const scrollers = this.container.querySelectorAll('.cm-scroller');
+            scrollers.forEach(scroller => {
+              scroller.style.overflow = 'auto';
+              scroller.style.scrollbarWidth = 'thin';
+            });
             
             // Also check if the container has proper dimensions
             const rect = this.container.getBoundingClientRect();
