@@ -57,6 +57,11 @@ Navigate to the webapp directory and install its dependencies:
 cd webapp
 npm install
 ```
+#### If you get tree-sitter compile issues
+
+```Bash
+CXXFLAGS="-fexceptions -std=c++20" npm install
+```
 
 ## Running the Application
 To get Eh-I-DeCoder up and running, you'll need to start both the backend and frontend components.
