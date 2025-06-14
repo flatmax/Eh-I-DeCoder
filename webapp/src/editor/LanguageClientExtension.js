@@ -123,16 +123,98 @@ export function createLanguageClientExtension(languageClient, filePath) {
     }
   ]);
 
-  // Handle Ctrl/Cmd + click for go-to-definition
+  // Helper function to extract quoted string or word at position
+  function getTextAtPosition(view, pos) {
+    const selection = view.state.selection.main;
+    
+    // If there's a selection, use that
+    if (!selection.empty) {
+      return view.state.doc.sliceString(selection.from, selection.to);
+    }
+    
+    // Get the line containing the position
+    const line = view.state.doc.lineAt(pos);
+    const lineText = line.text;
+    const charIndex = pos - line.from;
+    
+    // Check if we're inside a quoted string
+    const quotedString = extractQuotedString(lineText, charIndex);
+    if (quotedString) {
+      return quotedString;
+    }
+    
+    // Fall back to word extraction
+    const wordAt = view.state.wordAt(pos);
+    if (wordAt) {
+      return view.state.doc.sliceString(wordAt.from, wordAt.to);
+    }
+    
+    return '';
+  }
+
+  // Function to extract quoted string if cursor is inside quotes
+  function extractQuotedString(lineText, charIndex) {
+    // Look for single or double quotes
+    const quotes = ['"', "'"];
+    
+    for (const quote of quotes) {
+      // Find all quote positions in the line
+      const quotePositions = [];
+      for (let i = 0; i < lineText.length; i++) {
+        if (lineText[i] === quote && (i === 0 || lineText[i - 1] !== '\\')) {
+          quotePositions.push(i);
+        }
+      }
+      
+      // Check if we're inside a quoted string
+      for (let i = 0; i < quotePositions.length - 1; i += 2) {
+        const startQuote = quotePositions[i];
+        const endQuote = quotePositions[i + 1];
+        
+        if (charIndex > startQuote && charIndex < endQuote) {
+          // We're inside this quoted string, return the content including quotes
+          return lineText.substring(startQuote, endQuote + 1);
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  // Handle mouse events for both Ctrl+click (go-to-definition) and Ctrl+right-click (add to prompt)
   const clickHandler = EditorView.domEventHandlers({
     mousedown(event, view) {
       if (event.button === 0 && (event.ctrlKey || event.metaKey)) {
+        // Left click with Ctrl/Cmd - go to definition
         event.preventDefault();
 
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos !== null) {
           view.dispatch({ selection: { anchor: pos } });
           goToDefinition(view);
+          return true;
+        }
+      }
+    },
+    contextmenu(event, view) {
+      if (event.ctrlKey || event.metaKey) {
+        // Right click with Ctrl/Cmd - add word to prompt
+        event.preventDefault();
+        
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (pos !== null) {
+          // Get the text at the clicked position (quoted string or word)
+          const text = getTextAtPosition(view, pos);
+          
+          if (text.trim()) {
+            // Dispatch event to add text to prompt
+            document.dispatchEvent(new CustomEvent('word-clicked', {
+              detail: { word: text.trim() },
+              bubbles: true,
+              composed: true
+            }));
+          }
+          
           return true;
         }
       }
