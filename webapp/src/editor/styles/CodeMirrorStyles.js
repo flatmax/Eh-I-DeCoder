@@ -18,8 +18,6 @@ export const codeMirrorStyles = css`
   /* Force scrollbars to be visible and contained */
   .cm-scroller {
     overflow: auto !important;
-    scrollbar-width: thin !important;
-    scrollbar-color: #424242 #1e1e1e !important;
     height: 100% !important;
     max-height: 100% !important;
     flex: 1 !important;

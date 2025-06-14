@@ -42,24 +42,11 @@ export class MergeViewManager {
       basicSetup,
       oneDark,
       EditorView.theme({
-        "&": { 
-          height: "100%",
-          fontSize: "14px",
-          display: "flex",
-          flexDirection: "column"
+        "&": {
+          fontSize: "14px"
         },
-        ".cm-editor": {
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "0"
-        },
-        ".cm-scroller": { 
-          overflow: "auto !important",
+        ".cm-scroller": {
           fontFamily: "Monaco, Menlo, 'Ubuntu Mono', monospace",
-          height: "100%",
-          flex: "1",
-          minHeight: "0",
           scrollbarWidth: "thin",
           scrollbarColor: "#424242 #1e1e1e"
         },
@@ -78,18 +65,13 @@ export class MergeViewManager {
         ".cm-scroller::-webkit-scrollbar-thumb:hover": {
           background: "#4f4f4f"
         },
-        ".cm-content": {
-          padding: "4px 0",
-          minHeight: "100%"
-        },
         ".cm-line": {
           padding: "0 4px"
         },
         ".cm-gutters": {
           backgroundColor: "#1e1e1e",
           color: "#858585",
-          border: "none",
-          flexShrink: "0"
+          border: "none"
         },
         ".cm-activeLineGutter": {
           backgroundColor: "#2d2d30"
@@ -99,13 +81,6 @@ export class MergeViewManager {
         },
         ".cm-lineNumbers .cm-gutterElement": {
           padding: "0 8px 0 16px"
-        },
-        // Remove underlines from diff decorations
-        ".cm-deletedChunk, .cm-insertedChunk, .cm-changedChunk": {
-          textDecoration: "none !important"
-        },
-        ".cm-deletedLine, .cm-insertedLine, .cm-changedLine": {
-          textDecoration: "none !important"
         }
       }),
       createScrollbarChangeIndicator()
