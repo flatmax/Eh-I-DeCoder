@@ -1,21 +1,71 @@
-// Symbol analyzer using Babel AST parsing
-const babel = require('@babel/parser');
-const traverse = require('@babel/traverse').default;
-const t = require('@babel/types');
+// Symbol analyzer using tree-sitter for multi-language support
+const ParserManager = require('./parsers/parser-manager');
+const JavaScriptExtractor = require('./extractors/javascript-extractor');
+const PythonExtractor = require('./extractors/python-extractor');
+const CppExtractor = require('./extractors/cpp-extractor');
+const JavaExtractor = require('./extractors/java-extractor');
+const GoExtractor = require('./extractors/go-extractor');
+const RustExtractor = require('./extractors/rust-extractor');
+const CssExtractor = require('./extractors/css-extractor');
 
 class SymbolAnalyzer {
   constructor() {
     this.symbolCache = new Map();
     this.documentSymbols = new Map();
+    this.trees = new Map();
+    
+    // Initialize parser manager
+    this.parserManager = new ParserManager();
+    
+    // Initialize language extractors
+    this.extractors = new Map([
+      ['javascript', new JavaScriptExtractor()],
+      ['javascriptreact', new JavaScriptExtractor()],
+      ['typescript', new JavaScriptExtractor()],
+      ['typescriptreact', new JavaScriptExtractor()],
+      ['python', new PythonExtractor()],
+      ['cpp', new CppExtractor()],
+      ['c++', new CppExtractor()],
+      ['c', new CppExtractor()],
+      ['java', new JavaExtractor()],
+      ['go', new GoExtractor()],
+      ['rust', new RustExtractor()],
+      ['css', new CssExtractor()],
+      ['scss', new CssExtractor()],
+      ['html', new CssExtractor()], // Basic HTML support using CSS extractor
+      ['json', new JavaScriptExtractor()], // Basic JSON support
+      ['yaml', new PythonExtractor()], // Basic YAML support
+      ['markdown', new JavaScriptExtractor()] // Basic Markdown support
+    ]);
+  }
+
+  getParserManager() {
+    return this.parserManager;
   }
 
   analyzeDocument(uri, text, languageId) {
     try {
-      const symbols = this.parseSymbols(text, languageId);
-      this.documentSymbols.set(uri, symbols);
+      const parser = this.parserManager.getParser(languageId);
+      if (!parser) {
+        console.log(`No parser available for language: ${languageId}`);
+        return [];
+      }
+      
+      // Parse the document
+      const tree = parser.parse(text);
+      this.trees.set(uri, tree);
+      
+      // Extract symbols using language-specific extractor
+      const extractor = this.extractors.get(languageId);
+      const symbols = extractor ? extractor.extract(tree, text) : [];
+      
+      // Ensure symbols is always an array
+      const symbolArray = Array.isArray(symbols) ? symbols : (symbols ? [symbols] : []);
+      
+      this.documentSymbols.set(uri, symbolArray);
       
       // Update global symbol cache
-      symbols.forEach(symbol => {
+      symbolArray.forEach(symbol => {
         const key = `${symbol.name}:${symbol.type}`;
         if (!this.symbolCache.has(key)) {
           this.symbolCache.set(key, []);
@@ -26,356 +76,12 @@ class SymbolAnalyzer {
         });
       });
       
-      console.log(`Analyzed ${symbols.length} symbols in ${uri}`);
-      return symbols;
+      console.log(`Analyzed ${symbolArray.length} symbols in ${uri} (${languageId})`);
+      return symbolArray;
     } catch (error) {
       console.error(`Error analyzing document ${uri}:`, error);
       return [];
     }
-  }
-
-  parseSymbols(text, languageId) {
-    const symbols = [];
-    
-    try {
-      // Configure parser based on language
-      const parserOptions = this.getParserOptions(languageId);
-      const ast = babel.parse(text, parserOptions);
-      
-      traverse(ast, {
-        // Function declarations
-        FunctionDeclaration: (path) => {
-          const symbol = this.extractFunctionSymbol(path.node, text);
-          if (symbol) symbols.push(symbol);
-        },
-        
-        // Arrow functions and function expressions
-        VariableDeclarator: (path) => {
-          if (t.isArrowFunctionExpression(path.node.init) || 
-              t.isFunctionExpression(path.node.init)) {
-            const symbol = this.extractFunctionFromVariable(path.node, text);
-            if (symbol) symbols.push(symbol);
-          } else {
-            const symbol = this.extractVariableSymbol(path.node, text);
-            if (symbol) symbols.push(symbol);
-          }
-        },
-        
-        // Class declarations
-        ClassDeclaration: (path) => {
-          const symbol = this.extractClassSymbol(path.node, text);
-          if (symbol) symbols.push(symbol);
-          
-          // Extract class methods
-          path.node.body.body.forEach(method => {
-            if (t.isClassMethod(method)) {
-              const methodSymbol = this.extractMethodSymbol(method, path.node.id.name, text);
-              if (methodSymbol) symbols.push(methodSymbol);
-            }
-          });
-        },
-        
-        // Class methods (handled separately in case they're not inside ClassDeclaration)
-        ClassMethod: (path) => {
-          // Skip if already handled by ClassDeclaration
-          if (!path.findParent(p => p.isClassDeclaration())) {
-            const symbol = this.extractMethodSymbol(path.node, null, text);
-            if (symbol) symbols.push(symbol);
-          }
-        },
-        
-        // Import declarations
-        ImportDeclaration: (path) => {
-          path.node.specifiers.forEach(spec => {
-            const symbol = this.extractImportSymbol(spec, path.node.source.value, text);
-            if (symbol) symbols.push(symbol);
-          });
-        },
-        
-        // Export declarations
-        ExportNamedDeclaration: (path) => {
-          if (path.node.declaration) {
-            // Handle exported functions, classes, etc.
-            const symbol = this.extractExportSymbol(path.node, text);
-            if (symbol) symbols.push(symbol);
-          }
-        }
-      });
-      
-    } catch (error) {
-      console.error('Error parsing AST:', error);
-    }
-    
-    return symbols;
-  }
-
-  getParserOptions(languageId) {
-    const baseOptions = {
-      sourceType: 'module',
-      allowImportExportEverywhere: true,
-      allowReturnOutsideFunction: true,
-      plugins: [
-        'jsx',
-        'objectRestSpread',
-        'decorators-legacy',
-        'classProperties',
-        'asyncGenerators',
-        'functionBind',
-        'exportDefaultFrom',
-        'exportNamespaceFrom',
-        'dynamicImport',
-        'nullishCoalescingOperator',
-        'optionalChaining'
-      ]
-    };
-
-    if (languageId === 'typescript' || languageId === 'typescriptreact') {
-      baseOptions.plugins.push('typescript');
-    }
-
-    return baseOptions;
-  }
-
-  extractFunctionSymbol(node, text) {
-    if (!node.id) return null;
-    
-    const name = node.id.name;
-    const params = node.params.map(param => this.getParameterInfo(param));
-    const jsdoc = this.extractJSDoc(node, text);
-    
-    return {
-      name,
-      type: 'function',
-      kind: 'Function',
-      params,
-      async: node.async,
-      generator: node.generator,
-      documentation: jsdoc,
-      signature: this.buildFunctionSignature(name, params, node.async, node.generator),
-      location: {
-        start: node.start,
-        end: node.end
-      }
-    };
-  }
-
-  extractFunctionFromVariable(node, text) {
-    if (!t.isIdentifier(node.id)) return null;
-    
-    const name = node.id.name;
-    const func = node.init;
-    const params = func.params.map(param => this.getParameterInfo(param));
-    const jsdoc = this.extractJSDoc(node, text);
-    
-    return {
-      name,
-      type: 'function',
-      kind: 'Function',
-      params,
-      async: func.async,
-      generator: func.generator,
-      documentation: jsdoc,
-      signature: this.buildFunctionSignature(name, params, func.async, func.generator),
-      location: {
-        start: node.start,
-        end: node.end
-      }
-    };
-  }
-
-  extractVariableSymbol(node, text) {
-    if (!t.isIdentifier(node.id)) return null;
-    
-    const name = node.id.name;
-    const jsdoc = this.extractJSDoc(node, text);
-    
-    return {
-      name,
-      type: 'variable',
-      kind: 'Variable',
-      documentation: jsdoc,
-      location: {
-        start: node.start,
-        end: node.end
-      }
-    };
-  }
-
-  extractClassSymbol(node, text) {
-    if (!node.id) return null;
-    
-    const name = node.id.name;
-    const jsdoc = this.extractJSDoc(node, text);
-    const methods = node.body.body
-      .filter(member => t.isClassMethod(member))
-      .map(method => method.key.name);
-    
-    return {
-      name,
-      type: 'class',
-      kind: 'Class',
-      methods,
-      documentation: jsdoc,
-      location: {
-        start: node.start,
-        end: node.end
-      }
-    };
-  }
-
-  extractMethodSymbol(node, className, text) {
-    if (!node.key || !t.isIdentifier(node.key)) return null;
-    
-    const name = node.key.name;
-    const params = node.params.map(param => this.getParameterInfo(param));
-    const jsdoc = this.extractJSDoc(node, text);
-    
-    return {
-      name,
-      type: 'method',
-      kind: 'Method',
-      className,
-      params,
-      static: node.static,
-      async: node.async,
-      documentation: jsdoc,
-      signature: this.buildMethodSignature(name, params, className, node.static, node.async),
-      location: {
-        start: node.start,
-        end: node.end
-      }
-    };
-  }
-
-  extractImportSymbol(spec, source, text) {
-    let name, importedName;
-    
-    if (t.isImportDefaultSpecifier(spec)) {
-      name = spec.local.name;
-      importedName = 'default';
-    } else if (t.isImportSpecifier(spec)) {
-      name = spec.local.name;
-      importedName = spec.imported.name;
-    } else if (t.isImportNamespaceSpecifier(spec)) {
-      name = spec.local.name;
-      importedName = '*';
-    } else {
-      return null;
-    }
-    
-    return {
-      name,
-      type: 'import',
-      kind: 'Import',
-      source,
-      importedName,
-      documentation: `Imported from ${source}`,
-      location: {
-        start: spec.start,
-        end: spec.end
-      }
-    };
-  }
-
-  extractExportSymbol(node, text) {
-    // Handle various export patterns
-    if (node.declaration) {
-      if (t.isFunctionDeclaration(node.declaration)) {
-        const symbol = this.extractFunctionSymbol(node.declaration, text);
-        if (symbol) {
-          symbol.exported = true;
-          return symbol;
-        }
-      } else if (t.isClassDeclaration(node.declaration)) {
-        const symbol = this.extractClassSymbol(node.declaration, text);
-        if (symbol) {
-          symbol.exported = true;
-          return symbol;
-        }
-      }
-    }
-    return null;
-  }
-
-  getParameterInfo(param) {
-    if (t.isIdentifier(param)) {
-      return { name: param.name, type: 'any' };
-    } else if (t.isAssignmentPattern(param)) {
-      return { 
-        name: param.left.name, 
-        type: 'any',
-        default: true 
-      };
-    } else if (t.isRestElement(param)) {
-      return { 
-        name: param.argument.name, 
-        type: 'any',
-        rest: true 
-      };
-    }
-    return { name: 'param', type: 'any' };
-  }
-
-  buildFunctionSignature(name, params, isAsync, isGenerator) {
-    const asyncPrefix = isAsync ? 'async ' : '';
-    const generatorPrefix = isGenerator ? '*' : '';
-    const paramStr = params.map(p => {
-      let paramName = p.name;
-      if (p.rest) paramName = '...' + paramName;
-      if (p.default) paramName += '?';
-      return paramName;
-    }).join(', ');
-    
-    return `${asyncPrefix}function${generatorPrefix} ${name}(${paramStr})`;
-  }
-
-  buildMethodSignature(name, params, className, isStatic, isAsync) {
-    const staticPrefix = isStatic ? 'static ' : '';
-    const asyncPrefix = isAsync ? 'async ' : '';
-    const classPrefix = className ? `${className}.` : '';
-    const paramStr = params.map(p => {
-      let paramName = p.name;
-      if (p.rest) paramName = '...' + paramName;
-      if (p.default) paramName += '?';
-      return paramName;
-    }).join(', ');
-    
-    return `${staticPrefix}${asyncPrefix}${classPrefix}${name}(${paramStr})`;
-  }
-
-  extractJSDoc(node, text) {
-    // Look for JSDoc comments before the node
-    if (!node.leadingComments) return null;
-    
-    const jsdocComment = node.leadingComments.find(comment => 
-      comment.type === 'CommentBlock' && comment.value.startsWith('*')
-    );
-    
-    if (!jsdocComment) return null;
-    
-    // Parse JSDoc content
-    const content = jsdocComment.value;
-    const lines = content.split('\n').map(line => line.trim().replace(/^\*\s?/, ''));
-    
-    let description = '';
-    const tags = {};
-    let currentTag = null;
-    
-    for (const line of lines) {
-      if (line.startsWith('@')) {
-        const tagMatch = line.match(/^@(\w+)\s*(.*)/);
-        if (tagMatch) {
-          currentTag = tagMatch[1];
-          tags[currentTag] = tagMatch[2] || '';
-        }
-      } else if (currentTag) {
-        tags[currentTag] += (tags[currentTag] ? ' ' : '') + line;
-      } else if (line) {
-        description += (description ? ' ' : '') + line;
-      }
-    }
-    
-    return { description, tags };
   }
 
   findSymbol(name, uri = null) {
@@ -387,16 +93,9 @@ class SymbolAnalyzer {
     }
     
     // Then check global cache
-    const cacheKey = `${name}:function`;
-    if (this.symbolCache.has(cacheKey)) {
-      return this.symbolCache.get(cacheKey)[0]; // Return first match
-    }
-    
-    // Check other types
-    for (const type of ['class', 'variable', 'method']) {
-      const key = `${name}:${type}`;
-      if (this.symbolCache.has(key)) {
-        return this.symbolCache.get(key)[0];
+    for (const [key, symbols] of this.symbolCache) {
+      if (key.startsWith(`${name}:`)) {
+        return symbols[0]; // Return first match
       }
     }
     
@@ -409,7 +108,76 @@ class SymbolAnalyzer {
 
   clearDocument(uri) {
     this.documentSymbols.delete(uri);
-    // TODO: Clean up global cache entries for this URI
+    this.trees.delete(uri);
+    // Clean up global cache entries for this URI
+    for (const [key, symbols] of this.symbolCache) {
+      const filtered = symbols.filter(s => s.uri !== uri);
+      if (filtered.length === 0) {
+        this.symbolCache.delete(key);
+      } else {
+        this.symbolCache.set(key, filtered);
+      }
+    }
+  }
+
+  getTree(uri) {
+    return this.trees.get(uri);
+  }
+
+  // Get all symbols across all documents
+  getAllSymbols() {
+    const allSymbols = [];
+    for (const symbols of this.documentSymbols.values()) {
+      allSymbols.push(...symbols);
+    }
+    return allSymbols;
+  }
+
+  // Find symbols by type
+  findSymbolsByType(type) {
+    const symbols = [];
+    for (const [key, symbolList] of this.symbolCache) {
+      if (key.endsWith(`:${type}`)) {
+        symbols.push(...symbolList);
+      }
+    }
+    return symbols;
+  }
+
+  // Get symbol statistics
+  getSymbolStats() {
+    const stats = {
+      totalSymbols: 0,
+      symbolsByType: {},
+      symbolsByDocument: {}
+    };
+    
+    for (const [uri, symbols] of this.documentSymbols) {
+      stats.totalSymbols += symbols.length;
+      stats.symbolsByDocument[uri] = symbols.length;
+      
+      symbols.forEach(symbol => {
+        stats.symbolsByType[symbol.type] = (stats.symbolsByType[symbol.type] || 0) + 1;
+      });
+    }
+    
+    return stats;
+  }
+
+  // Search symbols by name pattern
+  searchSymbols(pattern) {
+    const regex = new RegExp(pattern, 'i');
+    const matches = [];
+    
+    for (const symbols of this.documentSymbols.values()) {
+      symbols.forEach(symbol => {
+        if (regex.test(symbol.name)) {
+          matches.push(symbol);
+        }
+      });
+    }
+    
+    return matches;
   }
 }
 

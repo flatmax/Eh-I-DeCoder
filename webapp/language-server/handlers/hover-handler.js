@@ -1,4 +1,4 @@
-// Enhanced hover request handler with dynamic symbol analysis
+// Enhanced hover request handler with tree-sitter based symbol analysis
 const BaseHandler = require('./base-handler');
 
 class HoverHandler extends BaseHandler {
@@ -21,7 +21,7 @@ class HoverHandler extends BaseHandler {
 
   getHoverInfo(word, uri, position, doc) {
     // First try to get dynamic symbol information
-    const symbolInfo = this.getDynamicSymbolInfo(word, uri);
+    const symbolInfo = this.getDynamicSymbolInfo(word, uri, position, doc);
     if (symbolInfo) {
       return symbolInfo;
     }
@@ -32,8 +32,8 @@ class HoverHandler extends BaseHandler {
       return builtinInfo;
     }
     
-    // Try to infer from context
-    const contextInfo = this.getContextualInfo(word, position, doc);
+    // Try to infer from context using tree-sitter
+    const contextInfo = this.getContextualInfo(word, position, doc, uri);
     if (contextInfo) {
       return contextInfo;
     }
@@ -41,7 +41,7 @@ class HoverHandler extends BaseHandler {
     return null;
   }
 
-  getDynamicSymbolInfo(word, uri) {
+  getDynamicSymbolInfo(word, uri, position, doc) {
     const symbolAnalyzer = this.documentManager.getSymbolAnalyzer();
     const symbol = symbolAnalyzer.findSymbol(word, uri);
     
@@ -51,82 +51,72 @@ class HoverHandler extends BaseHandler {
     
     // Add signature if available
     if (symbol.signature) {
-      content += `\`\`\`javascript\n${symbol.signature}\n\`\`\`\n\n`;
+      content += `\`\`\`${this.getLanguageId(uri)}\n${symbol.signature}\n\`\`\`\n\n`;
     }
     
-    // Add documentation
-    if (symbol.documentation) {
-      if (typeof symbol.documentation === 'string') {
-        content += symbol.documentation;
-      } else {
-        // JSDoc format
-        if (symbol.documentation.description) {
-          content += symbol.documentation.description + '\n\n';
+    // Add type-specific information
+    switch (symbol.type) {
+      case 'function':
+      case 'method':
+        if (symbol.params && symbol.params.length > 0) {
+          content += '**Parameters:**\n';
+          symbol.params.forEach(param => {
+            let paramInfo = `- \`${param.name}\``;
+            if (param.type && param.type !== 'any') {
+              paramInfo += `: ${param.type}`;
+            }
+            if (param.default) {
+              paramInfo += ' *(optional)*';
+            }
+            if (param.rest) {
+              paramInfo += ' *(rest parameter)*';
+            }
+            content += paramInfo + '\n';
+          });
+          content += '\n';
         }
         
-        // Add parameter documentation
-        if (symbol.params && symbol.documentation.tags) {
-          const paramDocs = this.extractParamDocs(symbol.documentation.tags);
-          if (paramDocs.length > 0) {
-            content += '**Parameters:**\n';
-            paramDocs.forEach(param => {
-              content += `- \`${param.name}\`: ${param.description}\n`;
-            });
-            content += '\n';
-          }
+        if (symbol.async) {
+          content += '*Async function*\n';
         }
+        if (symbol.generator) {
+          content += '*Generator function*\n';
+        }
+        if (symbol.static) {
+          content += '*Static method*\n';
+        }
+        break;
         
-        // Add return documentation
-        if (symbol.documentation.tags && symbol.documentation.tags.returns) {
-          content += `**Returns:** ${symbol.documentation.tags.returns}\n\n`;
+      case 'class':
+        if (symbol.methods && symbol.methods.length > 0) {
+          content += '**Methods:**\n';
+          symbol.methods.forEach(method => {
+            content += `- \`${method}\`\n`;
+          });
+          content += '\n';
         }
+        break;
         
-        // Add examples
-        if (symbol.documentation.tags && symbol.documentation.tags.example) {
-          content += `**Example:**\n\`\`\`javascript\n${symbol.documentation.tags.example}\n\`\`\`\n\n`;
+      case 'import':
+        content += `Imported from: \`${symbol.source || 'unknown'}\`\n`;
+        if (symbol.importedName && symbol.importedName !== symbol.name) {
+          content += `Original name: \`${symbol.importedName}\`\n`;
         }
-      }
+        break;
+        
+      case 'variable':
+      case 'constant':
+      case 'field':
+        if (symbol.type === 'constant') {
+          content += '*Constant*\n';
+        }
+        break;
     }
     
-    // Add parameter information for functions
-    if (symbol.params && symbol.params.length > 0) {
-      content += '**Parameters:**\n';
-      symbol.params.forEach(param => {
-        let paramInfo = `- \`${param.name}\``;
-        if (param.type && param.type !== 'any') {
-          paramInfo += `: ${param.type}`;
-        }
-        if (param.default) {
-          paramInfo += ' *(optional)*';
-        }
-        if (param.rest) {
-          paramInfo += ' *(rest parameter)*';
-        }
-        content += paramInfo + '\n';
-      });
-      content += '\n';
-    }
-    
-    // Add class methods if it's a class
-    if (symbol.type === 'class' && symbol.methods && symbol.methods.length > 0) {
-      content += '**Methods:**\n';
-      symbol.methods.forEach(method => {
-        content += `- \`${method}\`\n`;
-      });
-      content += '\n';
-    }
-    
-    // Add import information
-    if (symbol.type === 'import') {
-      content += `Imported from: \`${symbol.source}\`\n`;
-      if (symbol.importedName !== symbol.name) {
-        content += `Original name: \`${symbol.importedName}\`\n`;
-      }
-    }
-    
-    // Add export information
-    if (symbol.exported) {
-      content += '*This symbol is exported*\n';
+    // Add location information
+    if (symbol.uri && symbol.uri !== uri) {
+      const filename = symbol.uri.split('/').pop();
+      content += `\nDefined in: \`${filename}\``;
     }
     
     return {
@@ -137,27 +127,41 @@ class HoverHandler extends BaseHandler {
     };
   }
 
-  extractParamDocs(tags) {
-    const paramDocs = [];
+  getLanguageId(uri) {
+    const extension = uri.split('.').pop().toLowerCase();
+    const languageMap = {
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'py': 'python',
+      'cpp': 'cpp',
+      'cc': 'cpp',
+      'cxx': 'cpp',
+      'c': 'c',
+      'h': 'c',
+      'hpp': 'cpp',
+      'java': 'java',
+      'go': 'go',
+      'rs': 'rust',
+      'css': 'css',
+      'scss': 'scss',
+      'html': 'html',
+      'json': 'json',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'toml': 'toml',
+      'sh': 'bash',
+      'bash': 'bash',
+      'md': 'markdown'
+    };
     
-    // Handle @param tags
-    Object.keys(tags).forEach(tagName => {
-      if (tagName.startsWith('param')) {
-        const paramMatch = tags[tagName].match(/^(\w+)\s+(.*)/);
-        if (paramMatch) {
-          paramDocs.push({
-            name: paramMatch[1],
-            description: paramMatch[2]
-          });
-        }
-      }
-    });
-    
-    return paramDocs;
+    return languageMap[extension] || 'text';
   }
 
   getBuiltinInfo(word) {
     const builtins = {
+      // JavaScript/TypeScript
       'console': {
         kind: 'markdown',
         value: '**console** *(Global Object)*\n\n```javascript\nconsole\n```\n\nThe console object provides access to the browser\'s debugging console.\n\n**Common Methods:**\n- `log()` - Outputs a message\n- `error()` - Outputs an error message\n- `warn()` - Outputs a warning message\n- `info()` - Outputs an info message\n- `debug()` - Outputs a debug message'
@@ -197,6 +201,31 @@ class HoverHandler extends BaseHandler {
       'var': {
         kind: 'markdown',
         value: '**var** *(Keyword)*\n\n```javascript\nvar name = value;\n```\n\nDeclares a function-scoped or globally-scoped variable.'
+      },
+      // Python
+      'print': {
+        kind: 'markdown',
+        value: '**print** *(Built-in Function)*\n\n```python\nprint(*objects, sep=\' \', end=\'\\n\', file=sys.stdout, flush=False)\n```\n\nPrints objects to the text stream file.'
+      },
+      'len': {
+        kind: 'markdown',
+        value: '**len** *(Built-in Function)*\n\n```python\nlen(s)\n```\n\nReturns the length (number of items) of an object.'
+      },
+      'range': {
+        kind: 'markdown',
+        value: '**range** *(Built-in Function)*\n\n```python\nrange(stop)\nrange(start, stop[, step])\n```\n\nReturns an immutable sequence of numbers.'
+      },
+      'def': {
+        kind: 'markdown',
+        value: '**def** *(Keyword)*\n\n```python\ndef function_name(parameters):\n    # function body\n```\n\nDefines a function.'
+      },
+      'class': {
+        kind: 'markdown',
+        value: '**class** *(Keyword)*\n\n```python\nclass ClassName:\n    # class body\n```\n\nDefines a class.'
+      },
+      'import': {
+        kind: 'markdown',
+        value: '**import** *(Keyword)*\n\n```python\nimport module\nfrom module import name\n```\n\nImports modules or specific objects from modules.'
       }
     };
     
@@ -207,52 +236,89 @@ class HoverHandler extends BaseHandler {
     return null;
   }
 
-  getContextualInfo(word, position, doc) {
-    const text = doc.getText();
+  getContextualInfo(word, position, doc, uri) {
+    const symbolAnalyzer = this.documentManager.getSymbolAnalyzer();
+    const tree = symbolAnalyzer.getTree(uri);
+    
+    if (!tree) return null;
+    
+    // Get the node at the current position
     const offset = doc.offsetAt(position);
+    const node = tree.rootNode.descendantForIndex(offset);
     
-    // Get surrounding context
-    const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
-    const lineEnd = text.indexOf('\n', offset);
-    const line = text.substring(lineStart, lineEnd === -1 ? text.length : lineEnd);
+    if (!node) return null;
     
-    // Check if it's a method call
-    const methodCallMatch = line.match(new RegExp(`(\\w+)\\.${word}\\s*\\(`));
-    if (methodCallMatch) {
-      const objectName = methodCallMatch[1];
-      return {
-        contents: {
-          kind: 'markdown',
-          value: `**${word}** *(Method)*\n\nMethod called on \`${objectName}\`\n\nLine: \`${line.trim()}\``
-        }
-      };
+    // Try to understand the context from the AST
+    let contextInfo = null;
+    let currentNode = node;
+    
+    while (currentNode && !contextInfo) {
+      switch (currentNode.type) {
+        case 'member_expression':
+        case 'property_access':
+          contextInfo = this.getMemberExpressionInfo(currentNode, word, doc);
+          break;
+        case 'call_expression':
+          contextInfo = this.getCallExpressionInfo(currentNode, word, doc);
+          break;
+        case 'assignment':
+        case 'variable_declarator':
+          contextInfo = this.getAssignmentInfo(currentNode, word, doc);
+          break;
+      }
+      currentNode = currentNode.parent;
     }
     
-    // Check if it's a property access
-    const propertyMatch = line.match(new RegExp(`(\\w+)\\.${word}(?!\\s*\\()`));
-    if (propertyMatch) {
-      const objectName = propertyMatch[1];
-      return {
-        contents: {
-          kind: 'markdown',
-          value: `**${word}** *(Property)*\n\nProperty of \`${objectName}\`\n\nLine: \`${line.trim()}\``
-        }
-      };
-    }
+    return contextInfo;
+  }
+
+  getMemberExpressionInfo(node, word, doc) {
+    const text = doc.getText();
+    const objectNode = node.childForFieldName('object');
     
-    // Check if it's a variable assignment
-    const assignmentMatch = line.match(new RegExp(`(const|let|var)\\s+${word}\\s*=`));
-    if (assignmentMatch) {
-      const declarationType = assignmentMatch[1];
+    if (objectNode) {
+      const objectName = text.substring(objectNode.startIndex, objectNode.endIndex);
       return {
         contents: {
           kind: 'markdown',
-          value: `**${word}** *(Variable)*\n\nDeclared with \`${declarationType}\`\n\nLine: \`${line.trim()}\``
+          value: `**${word}** *(Property)*\n\nProperty of \`${objectName}\``
         }
       };
     }
     
     return null;
+  }
+
+  getCallExpressionInfo(node, word, doc) {
+    const text = doc.getText();
+    const functionNode = node.childForFieldName('function');
+    
+    if (functionNode && text.substring(functionNode.startIndex, functionNode.endIndex).includes(word)) {
+      return {
+        contents: {
+          kind: 'markdown',
+          value: `**${word}** *(Function Call)*\n\nFunction being called`
+        }
+      };
+    }
+    
+    return null;
+  }
+
+  getAssignmentInfo(node, word, doc) {
+    const text = doc.getText();
+    let declarationType = 'assignment';
+    
+    if (node.parent && node.parent.type === 'variable_declaration') {
+      declarationType = node.parent.children[0].type; // const, let, var
+    }
+    
+    return {
+      contents: {
+        kind: 'markdown',
+        value: `**${word}** *(Variable)*\n\nDeclared with \`${declarationType}\``
+      }
+    };
   }
 }
 
