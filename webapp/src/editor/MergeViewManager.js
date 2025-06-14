@@ -6,6 +6,8 @@ import { createLanguageClientExtension } from './LanguageClientExtension.js';
 import { createScrollbarChangeIndicator } from './ScrollbarChangeIndicator.js';
 import { keymap } from '@codemirror/view';
 import { addCursorUp, addCursorDown } from './extensions/MultiCursorExtension.js';
+import { createKeyBindingsExtension } from './extensions/KeyBindingsExtension.js';
+import { createClickHandlerExtension } from './extensions/ClickHandlerExtension.js';
 
 export class MergeViewManager {
   constructor(container, options = {}) {
@@ -110,6 +112,8 @@ export class MergeViewManager {
           borderLeftColor: "#ff9b00"
         }
       }),
+      createKeyBindingsExtension(languageClient, filePath),
+      createClickHandlerExtension(languageClient, `file://${filePath}`),
       createScrollbarChangeIndicator()
     ];
 
