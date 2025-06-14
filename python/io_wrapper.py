@@ -6,8 +6,13 @@ import traceback
 from datetime import datetime
 import concurrent.futures
 import threading
-from eh_i_decoder.base_wrapper import BaseWrapper
-from eh_i_decoder.logger import Logger
+
+try:
+    from .base_wrapper import BaseWrapper
+    from .logger import Logger
+except ImportError:
+    from base_wrapper import BaseWrapper
+    from logger import Logger
 
 # Enable tracemalloc for debugging
 tracemalloc.start()

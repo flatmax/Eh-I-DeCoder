@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-
 class GitBasicOperations:
     """Handles basic Git operations like staging, committing, and file management"""
     

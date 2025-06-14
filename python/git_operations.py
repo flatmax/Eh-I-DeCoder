@@ -1,9 +1,15 @@
 import os
 import subprocess
 import tempfile
-from .git_operations_basic import GitBasicOperations
-from .git_operations_rebase import GitRebaseOperations
-from .git_operations_editor import GitEditorOperations
+
+try:
+    from .git_operations_basic import GitBasicOperations
+    from .git_operations_rebase import GitRebaseOperations
+    from .git_operations_editor import GitEditorOperations
+except ImportError:
+    from git_operations_basic import GitBasicOperations
+    from git_operations_rebase import GitRebaseOperations
+    from git_operations_editor import GitEditorOperations
 
 
 class GitOperations:

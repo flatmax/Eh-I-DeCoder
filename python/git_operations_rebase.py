@@ -2,7 +2,6 @@ import os
 import subprocess
 import tempfile
 
-
 class GitRebaseOperations:
     """Handles Git rebase operations including interactive rebase and conflict resolution"""
     

@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-
 class GitEditorOperations:
     """Handles Git editor operations and status detection"""
     
