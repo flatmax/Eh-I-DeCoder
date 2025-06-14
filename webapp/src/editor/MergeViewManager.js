@@ -5,6 +5,7 @@ import { getLanguageExtension } from './LanguageExtensions.js';
 import { createLanguageClientExtension } from './LanguageClientExtension.js';
 import { createScrollbarChangeIndicator } from './ScrollbarChangeIndicator.js';
 import { keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 import { addCursorUp, addCursorDown } from './extensions/MultiCursorExtension.js';
 import { createKeyBindingsExtension } from './extensions/KeyBindingsExtension.js';
 import { createClickHandlerExtension } from './extensions/ClickHandlerExtension.js';
@@ -41,6 +42,38 @@ export class MergeViewManager {
     // Get language-specific extension
     const langExtension = getLanguageExtension(filePath);
     
+    // Create navigation override keymap with absolute highest precedence
+    const navigationOverrideKeymap = Prec.highest(keymap.of([
+      {
+        key: 'Alt-ArrowLeft',
+        mac: 'Cmd-ArrowLeft',
+        run: (view) => {
+          // Dispatch navigate-back event
+          view.dom.dispatchEvent(new CustomEvent('navigate-back', {
+            bubbles: true,
+            composed: true
+          }));
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-ArrowRight',
+        mac: 'Cmd-ArrowRight',
+        run: (view) => {
+          // Dispatch navigate-forward event
+          view.dom.dispatchEvent(new CustomEvent('navigate-forward', {
+            bubbles: true,
+            composed: true
+          }));
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      }
+    ]));
+    
     // Multi-cursor keymap with high precedence
     const multiCursorKeymap = keymap.of([
       {
@@ -59,8 +92,10 @@ export class MergeViewManager {
     });
     
     // Create base extensions with VS Code dark theme
+    // IMPORTANT: navigationOverrideKeymap MUST be first to have highest priority
     const baseExtensions = [
-      multiCursorKeymap, // Put multi-cursor first with highest precedence
+      navigationOverrideKeymap, // Absolute highest priority navigation override
+      multiCursorKeymap, // Put multi-cursor second with highest precedence
       basicSetup,
       oneDark,
       EditorView.theme({
