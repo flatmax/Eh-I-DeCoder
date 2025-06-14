@@ -69,18 +69,38 @@ class DefinitionHandler extends BaseHandler {
 
   findLocalDefinition(word, textDocument, doc) {
     const text = doc.getText();
-    const functionPattern = new RegExp(`(function|const|let|var|class)\\s+${word}\\b`, 'g');
-    let match;
     
-    while ((match = functionPattern.exec(text)) !== null) {
-      const defPosition = doc.positionAt(match.index);
-      return {
-        uri: textDocument.uri,
-        range: {
-          start: defPosition,
-          end: doc.positionAt(match.index + match[0].length)
-        }
-      };
+    // Enhanced patterns to find various types of definitions
+    const patterns = [
+      // Function declarations: function name() {}
+      new RegExp(`function\\s+${word}\\s*\\(`, 'g'),
+      // Method definitions: methodName() {} or async methodName() {}
+      new RegExp(`(async\\s+)?${word}\\s*\\([^)]*\\)\\s*\\{`, 'g'),
+      // Arrow function assignments: const name = () => {} or name = () => {}
+      new RegExp(`(const|let|var)?\\s*${word}\\s*=\\s*\\([^)]*\\)\\s*=>`, 'g'),
+      // Class method definitions: methodName() { (inside class)
+      new RegExp(`^\\s*(async\\s+)?${word}\\s*\\([^)]*\\)\\s*\\{`, 'gm'),
+      // Variable declarations: const/let/var name = 
+      new RegExp(`(const|let|var)\\s+${word}\\b`, 'g'),
+      // Class declarations: class Name
+      new RegExp(`class\\s+${word}\\b`, 'g'),
+      // Property assignments: this.name = 
+      new RegExp(`this\\.${word}\\s*=`, 'g')
+    ];
+    
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const defPosition = doc.positionAt(match.index);
+        console.log(`Found local definition for ${word} at line ${defPosition.line + 1}, char ${defPosition.character}`);
+        return {
+          uri: textDocument.uri,
+          range: {
+            start: defPosition,
+            end: doc.positionAt(match.index + match[0].length)
+          }
+        };
+      }
     }
 
     return null;
