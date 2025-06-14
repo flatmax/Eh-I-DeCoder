@@ -112,7 +112,10 @@ export class MergeViewManager {
       const mergeViewConfig = {
         a: {
           doc: headContent || '',
-          extensions: baseExtensions
+          extensions: [
+            ...baseExtensions,
+            EditorView.editable.of(false)
+          ]
         },
         b: {
           doc: workingContent || '',
@@ -131,7 +134,7 @@ export class MergeViewManager {
         renderRevertControl: () => {
           const button = document.createElement('button');
           button.className = 'cm-merge-revert';
-          button.textContent = '⟵';
+          button.textContent = '⟶';
           button.title = 'Revert this change';
           return button;
         },
