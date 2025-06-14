@@ -60,18 +60,21 @@ export function createScrollbarChangeIndicator() {
       const changes = [];
       const decorations = state.facet(EditorView.decorations);
       
-      // Look for merge decorations
-      decorations.forEach(deco => {
-        deco.iter(0, state.doc.length, (from, to, value) => {
-          const classes = value.class || '';
-          if (classes.includes('cm-deletedChunk') || classes.includes('cm-deletedLine')) {
-            changes.push({ from, to, type: 'deleted' });
-          } else if (classes.includes('cm-insertedChunk') || classes.includes('cm-insertedLine')) {
-            changes.push({ from, to, type: 'added' });
-          } else if (classes.includes('cm-changedChunk') || classes.includes('cm-changedLine')) {
-            changes.push({ from, to, type: 'modified' });
-          }
-        });
+      // decorations is an array of decoration sets, iterate through each
+      decorations.forEach(decoSet => {
+        // Check if this decoration set has an iter method
+        if (decoSet && typeof decoSet.iter === 'function') {
+          decoSet.iter(0, state.doc.length, (from, to, value) => {
+            const classes = value.class || '';
+            if (classes.includes('cm-deletedChunk') || classes.includes('cm-deletedLine')) {
+              changes.push({ from, to, type: 'deleted' });
+            } else if (classes.includes('cm-insertedChunk') || classes.includes('cm-insertedLine')) {
+              changes.push({ from, to, type: 'added' });
+            } else if (classes.includes('cm-changedChunk') || classes.includes('cm-changedLine')) {
+              changes.push({ from, to, type: 'modified' });
+            }
+          });
+        }
       });
       
       return changes;

@@ -5,6 +5,7 @@ import { hoverTooltip } from '@codemirror/view';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 
 export function createLanguageClientExtension(languageClient, filePath) {
+  console.log('Creating language client extension for:', filePath);
   const fileUri = `file://${filePath}`;
   let documentVersion = 0;
   
@@ -85,6 +86,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
     {
       key: 'F12',
       run: (view) => {
+        console.log('F12 pressed in editor');
         goToDefinition(view);
         return true;
       }
@@ -93,6 +95,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
       key: 'Ctrl-F12',
       mac: 'Cmd-F12',
       run: (view) => {
+        console.log('Ctrl-F12/Cmd-F12 pressed in editor');
         findReferences(view);
         return true;
       }
@@ -100,7 +103,11 @@ export function createLanguageClientExtension(languageClient, filePath) {
   ]);
 
   async function goToDefinition(view) {
-    if (!languageClient.connected) return;
+    console.log('goToDefinition called');
+    if (!languageClient.connected) {
+      console.log('Language client not connected');
+      return;
+    }
     
     const pos = view.state.selection.main.head;
     const line = view.state.doc.lineAt(pos);
@@ -109,8 +116,15 @@ export function createLanguageClientExtension(languageClient, filePath) {
       character: pos - line.from
     };
     
+    // Get word at cursor for logging
+    const wordAt = view.state.wordAt(pos);
+    const word = wordAt ? view.state.doc.sliceString(wordAt.from, wordAt.to) : 'unknown';
+    console.log(`Requesting definition for "${word}" at line ${position.line + 1}, char ${position.character}`);
+    
     try {
       const definition = await languageClient.definition(fileUri, position);
+      console.log('Definition response:', definition);
+      
       if (definition) {
         // Emit event to open file at definition location
         view.dom.dispatchEvent(new CustomEvent('go-to-definition', {
@@ -118,6 +132,8 @@ export function createLanguageClientExtension(languageClient, filePath) {
           bubbles: true,
           composed: true
         }));
+      } else {
+        console.log('No definition found');
       }
     } catch (error) {
       console.error('Go to definition error:', error);
@@ -125,7 +141,11 @@ export function createLanguageClientExtension(languageClient, filePath) {
   }
 
   async function findReferences(view) {
-    if (!languageClient.connected) return;
+    console.log('findReferences called');
+    if (!languageClient.connected) {
+      console.log('Language client not connected');
+      return;
+    }
     
     const pos = view.state.selection.main.head;
     const line = view.state.doc.lineAt(pos);
@@ -136,6 +156,8 @@ export function createLanguageClientExtension(languageClient, filePath) {
     
     try {
       const references = await languageClient.references(fileUri, position);
+      console.log('References response:', references);
+      
       if (references && references.length > 0) {
         // Emit event to show references
         view.dom.dispatchEvent(new CustomEvent('show-references', {
@@ -143,6 +165,8 @@ export function createLanguageClientExtension(languageClient, filePath) {
           bubbles: true,
           composed: true
         }));
+      } else {
+        console.log('No references found');
       }
     } catch (error) {
       console.error('Find references error:', error);
@@ -163,6 +187,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
       
       try {
         await languageClient.didOpen(fileUri, languageId, documentVersion, text);
+        console.log('Document opened in language server:', fileUri);
       } catch (error) {
         console.error('Failed to open document:', error);
       }
@@ -207,6 +232,8 @@ export function createLanguageClientExtension(languageClient, filePath) {
       console.log('Diagnostics received:', event.detail.diagnostics);
     }
   });
+
+  console.log('Language client extension created with keybindings');
 
   return [
     diagnosticsState,
