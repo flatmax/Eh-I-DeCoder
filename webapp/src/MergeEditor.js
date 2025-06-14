@@ -36,6 +36,9 @@ export class MergeEditor extends JRPCClient {
     
     // Initialize language client connection
     this.initializeLanguageClient();
+    
+    // Listen for editor save events
+    this.addEventListener('editor-save', this.handleEditorSave.bind(this));
   }
 
   async initializeLanguageClient() {
@@ -183,6 +186,13 @@ export class MergeEditor extends JRPCClient {
     
     const currentContent = this.mergeViewManager.getWorkingContent();
     this.hasChanges = currentContent !== this.originalWorkingContent;
+  }
+
+  handleEditorSave(event) {
+    console.log('Editor save event received');
+    event.preventDefault();
+    event.stopPropagation();
+    this.saveFile();
   }
 
   async saveFile() {

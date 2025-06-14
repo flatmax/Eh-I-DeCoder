@@ -88,7 +88,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
     }
   });
 
-  // Key bindings for go to definition
+  // Key bindings for go to definition and save
   const keyBindings = keymap.of([
     {
       key: 'F12',
@@ -105,6 +105,18 @@ export function createLanguageClientExtension(languageClient, filePath) {
         console.log('Ctrl-F12/Cmd-F12 pressed in editor');
         findReferences(view);
         return true;
+      }
+    },
+    {
+      key: 'Mod-s',
+      run: (view) => {
+        console.log('Mod-s pressed in editor - dispatching save event');
+        // Dispatch a custom save event that the MergeEditor can handle
+        view.dom.dispatchEvent(new CustomEvent('editor-save', {
+          bubbles: true,
+          composed: true
+        }));
+        return true; // Prevent browser's default save behavior
       }
     }
   ]);
