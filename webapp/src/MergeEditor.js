@@ -3,6 +3,7 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {FileContentLoader} from './editor/FileContentLoader.js';
 import {languageClient} from './editor/LanguageClient.js';
 import {MergeViewManager} from './editor/MergeViewManager.js';
+import {LineHighlight} from './editor/LineHighlight.js';
 import {mergeEditorStyles} from './editor/MergeEditorStyles.js';
 
 export class MergeEditor extends JRPCClient {
@@ -27,6 +28,9 @@ export class MergeEditor extends JRPCClient {
     this.workingContent = '';
     this.originalWorkingContent = '';
     this.mergeViewManager = null;
+    this.lineHighlight = null;
+    this.pendingScrollToLine = null; // Store pending scroll request
+    this.loadingPromise = null; // Track current loading operation
   }
 
   static styles = mergeEditorStyles;
@@ -138,6 +142,9 @@ export class MergeEditor extends JRPCClient {
           shadowRoot: this.shadowRoot
         });
         
+        // Initialize line highlight helper
+        this.lineHighlight = new LineHighlight(this.shadowRoot);
+        
         // Initialize the merge view with content
         this.mergeViewManager.initialize(
           this.currentFile,
@@ -146,19 +153,68 @@ export class MergeEditor extends JRPCClient {
           languageClient,
           this.languageClientConnected
         );
+
+        // Handle any pending scroll request after editor is ready
+        this.processPendingScroll();
       }
     }
   }
 
-  async loadFileContent(filePath) {
+  processPendingScroll() {
+    if (this.pendingScrollToLine !== null) {
+      console.log('Processing pending scroll to line:', this.pendingScrollToLine);
+      // Use multiple delays to ensure the editor is fully rendered
+      setTimeout(() => {
+        if (this.mergeViewManager && this.lineHighlight) {
+          this.scrollToLine(this.pendingScrollToLine);
+          this.pendingScrollToLine = null;
+        } else {
+          // Try again with a longer delay
+          setTimeout(() => {
+            if (this.mergeViewManager && this.lineHighlight) {
+              this.scrollToLine(this.pendingScrollToLine);
+              this.pendingScrollToLine = null;
+            }
+          }, 500);
+        }
+      }, 200);
+    }
+  }
+
+  async loadFileContent(filePath, lineNumber = null) {
     if (!this.fileLoader) {
       console.error('File loader not initialized');
       return;
     }
 
+    // If we're already loading this file with the same line number, don't load again
+    if (this.loadingPromise && this.currentFile === filePath && this.pendingScrollToLine === lineNumber) {
+      console.log('Already loading this file, waiting for completion');
+      return this.loadingPromise;
+    }
+
+    // Store the line number for later scrolling if provided
+    if (lineNumber !== null) {
+      this.pendingScrollToLine = lineNumber;
+      console.log('Storing pending scroll to line:', lineNumber);
+    } else {
+      this.pendingScrollToLine = null;
+    }
+
     this.isLoading = true;
     this.currentFile = filePath;
 
+    // Create and store the loading promise
+    this.loadingPromise = this.performFileLoad(filePath);
+    
+    try {
+      await this.loadingPromise;
+    } finally {
+      this.loadingPromise = null;
+    }
+  }
+
+  async performFileLoad(filePath) {
     try {
       const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
       this.headContent = headContent;
@@ -175,9 +231,12 @@ export class MergeEditor extends JRPCClient {
       this.isLoading = false;
       
       // The merge view will be initialized in updated() lifecycle
+      // and any pending scroll will be handled there
     } catch (error) {
       console.error('Failed to load file:', error);
       this.isLoading = false;
+      this.pendingScrollToLine = null; // Clear pending scroll on error
+      throw error;
     }
   }
 
@@ -235,8 +294,9 @@ export class MergeEditor extends JRPCClient {
 
   handleOpenFile(event) {
     const filePath = event.detail.filePath;
+    const lineNumber = event.detail.lineNumber || null;
     if (filePath) {
-      this.loadFileContent(filePath);
+      this.loadFileContent(filePath, lineNumber);
     }
   }
 
@@ -268,5 +328,28 @@ export class MergeEditor extends JRPCClient {
       // TODO: Implement a references panel or quick pick dialog
       // to allow users to navigate through references
     }
+  }
+
+  /**
+   * Scroll to a specific line in the editor and highlight it
+   * @param {number} lineNumber - The line number to scroll to
+   */
+  scrollToLine(lineNumber) {
+    if (!this.mergeViewManager || !this.mergeViewManager.mergeView || !this.lineHighlight) {
+      console.log('MergeEditor: Editor not ready, storing scroll request for later');
+      this.pendingScrollToLine = lineNumber;
+      return;
+    }
+
+    // Get the working editor (right side)
+    const workingEditor = this.mergeViewManager.mergeView.b;
+    if (!workingEditor) {
+      console.warn('MergeEditor: Working editor not available');
+      return;
+    }
+
+    console.log('MergeEditor: Scrolling to line', lineNumber);
+    // Use the line highlight utility to scroll and highlight
+    this.lineHighlight.scrollToLine(workingEditor, lineNumber);
   }
 }

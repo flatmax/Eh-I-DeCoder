@@ -67,6 +67,12 @@ export class SearchForm extends LitElement {
     }));
   }
 
+  handleInputChange(e) {
+    this.searchState.searchQuery = e.target.value;
+    this.searchState._notifyUpdate();
+    this.requestUpdate();
+  }
+
   render() {
     if (!this.searchState) return html``;
 
@@ -76,7 +82,7 @@ export class SearchForm extends LitElement {
           <md-outlined-text-field
             label="Search in files..."
             .value=${this.searchState.searchQuery || ''} 
-            @input=${e => this.searchState.searchQuery = e.target.value}
+            @input=${this.handleInputChange}
             @keydown=${e => e.key === 'Enter' && this.handleSearch(e)}
             ?disabled=${this.searchState.isSearching}
             style="flex-grow: 1;"
