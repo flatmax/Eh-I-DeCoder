@@ -20,22 +20,31 @@ export class SearchForm extends LitElement {
    * @param {string} [selectedText] - Optional text to set as the search query
    */
   focusInput(selectedText = '') {
+    console.log('SearchForm.focusInput called with selectedText:', selectedText);
+    
+    // Set the search query first if selected text is provided
+    if (selectedText && selectedText.trim()) {
+      console.log('Setting search query to:', selectedText.trim());
+      this.searchState.searchQuery = selectedText.trim();
+      this.searchState._notifyUpdate();
+      this.requestUpdate();
+      console.log('Search state updated, searchQuery is now:', this.searchState.searchQuery);
+    }
+    
     this.updateComplete.then(() => {
-      // Set the search query if selected text is provided
-      if (selectedText && selectedText.trim()) {
-        this.searchState.searchQuery = selectedText.trim();
-        this.requestUpdate();
-      }
-      
       const textField = this.shadowRoot.querySelector('md-outlined-text-field');
       if (textField) {
+        console.log('Found text field, current value:', textField.value);
+        
         // For Material Design Web Components, we need to focus the internal input
         const input = textField.shadowRoot?.querySelector('input');
         if (input) {
+          console.log('Found internal input, current value:', input.value);
           input.focus();
           // If we set text, select it all for easy replacement
           if (selectedText && selectedText.trim()) {
             input.select();
+            console.log('Selected all text in input field');
           }
           console.log('Search input focused successfully', selectedText ? `with text: "${selectedText}"` : '');
         } else {
@@ -68,13 +77,17 @@ export class SearchForm extends LitElement {
   }
 
   handleInputChange(e) {
+    console.log('SearchForm.handleInputChange called with value:', e.target.value);
     this.searchState.searchQuery = e.target.value;
     this.searchState._notifyUpdate();
     this.requestUpdate();
+    console.log('Search state updated after input change, searchQuery is now:', this.searchState.searchQuery);
   }
 
   render() {
     if (!this.searchState) return html``;
+
+    console.log('SearchForm.render called, searchQuery is:', this.searchState.searchQuery);
 
     return html`
       <form class="search-form" @submit=${this.handleSearch}>

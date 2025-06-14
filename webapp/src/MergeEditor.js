@@ -43,6 +43,9 @@ export class MergeEditor extends JRPCClient {
     
     // Listen for editor save events
     this.addEventListener('editor-save', this.handleEditorSave.bind(this));
+    
+    // Listen for open find in files events from the editor
+    this.addEventListener('open-find-in-files', this.handleOpenFindInFiles.bind(this));
   }
 
   async initializeLanguageClient() {
@@ -252,6 +255,21 @@ export class MergeEditor extends JRPCClient {
     event.preventDefault();
     event.stopPropagation();
     this.saveFile();
+  }
+
+  handleOpenFindInFiles(event) {
+    console.log('Open find in files event received:', event.detail);
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const selectedText = event.detail.selectedText || '';
+    
+    // Dispatch a different event name to MainWindow to avoid recursion
+    this.dispatchEvent(new CustomEvent('request-find-in-files', {
+      detail: { selectedText },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   async saveFile() {

@@ -88,7 +88,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
     }
   });
 
-  // Key bindings for go to definition and save
+  // Key bindings for go to definition, save, and find in files
   const keyBindings = keymap.of([
     {
       key: 'F12',
@@ -117,6 +117,15 @@ export function createLanguageClientExtension(languageClient, filePath) {
           composed: true
         }));
         return true; // Prevent browser's default save behavior
+      }
+    },
+    {
+      key: 'Ctrl-Shift-f',
+      mac: 'Cmd-Shift-f',
+      run: (view) => {
+        console.log('Ctrl-Shift-f/Cmd-Shift-f pressed in editor');
+        openFindInFiles(view);
+        return true;
       }
     }
   ]);
@@ -206,6 +215,26 @@ export function createLanguageClientExtension(languageClient, filePath) {
     } catch (error) {
       console.error('Find references error:', error);
     }
+  }
+
+  function openFindInFiles(view) {
+    console.log('openFindInFiles called');
+    
+    // Get selected text if any
+    const selection = view.state.selection.main;
+    let selectedText = '';
+    
+    if (!selection.empty) {
+      selectedText = view.state.doc.sliceString(selection.from, selection.to);
+      console.log('Selected text for find in files:', selectedText);
+    }
+    
+    // Dispatch event to open find in files with selected text
+    view.dom.dispatchEvent(new CustomEvent('open-find-in-files', {
+      detail: { selectedText },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   // Document sync plugin
