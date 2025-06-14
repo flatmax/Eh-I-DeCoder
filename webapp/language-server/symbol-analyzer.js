@@ -68,15 +68,15 @@ class SymbolAnalyzer {
           
           // Extract class methods
           path.node.body.body.forEach(method => {
-            if (t.isMethodDefinition(method)) {
+            if (t.isClassMethod(method)) {
               const methodSymbol = this.extractMethodSymbol(method, path.node.id.name, text);
               if (methodSymbol) symbols.push(methodSymbol);
             }
           });
         },
         
-        // Method definitions (class methods)
-        MethodDefinition: (path) => {
+        // Class methods (handled separately in case they're not inside ClassDeclaration)
+        ClassMethod: (path) => {
           // Skip if already handled by ClassDeclaration
           if (!path.findParent(p => p.isClassDeclaration())) {
             const symbol = this.extractMethodSymbol(path.node, null, text);
@@ -207,7 +207,7 @@ class SymbolAnalyzer {
     const name = node.id.name;
     const jsdoc = this.extractJSDoc(node, text);
     const methods = node.body.body
-      .filter(member => t.isMethodDefinition(member))
+      .filter(member => t.isClassMethod(member))
       .map(method => method.key.name);
     
     return {
@@ -227,7 +227,7 @@ class SymbolAnalyzer {
     if (!node.key || !t.isIdentifier(node.key)) return null;
     
     const name = node.key.name;
-    const params = node.value.params.map(param => this.getParameterInfo(param));
+    const params = node.params.map(param => this.getParameterInfo(param));
     const jsdoc = this.extractJSDoc(node, text);
     
     return {
@@ -237,9 +237,9 @@ class SymbolAnalyzer {
       className,
       params,
       static: node.static,
-      async: node.value.async,
+      async: node.async,
       documentation: jsdoc,
-      signature: this.buildMethodSignature(name, params, className, node.static, node.value.async),
+      signature: this.buildMethodSignature(name, params, className, node.static, node.async),
       location: {
         start: node.start,
         end: node.end

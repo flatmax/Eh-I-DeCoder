@@ -109,6 +109,22 @@ export function createLanguageClientExtension(languageClient, filePath) {
     }
   ]);
 
+  // Handle Ctrl/Cmd + click for go-to-definition
+  const clickHandler = EditorView.domEventHandlers({
+    mousedown(event, view) {
+      if (event.button === 0 && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (pos !== null) {
+          view.dispatch({ selection: { anchor: pos } });
+          goToDefinition(view);
+          return true;
+        }
+      }
+    }
+  });
+
   async function goToDefinition(view) {
     console.log('goToDefinition called');
     if (!languageClient.connected) {
@@ -247,6 +263,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
     autocompletion({ override: [completionSource] }),
     hoverTooltipExtension,
     keyBindings,
+    clickHandler,
     documentSyncPlugin,
     EditorView.theme({
       '.cm-tooltip-hover': {

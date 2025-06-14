@@ -22,8 +22,15 @@ class DefinitionHandler extends BaseHandler {
   }
 
   findDefinition(word, textDocument, doc) {
-    // First try to find definition using symbol analysis
-    const symbolDefinition = this.findSymbolDefinition(word, textDocument.uri);
+    // First check if this is an imported symbol
+    const importDefinition = this.findImportDefinition(word, textDocument, doc);
+    if (importDefinition) {
+      console.log(`Found import definition for ${word}:`, importDefinition);
+      return importDefinition;
+    }
+
+    // Then try to find definition using symbol analysis
+    const symbolDefinition = this.findSymbolDefinition(word, textDocument.uri, doc);
     if (symbolDefinition) {
       console.log(`Found symbol definition for ${word}:`, symbolDefinition);
       return symbolDefinition;
@@ -48,27 +55,120 @@ class DefinitionHandler extends BaseHandler {
     return null;
   }
 
-  findSymbolDefinition(word, uri) {
+  findImportDefinition(word, textDocument, doc) {
+    const text = doc.getText();
+    
+    // Look for import statements that import this symbol
+    const importPatterns = [
+      // Named imports: import { word } from './file'
+      new RegExp(`import\\s*\\{[^}]*\\b${word}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`, 'g'),
+      // Default imports: import word from './file'
+      new RegExp(`import\\s+${word}\\s+from\\s*['"]([^'"]+)['"]`, 'g'),
+      // Namespace imports: import * as word from './file'
+      new RegExp(`import\\s*\\*\\s*as\\s+${word}\\s+from\\s*['"]([^'"]+)['"]`, 'g')
+    ];
+    
+    for (const pattern of importPatterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const importPath = match[1];
+        const resolvedPath = this.resolveImportPath(importPath, textDocument.uri);
+        
+        if (resolvedPath) {
+          console.log(`Found import: ${word} from ${importPath} -> ${resolvedPath}`);
+          return {
+            uri: resolvedPath,
+            range: {
+              start: { line: 0, character: 0 },
+              end: { line: 0, character: 0 }
+            }
+          };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  resolveImportPath(importPath, currentFileUri) {
+    // Convert file:// URI to path
+    const currentPath = currentFileUri.replace('file://', '');
+    const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
+    
+    let resolvedPath;
+    
+    if (importPath.startsWith('./') || importPath.startsWith('../')) {
+      // Relative import
+      resolvedPath = this.resolveRelativePath(currentDir, importPath);
+    } else if (importPath.startsWith('/')) {
+      // Absolute import from project root
+      resolvedPath = 'webapp' + importPath;
+    } else {
+      // Node modules or other absolute imports
+      resolvedPath = `node_modules/${importPath}`;
+    }
+    
+    // Add .js extension if not present and not a directory
+    if (!resolvedPath.includes('.')) {
+      // Try common extensions
+      const extensions = ['.js', '.ts', '.jsx', '.tsx', '/index.js', '/index.ts'];
+      for (const ext of extensions) {
+        const testPath = resolvedPath + ext;
+        // For now, assume .js files exist (in a real implementation, you'd check the filesystem)
+        if (ext === '.js' || ext === '/index.js') {
+          resolvedPath = testPath;
+          break;
+        }
+      }
+    }
+    
+    return `file://${resolvedPath}`;
+  }
+
+  resolveRelativePath(currentDir, relativePath) {
+    const parts = currentDir.split('/');
+    const relativeParts = relativePath.split('/');
+    
+    for (const part of relativeParts) {
+      if (part === '.') {
+        continue;
+      } else if (part === '..') {
+        parts.pop();
+      } else {
+        parts.push(part);
+      }
+    }
+    
+    return parts.join('/');
+  }
+
+  findSymbolDefinition(word, uri, doc) {
     const symbolAnalyzer = this.documentManager.getSymbolAnalyzer();
     const symbol = symbolAnalyzer.findSymbol(word, uri);
     
     if (!symbol || !symbol.location) return null;
     
     // Convert symbol location to LSP definition format
+    const startPos = this.offsetToPosition(doc, symbol.location.start);
+    const endPos = this.offsetToPosition(doc, symbol.location.end);
+    
     return {
       uri: symbol.uri || uri,
       range: {
-        start: this.offsetToPosition(symbol.location.start),
-        end: this.offsetToPosition(symbol.location.end)
+        start: startPos,
+        end: endPos
       }
     };
   }
 
-  offsetToPosition(offset) {
-    // This is a simplified conversion - in a real implementation,
-    // you'd need to convert byte offset to line/character position
-    // For now, return a default position
-    return { line: 0, character: 0 };
+  offsetToPosition(doc, offset) {
+    // Convert byte offset to line/character position using the document
+    try {
+      return doc.positionAt(offset);
+    } catch (error) {
+      console.error('Error converting offset to position:', error);
+      return { line: 0, character: 0 };
+    }
   }
 
   findExternalDefinition(word) {
@@ -83,7 +183,15 @@ class DefinitionHandler extends BaseHandler {
       'languageClient': 'file://webapp/src/editor/LanguageClient.js',
       'MergeViewManager': 'file://webapp/src/editor/MergeViewManager.js',
       'SymbolAnalyzer': 'file://webapp/language-server/symbol-analyzer.js',
-      'DocumentManager': 'file://webapp/language-server/document-manager.js'
+      'DocumentManager': 'file://webapp/language-server/document-manager.js',
+      'createLanguageClientExtension': 'file://webapp/src/editor/LanguageClientExtension.js',
+      'getLanguageExtension': 'file://webapp/src/editor/LanguageExtensions.js',
+      'createScrollbarChangeIndicator': 'file://webapp/src/editor/ScrollbarChangeIndicator.js',
+      'MergeView': 'file://node_modules/@codemirror/merge/dist/index.js',
+      'basicSetup': 'file://node_modules/codemirror/dist/index.js',
+      'EditorView': 'file://node_modules/@codemirror/view/dist/index.js',
+      'oneDark': 'file://node_modules/@codemirror/theme-one-dark/dist/index.js',
+      'css': 'file://node_modules/lit/index.js'
     };
 
     if (definitionMap[word]) {
@@ -118,9 +226,7 @@ class DefinitionHandler extends BaseHandler {
       new RegExp(`class\\s+${word}\\b`, 'g'),
       // Property assignments: this.name = 
       new RegExp(`this\\.${word}\\s*=`, 'g'),
-      // Import declarations: import { name } from
-      new RegExp(`import\\s+.*\\b${word}\\b.*from`, 'g'),
-      // Export declarations: export { name }
+      // Export declarations: export { name } or export const name
       new RegExp(`export\\s+.*\\b${word}\\b`, 'g')
     ];
     
