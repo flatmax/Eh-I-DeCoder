@@ -4,6 +4,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { getLanguageExtension } from './LanguageExtensions.js';
 import { createLanguageClientExtension } from './LanguageClientExtension.js';
 import { createScrollbarChangeIndicator } from './ScrollbarChangeIndicator.js';
+import { keymap } from '@codemirror/view';
+import { addCursorUp, addCursorDown } from './extensions/MultiCursorExtension.js';
 
 export class MergeViewManager {
   constructor(container, options = {}) {
@@ -37,8 +39,26 @@ export class MergeViewManager {
     // Get language-specific extension
     const langExtension = getLanguageExtension(filePath);
     
+    // Multi-cursor keymap with high precedence
+    const multiCursorKeymap = keymap.of([
+      {
+        key: "Shift-Alt-ArrowUp",
+        run: addCursorUp,
+        preventDefault: true
+      },
+      {
+        key: "Shift-Alt-ArrowDown",
+        run: addCursorDown,
+        preventDefault: true
+      }
+    ], {
+      // High precedence to override any conflicting keymaps
+      precedence: "highest"
+    });
+    
     // Create base extensions with VS Code dark theme
     const baseExtensions = [
+      multiCursorKeymap, // Put multi-cursor first with highest precedence
       basicSetup,
       oneDark,
       EditorView.theme({
@@ -81,6 +101,13 @@ export class MergeViewManager {
         },
         ".cm-lineNumbers .cm-gutterElement": {
           padding: "0 8px 0 16px"
+        },
+        // Multi-cursor styling
+        ".cm-cursor-primary": {
+          borderLeftColor: "#fff"
+        },
+        ".cm-cursor-secondary": {
+          borderLeftColor: "#ff9b00"
         }
       }),
       createScrollbarChangeIndicator()

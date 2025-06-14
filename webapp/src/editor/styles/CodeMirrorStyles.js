@@ -72,4 +72,22 @@ export const codeMirrorStyles = css`
   .cm-merge-revert:hover {
     background: #1177bb;
   }
+
+  /* Multi-cursor styling */
+  .cm-cursor-primary {
+    border-left-color: #fff !important;
+  }
+
+  .cm-cursor-secondary {
+    border-left-color: #ff9b00 !important;
+  }
+
+  /* Highlight secondary selections */
+  .cm-selectionBackground {
+    background-color: rgba(173, 214, 255, 0.15) !important;
+  }
+
+  .cm-focused .cm-selectionBackground {
+    background-color: rgba(173, 214, 255, 0.3) !important;
+  }
 `;
