@@ -239,6 +239,19 @@ export class MergeViewManager {
     return this.mergeView.b.state.doc.toString();
   }
 
+  getCursorPosition() {
+    if (!this.mergeView || !this.mergeView.b) return { line: 1, character: 0 };
+    
+    const state = this.mergeView.b.state;
+    const pos = state.selection.main.head;
+    const line = state.doc.lineAt(pos);
+    
+    return {
+      line: line.number,
+      character: pos - line.from
+    };
+  }
+
   jumpToPosition(line, character) {
     if (!this.mergeView || !this.mergeView.b) return;
     

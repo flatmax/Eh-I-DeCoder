@@ -5,6 +5,7 @@ import {languageClient} from './editor/LanguageClient.js';
 import {MergeViewManager} from './editor/MergeViewManager.js';
 import {LineHighlight} from './editor/LineHighlight.js';
 import {mergeEditorStyles} from './editor/MergeEditorStyles.js';
+import {navigationHistory} from './editor/NavigationHistory.js';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
@@ -31,6 +32,8 @@ export class MergeEditor extends JRPCClient {
     this.lineHighlight = null;
     this.pendingScrollToLine = null; // Store pending scroll request
     this.loadingPromise = null; // Track current loading operation
+    this.previousFile = null; // Track previous file for navigation history
+    this.cursorUpdateTimer = null; // Timer for debouncing cursor updates
   }
 
   static styles = mergeEditorStyles;
@@ -46,6 +49,10 @@ export class MergeEditor extends JRPCClient {
     
     // Listen for open find in files events from the editor
     this.addEventListener('open-find-in-files', this.handleOpenFindInFiles.bind(this));
+    
+    // Listen for navigation events
+    this.addEventListener('navigate-back', this.handleNavigateBack.bind(this));
+    this.addEventListener('navigate-forward', this.handleNavigateForward.bind(this));
   }
 
   async initializeLanguageClient() {
@@ -159,6 +166,9 @@ export class MergeEditor extends JRPCClient {
 
         // Handle any pending scroll request after editor is ready
         this.processPendingScroll();
+        
+        // Start tracking cursor position
+        this.startCursorTracking();
       }
     }
   }
@@ -183,7 +193,28 @@ export class MergeEditor extends JRPCClient {
     }
   }
 
-  async loadFileContent(filePath, lineNumber = null) {
+  startCursorTracking() {
+    // Set up periodic cursor position updates for navigation history
+    if (this.cursorUpdateTimer) {
+      clearInterval(this.cursorUpdateTimer);
+    }
+    
+    this.cursorUpdateTimer = setInterval(() => {
+      if (this.mergeViewManager && this.currentFile && !navigationHistory.isNavigating) {
+        const pos = this.mergeViewManager.getCursorPosition();
+        navigationHistory.updateCurrentPosition(pos.line, pos.character);
+      }
+    }, 500); // Update every 500ms
+  }
+
+  stopCursorTracking() {
+    if (this.cursorUpdateTimer) {
+      clearInterval(this.cursorUpdateTimer);
+      this.cursorUpdateTimer = null;
+    }
+  }
+
+  async loadFileContent(filePath, lineNumber = null, isNavigating = false) {
     if (!this.fileLoader) {
       console.error('File loader not initialized');
       return;
@@ -194,6 +225,15 @@ export class MergeEditor extends JRPCClient {
       return this.loadingPromise;
     }
 
+    // Get cursor position before switching files
+    let fromLine = 1;
+    let fromChar = 0;
+    if (this.mergeViewManager && this.currentFile) {
+      const pos = this.mergeViewManager.getCursorPosition();
+      fromLine = pos.line;
+      fromChar = pos.character;
+    }
+
     // Store the line number for later scrolling if provided
     if (lineNumber !== null) {
       this.pendingScrollToLine = lineNumber;
@@ -202,10 +242,11 @@ export class MergeEditor extends JRPCClient {
     }
 
     this.isLoading = true;
+    this.previousFile = this.currentFile;
     this.currentFile = filePath;
 
     // Create and store the loading promise
-    this.loadingPromise = this.performFileLoad(filePath);
+    this.loadingPromise = this.performFileLoad(filePath, fromLine, fromChar, lineNumber || 1, 0, isNavigating);
     
     try {
       await this.loadingPromise;
@@ -214,12 +255,15 @@ export class MergeEditor extends JRPCClient {
     }
   }
 
-  async performFileLoad(filePath) {
+  async performFileLoad(filePath, fromLine, fromChar, toLine, toChar, isNavigating) {
     try {
       const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
       this.headContent = headContent;
       this.workingContent = workingContent;
       this.originalWorkingContent = workingContent;
+      
+      // Stop cursor tracking while switching files
+      this.stopCursorTracking();
       
       // Destroy existing merge view manager if switching files
       if (this.mergeViewManager) {
@@ -229,6 +273,18 @@ export class MergeEditor extends JRPCClient {
       
       this.hasChanges = false;
       this.isLoading = false;
+      
+      // Record file switch in navigation history (unless we're navigating)
+      if (!isNavigating) {
+        navigationHistory.recordFileSwitch(
+          this.previousFile,
+          fromLine,
+          fromChar,
+          filePath,
+          toLine,
+          toChar
+        );
+      }
       
       // The merge view will be initialized in updated() lifecycle
       // and any pending scroll will be handled there
@@ -265,6 +321,42 @@ export class MergeEditor extends JRPCClient {
       bubbles: true,
       composed: true
     }));
+  }
+
+  async handleNavigateBack(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const position = navigationHistory.goBack();
+    if (position) {
+      await this.loadFileContent(position.filePath, position.line, true);
+      
+      // Jump to the stored cursor position after loading
+      setTimeout(() => {
+        if (this.mergeViewManager) {
+          this.mergeViewManager.jumpToPosition(position.line, position.character);
+        }
+        navigationHistory.clearNavigationFlag();
+      }, 100);
+    }
+  }
+
+  async handleNavigateForward(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const position = navigationHistory.goForward();
+    if (position) {
+      await this.loadFileContent(position.filePath, position.line, true);
+      
+      // Jump to the stored cursor position after loading
+      setTimeout(() => {
+        if (this.mergeViewManager) {
+          this.mergeViewManager.jumpToPosition(position.line, position.character);
+        }
+        navigationHistory.clearNavigationFlag();
+      }, 100);
+    }
   }
 
   async saveFile() {
@@ -362,5 +454,10 @@ export class MergeEditor extends JRPCClient {
 
     // Use the line highlight utility to scroll and highlight
     this.lineHighlight.scrollToLine(workingEditor, lineNumber);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.stopCursorTracking();
   }
 }
