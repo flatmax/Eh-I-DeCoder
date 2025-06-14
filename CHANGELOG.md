@@ -1,6 +1,48 @@
 # Changelog
 
-## [v1.1.0] - 2024-12-19
+## [v1.1.0] - 2025-06-14
+
+### Added
+
+- **Editor Enhancements**
+  - Word click handler for extracting words in merge editor
+  - Advanced text selection methods for merge and git views
+  - Improved CodeMirror layout and scrolling with flexbox
+  - Enhanced scrollbar configuration and change indicators
+  - Validation for commit selection in git history view
+
+### Changed
+- **Code Architecture & Refactoring**
+  - Modularized LanguageClientExtension by extracting extensions and utilities
+  - Updated import statements to support relative and absolute imports
+  - Improved GitMergeViewManager for better merge view initialization and handling
+  - Simplified CodeMirror editor styles and scrollbar configuration
+  - Improved local definition search with enhanced regex patterns
+  - Modularized merge editor styles into separate files
+  - Extracted styles and Prism setup into separate modules
+  - Simplified CardMarkdown component and improved markdown rendering
+  - Refactored ChatHistoryPanel with modular scroll and parsing management
+  - Simplified content parsing logic in ChatHistoryPanel
+
+- **UI Improvements**
+  - Updated Prism.js theme to Tomorrow Night with enhanced syntax highlighting
+  - Improved merge editor scrollbar and overflow handling
+  - Refactored card markdown and chat history styles for improved layout
+  - Improved scrolling and layout for merge view CodeMirror editors
+
+### Fixed
+- Removed console.log statements from various components
+- Disabled editing in head view and updated revert button direction
+- Removed debug console logs from CardMarkdown code highlighting
+- Removed "#### " prefix from user messages in chat history parsing
+
+### Technical Improvements
+- Added debug logging and custom element registration for ChatHistoryPanel
+- Added logging for remotes and commented out serverChanged method
+- Updated CONVENTIONS.md documentation
+- Enhanced merge editing experience with new MergeViewManager
+
+## [v1.0.0] - 2025-06-09
 
 ### Added
 - **Git Integration & History Management (in alpha - needs more testing)**
