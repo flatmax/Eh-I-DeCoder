@@ -1,7 +1,12 @@
 import os
 import asyncio
-from base_wrapper import BaseWrapper
-from logger import Logger
+
+try:
+    from .base_wrapper import BaseWrapper
+    from .logger import Logger
+except ImportError:
+    from base_wrapper import BaseWrapper
+    from logger import Logger
 
 class ChatHistory(BaseWrapper):
     """Handles chat history file operations for the webapp"""

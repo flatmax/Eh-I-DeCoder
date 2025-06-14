@@ -11,10 +11,16 @@ import threading
 from asyncio import Event
 from jrpc_oo import JRPCServer
 
-from eh_i_decoder.io_wrapper import IOWrapper
-from eh_i_decoder.coder_wrapper import CoderWrapper
-from eh_i_decoder.repo import Repo
-from eh_i_decoder.chat_history import ChatHistory
+try:
+    from .io_wrapper import IOWrapper
+    from .coder_wrapper import CoderWrapper
+    from .repo import Repo
+    from .chat_history import ChatHistory
+except ImportError:
+    from io_wrapper import IOWrapper
+    from coder_wrapper import CoderWrapper
+    from repo import Repo
+    from chat_history import ChatHistory
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
@@ -111,7 +117,11 @@ async def main_starter_async():
 
 def main_starter():
     try:
-        from eh_i_decoder.logger import Logger
+        try:
+            from .logger import Logger
+        except ImportError:
+            from logger import Logger
+
         Logger.configure(log_dir='/tmp', default_name='AiderServer')
         Logger.info("Starting aider-server")
         

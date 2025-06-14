@@ -240,9 +240,11 @@ export const promptViewStyles = css`
   .message-history {
     height: 100%;
     overflow-y: auto;
-    padding: 10px;
+    padding: 12px;
     background-color: #f9f9f9;
-    white-space: pre-wrap;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   
   :host(.minimized) .message-history-wrapper {
@@ -317,5 +319,13 @@ export const promptViewStyles = css`
   
   :host(.minimized) md-filled-text-field {
     --md-filled-text-field-container-shape: 4px;
+  }
+
+  /* Ensure cards don't have unnecessary spacing */
+  user-card,
+  assistant-card,
+  commands-card {
+    display: block;
+    width: 100%;
   }
 `;

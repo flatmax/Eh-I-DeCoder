@@ -4,8 +4,13 @@ import signal
 import threading
 import traceback
 from datetime import datetime
-from eh_i_decoder.base_wrapper import BaseWrapper
-from eh_i_decoder.logger import Logger
+
+try:
+    from .base_wrapper import BaseWrapper
+    from .logger import Logger
+except ImportError:
+    from base_wrapper import BaseWrapper
+    from logger import Logger
 
 
 class CoderWrapper(BaseWrapper):
@@ -207,7 +212,17 @@ class CoderWrapper(BaseWrapper):
         This method is intended to be called via JRPC and return immediately.
         """
         self.log(f"run_wrapper called with message (first 100 chars): {str(message)[:100]}...")
-
+        
+        # Iterate through all remotes and print their call variable
+        remotes = self.get_remotes()
+        self.log(f"Found {len(remotes)} remotes")
+        for remote_uuid, remote_info in remotes.items():
+            self.log(f"Remote {remote_uuid}: {remote_info}")
+            if hasattr(self, 'get_call') and self.get_call():
+                self.log(f"Remote {remote_uuid} call methods: {list(self.get_call().keys())}")
+            else:
+                self.log(f"Remote {remote_uuid}: No call variable available")
+        
         # Check if this is a terminal command
         if self._is_terminal_command(message):
             self.log(f"Terminal command detected: {message}")

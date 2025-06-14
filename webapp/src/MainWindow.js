@@ -41,6 +41,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.toggleGitHistoryMode = this.toggleGitHistoryMode.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleModeToggle = this.handleModeToggle.bind(this);
+    this.handleRequestFindInFiles = this.handleRequestFindInFiles.bind(this);
   }
   
   static styles = css`
@@ -110,6 +111,9 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     // Add keyboard event listener
     document.addEventListener('keydown', this.handleKeyDown);
     
+    // Listen for request-find-in-files events from MergeEditor
+    this.addEventListener('request-find-in-files', this.handleRequestFindInFiles);
+    
     // Connect on startup
     console.log('MainWindow: First connection attempt on startup');
     
@@ -120,6 +124,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener('keydown', this.handleKeyDown);
+    this.removeEventListener('request-find-in-files', this.handleRequestFindInFiles);
   }
 
   handleKeyDown(event) {
@@ -137,6 +142,27 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
   toggleGitHistoryMode() {
     this.gitHistoryMode = !this.gitHistoryMode;
     console.log(`Switched to ${this.gitHistoryMode ? 'Git History' : 'File Explorer'} mode`);
+  }
+
+  handleRequestFindInFiles(event) {
+    const selectedText = event.detail.selectedText || '';
+    
+    // Switch to find-in-files tab (assuming it's tab index 2)
+    this.activeTabIndex = 2;
+    
+    // Focus the find in files search input with selected text
+    this.updateComplete.then(() => {
+      const sidebar = this.shadowRoot.querySelector('app-sidebar');
+      if (sidebar) {
+        // Give the sidebar time to switch tabs and render the find-in-files component
+        setTimeout(() => {
+          const findInFiles = sidebar.shadowRoot?.querySelector('find-in-files');
+          if (findInFiles) {
+            findInFiles.focusSearchInput(selectedText);
+          }
+        }, 100);
+      }
+    });
   }
   
   /**
@@ -234,6 +260,21 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       updateChildComponents(this, 'git-history-view', 'serverURI', this.serverURI)
     ]).then(() => {
       console.log('All child components updated with server URI');
+      
+      // // Now call serverChanged on all child components that have this method
+      // const childComponents = [
+      //   this.shadowRoot.querySelector('prompt-view'),
+      //   this.shadowRoot.querySelector('app-sidebar'),
+      //   this.shadowRoot.querySelector('merge-editor'),
+      //   this.shadowRoot.querySelector('git-history-view')
+      // ];
+      
+      // childComponents.forEach(component => {
+      //   if (component && typeof component.serverChanged === 'function') {
+      //     console.log(`Calling serverChanged on ${component.tagName}`);
+      //     component.serverChanged();
+      //   }
+      // });
     });
     
     super.serverChanged();

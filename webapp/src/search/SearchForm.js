@@ -20,13 +20,14 @@ export class SearchForm extends LitElement {
    * @param {string} [selectedText] - Optional text to set as the search query
    */
   focusInput(selectedText = '') {
+    // Set the search query first if selected text is provided
+    if (selectedText && selectedText.trim()) {
+      this.searchState.searchQuery = selectedText.trim();
+      this.searchState._notifyUpdate();
+      this.requestUpdate();
+    }
+    
     this.updateComplete.then(() => {
-      // Set the search query if selected text is provided
-      if (selectedText && selectedText.trim()) {
-        this.searchState.searchQuery = selectedText.trim();
-        this.requestUpdate();
-      }
-      
       const textField = this.shadowRoot.querySelector('md-outlined-text-field');
       if (textField) {
         // For Material Design Web Components, we need to focus the internal input
@@ -37,14 +38,10 @@ export class SearchForm extends LitElement {
           if (selectedText && selectedText.trim()) {
             input.select();
           }
-          console.log('Search input focused successfully', selectedText ? `with text: "${selectedText}"` : '');
         } else {
           // Fallback: try focusing the text field directly
           textField.focus();
-          console.log('Search text field focused (fallback)', selectedText ? `with text: "${selectedText}"` : '');
         }
-      } else {
-        console.warn('Search text field not found');
       }
     });
   }
@@ -67,6 +64,12 @@ export class SearchForm extends LitElement {
     }));
   }
 
+  handleInputChange(e) {
+    this.searchState.searchQuery = e.target.value;
+    this.searchState._notifyUpdate();
+    this.requestUpdate();
+  }
+
   render() {
     if (!this.searchState) return html``;
 
@@ -76,7 +79,7 @@ export class SearchForm extends LitElement {
           <md-outlined-text-field
             label="Search in files..."
             .value=${this.searchState.searchQuery || ''} 
-            @input=${e => this.searchState.searchQuery = e.target.value}
+            @input=${this.handleInputChange}
             @keydown=${e => e.key === 'Enter' && this.handleSearch(e)}
             ?disabled=${this.searchState.isSearching}
             style="flex-grow: 1;"

@@ -1,9 +1,13 @@
 /**
  * ChatHistoryPanel component for displaying chat history with infinite scrolling
  */
-import { html, css } from 'lit';
+import { html } from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
 import { repeat } from 'lit/directives/repeat.js';
+import { ChatHistoryStyles } from './ChatHistoryStyles.js';
+import { MessageParser } from './MessageParser.js';
+import { ChatScrollManager } from './ChatScrollManager.js';
+import { extractResponseData } from '../Utils.js';
 import './UserCard.js';
 import './AssistantCard.js';
 import './CommandsCard.js';
@@ -31,328 +35,63 @@ export class ChatHistoryPanel extends JRPCClient {
     this.currentStartPos = 0;
     this.fileSize = 0;
     this.isLoadingMore = false;
-    this.scrollContainer = null;
-    this.lastScrollHeight = 0;
     this.remoteTimeout = 300;
-    this.shouldScrollToBottom = true; // Flag to control initial scroll
     this.parsedMessages = [];
     
-    // Streaming parser state
-    this.parseBuffer = '';
-    this.currentStreamRole = null;
-    this.currentStreamContent = [];
-    this.lastProcessedLength = 0;
-    this.lastLineWasEmpty = false; // Track empty lines to detect breaks between command blocks
-    
-    console.log('ChatHistoryPanel: Constructor called');
+    this.messageParser = new MessageParser();
+    this.scrollManager = new ChatScrollManager(this);
+    console.log('ChatHistoryPanel::constructor')
   }
 
-  static styles = css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      width: 100%;
-    }
-
-    .chat-history-container {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      background-color: #f9f9f9;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    .loading-indicator {
-      text-align: center;
-      padding: 20px;
-      color: #666;
-      font-style: italic;
-    }
-
-    .error-message {
-      text-align: center;
-      padding: 20px;
-      color: #d32f2f;
-      background-color: #ffebee;
-      border-radius: 4px;
-      margin: 16px;
-    }
-
-    .load-more-indicator {
-      text-align: center;
-      padding: 10px;
-      color: #666;
-      font-size: 12px;
-      background-color: rgba(255, 255, 255, 0.8);
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .content-wrapper {
-      word-wrap: break-word;
-      max-width: 100%;
-    }
-
-    .file-info {
-      position: sticky;
-      top: 0;
-      background-color: rgba(245, 245, 245, 0.95);
-      padding: 8px 16px;
-      border-bottom: 1px solid #e0e0e0;
-      font-size: 12px;
-      color: #666;
-      z-index: 1;
-    }
-
-    user-card,
-    assistant-card,
-    commands-card {
-      display: block;
-      width: 100%;
-      margin-bottom: 8px;
-    }
-
-    .debug-info {
-      background-color: #fff3cd;
-      border: 1px solid #ffeaa7;
-      padding: 8px;
-      margin: 8px 0;
-      border-radius: 4px;
-      font-size: 12px;
-      font-family: monospace;
-    }
-  `;
+  static styles = ChatHistoryStyles.styles;
 
   firstUpdated() {
-    console.log('ChatHistoryPanel: First updated');
-    // Don't try to find scroll container here - it may not be rendered yet
-    // We'll find it when we need it in other methods
+    console.log('ChatHistoryPanel::firstUpdated')
+    // No logging needed here
   }
 
   updated(changedProperties) {
+    console.log('ChatHistoryPanel::updated')
     super.updated(changedProperties);
     
-    // Set up scroll container after any update
-    if (!this.scrollContainer) {
-      this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
-      if (this.scrollContainer) {
-        this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
-        console.log('ChatHistoryPanel: Scroll listener added');
-      }
-    }
+    this.scrollManager.setupScrollContainer();
 
-    // Parse content when it changes using streaming approach
+    // Parse content when it changes
     if (changedProperties.has('content')) {
-      console.log('ChatHistoryPanel: Content changed, new length:', this.content?.length || 0);
-      this.parseContentStreaming();
+      this.parsedMessages = this.messageParser.parseContent(this.content);
     }
   }
 
-  parseContentStreaming() {
-    if (!this.content || typeof this.content !== 'string') {
-      this.parsedMessages = [];
-      this.resetParsingState();
-      return;
-    }
-
-    // Get only the new content since last parse
-    const newContent = this.content.substring(this.lastProcessedLength);
-    if (!newContent) {
-      return; // No new content to process
-    }
-
-    console.log('ChatHistoryPanel: Processing new content chunk:', newContent.length, 'chars');
-    
-    // Process the new chunk
-    this.parseStreamChunk(newContent);
-    
-    // Update the last processed position
-    this.lastProcessedLength = this.content.length;
-    
-    console.log('ChatHistoryPanel: Parsed messages count:', this.parsedMessages.length);
+  connectedCallback() {
+    console.log('ChatHistoryPanel::connectedCallback')
+    super.connectedCallback();
+    this.addClass?.(this);
   }
-
-  parseStreamChunk(newChunk) {
-    // Append to buffer for incomplete lines
-    this.parseBuffer = this.parseBuffer + newChunk;
-    
-    const lines = this.parseBuffer.split('\n');
-    // Keep the last line in buffer (might be incomplete)
-    this.parseBuffer = lines.pop() || '';
-    
-    // Process all complete lines
-    for (const line of lines) {
-      this.processCompleteLine(line);
-    }
+  
+  disconnectedCallback() {
+    console.log('ChatHistoryPanel::disconnectedCallback')
+    super.disconnectedCallback();
   }
-
-  processCompleteLine(line) {
-    const trimmedLine = line.trim();
-    const isEmpty = trimmedLine === '';
-    let newRole = null;
-    
-    // Check for role change
-    if (line.startsWith('#### ')) {
-      newRole = 'user';
-    } else if (line.startsWith('> ')) {
-      newRole = 'command';
-    } else {
-      // Lines without prefixes are assistant content
-      newRole = 'assistant';
-    }
-    
-    // Special handling for command blocks: if we encounter a new command line
-    // after empty lines, treat it as a new command block
-    if (newRole === 'command' && this.currentStreamRole === 'command' && this.lastLineWasEmpty) {
-      // Finalize the current command block and start a new one
-      this.finalizeCurrentMessage();
-      this.startNewMessage(newRole, line);
-    } else if (newRole !== this.currentStreamRole) {
-      // Role change - finalize current message and start new one
-      this.finalizeCurrentMessage();
-      this.startNewMessage(newRole, line);
-    } else {
-      // Same role, just add to current message
-      this.addToCurrentMessage(line);
-    }
-    
-    // Track if this line was empty for next iteration
-    this.lastLineWasEmpty = isEmpty;
+  
+  attributeChangedCallback() {
+    console.log('ChatHistoryPanel::attributeChangedCallback')
   }
-
-  finalizeCurrentMessage() {
-    if (this.currentStreamRole !== null && this.currentStreamContent.length > 0) {
-      const content = this.currentStreamContent.join('\n').trim();
-      if (content) {
-        // Create a new array to trigger reactivity
-        this.parsedMessages = [...this.parsedMessages, {
-          role: this.currentStreamRole,
-          content: content
-        }];
-      }
-    }
+  
+  adoptedCallback() {
+    console.log('ChatHistoryPanel::adoptedCallback')
   }
-
-  startNewMessage(role, line) {
-    this.currentStreamRole = role;
-    this.currentStreamContent = [line];
-  }
-
-  addToCurrentMessage(line) {
-    this.currentStreamContent.push(line);
-  }
-
-  resetParsingState() {
-    this.parseBuffer = '';
-    this.currentStreamRole = null;
-    this.currentStreamContent = [];
-    this.lastProcessedLength = 0;
-    this.lastLineWasEmpty = false;
-  }
-
-  // Full reparse method for when we need to start fresh (e.g., when prepending content)
-  parseContentFull(content) {
-    if (!content || typeof content !== 'string') {
-      return [];
-    }
-
-    const messages = [];
-    const lines = content.split('\n');
-    let currentRole = null;
-    let currentContent = [];
-    let lastLineWasEmpty = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      const isEmpty = trimmedLine === '';
-      let newRole = null;
-
-      // Determine the role based on prefix
-      if (line.startsWith('#### ')) {
-        newRole = 'user';
-      } else if (line.startsWith('> ')) {
-        newRole = 'command';
-      } else {
-        // Lines without prefixes are assistant content
-        newRole = 'assistant';
-      }
-
-      // Special handling for command blocks: if we encounter a new command line
-      // after empty lines, treat it as a new command block
-      if (newRole === 'command' && currentRole === 'command' && lastLineWasEmpty) {
-        // Save previous command message
-        if (currentContent.length > 0) {
-          const content = currentContent.join('\n').trim();
-          if (content) {
-            messages.push({
-              role: currentRole,
-              content: content
-            });
-          }
-        }
-        // Start new command message
-        currentRole = newRole;
-        currentContent = [line];
-      } else if (newRole !== currentRole) {
-        // Role change - save previous message if we have content
-        if (currentRole !== null && currentContent.length > 0) {
-          const content = currentContent.join('\n').trim();
-          if (content) {
-            messages.push({
-              role: currentRole,
-              content: content
-            });
-          }
-        }
-
-        // Start new message
-        currentRole = newRole;
-        currentContent = [line];
-      } else {
-        // Same role, just add to current message
-        currentContent.push(line);
-      }
-      
-      // Track if this line was empty for next iteration
-      lastLineWasEmpty = isEmpty;
-    }
-
-    // Don't forget the last message
-    if (currentRole !== null && currentContent.length > 0) {
-      const content = currentContent.join('\n').trim();
-      if (content) {
-        messages.push({
-          role: currentRole,
-          content: content
-        });
-      }
-    }
-
-    return messages;
-  }
-
-  setupDone(){
-    console.log('ChatHistoryPanel: setupDone called');
-    console.log('ChatHistoryPanel: this.call =', this.call);
-    console.log('ChatHistoryPanel: Available methods:', this.call ? Object.keys(this.call) : 'No call object');
+  
+  setupDone() {
+    console.log('ChatHistoryPanel::setupDone')
     this.loadInitialContent();
   }
 
   async loadInitialContent() {
-    console.log('ChatHistoryPanel: loadInitialContent called');
-    
     try {
       this.loading = true;
       this.error = null;
       
-      console.log('ChatHistoryPanel: About to call ChatHistory.get_latest_content');
-      console.log('ChatHistoryPanel: this.call =', this.call);
-      
       if (!this.call) {
-        console.error('ChatHistoryPanel: JRPC call object not available');
         throw new Error('JRPC call object not available');
       }
       
@@ -362,180 +101,96 @@ export class ChatHistoryPanel extends JRPCClient {
       }
 
       const response = await this.call['ChatHistory.get_latest_content']();
-      console.log('ChatHistoryPanel: Response received:', response);
       
-      if (response && typeof response === 'object') {
-        // Extract data from the response object (which contains remote UUID keys)
-        const responseData = this.extractResponseData(response);
-        console.log('ChatHistoryPanel: Extracted response data:', responseData);
-        
-        if (responseData) {
-          // Reset parsing state for fresh start
-          this.resetParsingState();
-          
-          this.content = responseData.content || '';
-          this.currentStartPos = responseData.start_pos || 0;
-          this.hasMore = responseData.has_more || false;
-          this.fileSize = responseData.file_size || 0;
-          
-          console.log('ChatHistoryPanel: Content loaded:', {
-            contentLength: this.content.length,
-            currentStartPos: this.currentStartPos,
-            hasMore: this.hasMore,
-            fileSize: this.fileSize
-          });
+      // Extract the actual data from the UUID-wrapped response
+      let data = null;
+      
+      // If response is an object with UUID keys, extract the first value
+      if (response && typeof response === 'object' && !Array.isArray(response)) {
+        const keys = Object.keys(response);
+        if (keys.length > 0 && keys[0].match(/^[0-9a-f-]+$/i)) {
+          // Looks like a UUID key, extract the value
+          data = response[keys[0]];
         } else {
-          console.warn('ChatHistoryPanel: No valid data in response');
-          this.content = '';
-          this.hasMore = false;
+          // Not UUID wrapped, use as is
+          data = response;
         }
       } else {
-        console.warn('ChatHistoryPanel: Invalid response format:', response);
+        data = response;
+      }
+      
+      // Now check if data has the expected structure
+      if (data && typeof data === 'object' && 'content' in data) {
+        this.content = data.content || '';
+        this.currentStartPos = data.start_pos || 0;
+        this.hasMore = data.has_more || false;
+        this.fileSize = data.file_size || 0;
+      } else {
+        console.warn('ChatHistoryPanel: Response does not have expected structure:', data);
         this.content = '';
         this.hasMore = false;
+        this.fileSize = 0;
       }
 
       this.loading = false;
 
       // Scroll to bottom after content loads and DOM updates
       await this.updateComplete;
-      if (this.shouldScrollToBottom) {
-        // Use setTimeout to ensure DOM is fully rendered
-        setTimeout(() => {
-          this.scrollToBottom();
-          this.shouldScrollToBottom = false; // Only scroll to bottom on initial load
-        }, 100);
-      }
-      console.log('ChatHistoryPanel: Initial content load complete');
+      this.scrollManager.scrollToBottomOnInitialLoad();
 
     } catch (error) {
       console.error('ChatHistoryPanel: Error loading chat history:', error);
-      console.error('ChatHistoryPanel: Error stack:', error.stack);
       this.error = `Failed to load chat history: ${error.message}`;
       this.loading = false;
     }
   }
 
   async loadMoreContent() {
-    console.log('ChatHistoryPanel: loadMoreContent called');
-    console.log('ChatHistoryPanel: isLoadingMore =', this.isLoadingMore, 'hasMore =', this.hasMore);
-    
     if (this.isLoadingMore || !this.hasMore) {
-      console.log('ChatHistoryPanel: Skipping loadMoreContent - already loading or no more content');
       return;
     }
 
     try {
       this.isLoadingMore = true;
-      console.log('ChatHistoryPanel: About to call load_previous_chunk_remote with currentStartPos =', this.currentStartPos);
 
       const response = await this.call['ChatHistory.load_previous_chunk_remote'](this.currentStartPos);
-      console.log('ChatHistoryPanel: loadMoreContent response:', response);
       
-      const responseData = this.extractResponseData(response);
-      console.log('ChatHistoryPanel: Extracted loadMoreContent data:', responseData);
+      // Extract the actual data from the UUID-wrapped response
+      let data = null;
       
-      if (responseData && responseData.content) {
+      if (response && typeof response === 'object' && !Array.isArray(response)) {
+        const keys = Object.keys(response);
+        if (keys.length > 0 && keys[0].match(/^[0-9a-f-]+$/i)) {
+          data = response[keys[0]];
+        } else {
+          data = response;
+        }
+      } else {
+        data = response;
+      }
+      
+      if (data && typeof data === 'object' && 'content' in data && data.content) {
         // Store current scroll position
-        const scrollTop = this.scrollContainer.scrollTop;
-        const scrollHeight = this.scrollContainer.scrollHeight;
-        console.log('ChatHistoryPanel: Current scroll position:', { scrollTop, scrollHeight });
+        const scrollState = this.scrollManager.saveScrollState();
 
-        // When prepending content, we need to do a full reparse
-        // because the streaming parser assumes content is appended
-        const newFullContent = responseData.content + this.content;
-        
-        // Reset parsing state and do full parse
-        this.resetParsingState();
-        this.parsedMessages = this.parseContentFull(newFullContent);
-        
-        // Update content and state
-        this.content = newFullContent;
-        this.currentStartPos = responseData.start_pos || 0;
-        this.hasMore = responseData.has_more || false;
-        
-        // Reset the last processed length to the full content length
-        this.lastProcessedLength = this.content.length;
-        
-        console.log('ChatHistoryPanel: Content updated:', {
-          newContentLength: responseData.content.length,
-          totalContentLength: this.content.length,
-          newStartPos: this.currentStartPos,
-          hasMore: this.hasMore,
-          parsedMessagesCount: this.parsedMessages.length
-        });
+        // Prepend new content
+        this.content = data.content + this.content;
+        this.currentStartPos = data.start_pos || 0;
+        this.hasMore = data.has_more || false;
 
         // Wait for DOM update
         await this.updateComplete;
 
-        // Restore scroll position relative to new content
-        const newScrollHeight = this.scrollContainer.scrollHeight;
-        const heightDifference = newScrollHeight - scrollHeight;
-        this.scrollContainer.scrollTop = scrollTop + heightDifference;
-        
-        console.log('ChatHistoryPanel: Scroll position restored:', {
-          newScrollHeight,
-          heightDifference,
-          newScrollTop: this.scrollContainer.scrollTop
-        });
+        // Restore scroll position
+        this.scrollManager.restoreScrollState(scrollState);
       } else {
-        console.warn('ChatHistoryPanel: Invalid loadMoreContent response:', responseData);
+        console.warn('ChatHistoryPanel: Invalid loadMoreContent response:', data);
       }
 
     } catch (error) {
       console.error('ChatHistoryPanel: Error loading more content:', error);
-      console.error('ChatHistoryPanel: Error stack:', error.stack);
     } finally {
       this.isLoadingMore = false;
-      console.log('ChatHistoryPanel: loadMoreContent complete');
-    }
-  }
-
-  extractResponseData(response) {
-    // Handle the JRPC response format which contains remote UUID keys
-    if (!response || typeof response !== 'object') {
-      return null;
-    }
-    
-    // Get the first (and likely only) value from the response object
-    const keys = Object.keys(response);
-    if (keys.length === 0) {
-      return null;
-    }
-    
-    return response[keys[0]];
-  }
-
-  handleScroll(event) {
-    const container = event.target;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-
-    // Check if user scrolled near the top
-    if (scrollTop < 100 && this.hasMore && !this.isLoadingMore) {
-      console.log('ChatHistoryPanel: Scroll near top detected, loading more content');
-      this.loadMoreContent();
-    }
-  }
-
-  scrollToBottom() {
-    // Try to find scroll container if we don't have it
-    if (!this.scrollContainer) {
-      this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
-    }
-    
-    if (this.scrollContainer) {
-      this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
-      console.log('ChatHistoryPanel: Scrolled to bottom');
-    } else {
-      console.warn('ChatHistoryPanel: Cannot scroll - no scroll container found');
-      // Try again after a short delay
-      setTimeout(() => {
-        this.scrollContainer = this.shadowRoot.querySelector('.chat-history-container');
-        if (this.scrollContainer) {
-          this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
-          console.log('ChatHistoryPanel: Scrolled to bottom (delayed)');
-        }
-      }, 200);
     }
   }
 
@@ -548,15 +203,6 @@ export class ChatHistoryPanel extends JRPCClient {
   }
 
   render() {
-    console.log('ChatHistoryPanel: Rendering with state:', {
-      loading: this.loading,
-      error: this.error,
-      contentLength: this.content.length,
-      hasMore: this.hasMore,
-      isLoadingMore: this.isLoadingMore,
-      parsedMessagesCount: this.parsedMessages.length
-    });
-    
     if (this.loading) {
       return html`
         <div class="loading-indicator">

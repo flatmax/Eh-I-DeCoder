@@ -3,7 +3,7 @@
  */
 import { html } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
-import './ChatHistoryPanel.js';
+import '../../chat-history-panel.js';
 
 export function renderPromptView(component) {
   return html`

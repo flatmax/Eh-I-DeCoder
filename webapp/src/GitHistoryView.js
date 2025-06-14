@@ -92,7 +92,15 @@ export class GitHistoryView extends JRPCClient {
   }
 
   handleToCommitSelect(event) {
-    this.toCommit = event.detail.commitHash;
+    const selectedHash = event.detail.commitHash;
+    
+    // Check if this commit is allowed (not older than the fromCommit)
+    if (this.fromCommit && !this.isCommitAllowedForTo(selectedHash)) {
+      console.log('Cannot select commit older than the "from" commit');
+      return;
+    }
+    
+    this.toCommit = selectedHash;
     
     // If the current fromCommit is now newer than the new toCommit, clear it
     if (this.fromCommit && !this.isCommitAllowedForFrom(this.fromCommit)) {
@@ -121,7 +129,25 @@ export class GitHistoryView extends JRPCClient {
   }
 
   /**
-   * Get disabled commits for the left panel
+   * Check if a commit is allowed to be selected as the "to" commit
+   * A commit is allowed if it's newer than or equal to the selected "from" commit
+   */
+  isCommitAllowedForTo(commitHash) {
+    if (!this.fromCommit || !commitHash) return true;
+    
+    const toIndex = this.commits.findIndex(c => c.hash === commitHash);
+    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
+    
+    // If either commit is not found, allow it (fallback)
+    if (toIndex === -1 || fromIndex === -1) return true;
+    
+    // In git history, newer commits have lower indices (they appear first)
+    // So toCommit should have a lower or equal index than fromCommit
+    return toIndex <= fromIndex;
+  }
+
+  /**
+   * Get disabled commits for the left panel (from commits)
    */
   getDisabledCommitsForFrom() {
     if (!this.toCommit) return new Set();
@@ -133,6 +159,25 @@ export class GitHistoryView extends JRPCClient {
     
     // Disable all commits that are newer (have lower index) than the toCommit
     for (let i = 0; i < toIndex; i++) {
+      disabledCommits.add(this.commits[i].hash);
+    }
+    
+    return disabledCommits;
+  }
+
+  /**
+   * Get disabled commits for the right panel (to commits)
+   */
+  getDisabledCommitsForTo() {
+    if (!this.fromCommit) return new Set();
+    
+    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
+    if (fromIndex === -1) return new Set();
+    
+    const disabledCommits = new Set();
+    
+    // Disable all commits that are older (have higher index) than the fromCommit
+    for (let i = fromIndex + 1; i < this.commits.length; i++) {
       disabledCommits.add(this.commits[i].hash);
     }
     
@@ -168,17 +213,21 @@ export class GitHistoryView extends JRPCClient {
   renderCollapsedCommitHashes(selectedCommit, isLeft = true) {
     if (!this.commits || this.commits.length === 0) return '';
     
-    const disabledCommits = isLeft ? this.getDisabledCommitsForFrom() : new Set();
+    const disabledCommits = isLeft ? this.getDisabledCommitsForFrom() : this.getDisabledCommitsForTo();
     
     return html`
       <div class="collapsed-commit-hashes">
         ${this.commits.map(commit => {
           const isDisabled = disabledCommits.has(commit.hash);
+          const disabledMessage = isLeft ? 
+            'Cannot select newer commit than "To" commit' : 
+            'Cannot select older commit than "From" commit';
+          
           return html`
             <div 
               class="collapsed-hash ${selectedCommit === commit.hash ? 'active' : ''} ${isDisabled ? 'disabled' : ''}"
               @click=${isDisabled ? null : () => isLeft ? this.handleFromCommitSelect({detail: {commitHash: commit.hash}}) : this.handleToCommitSelect({detail: {commitHash: commit.hash}})}
-              title="${isDisabled ? 'Cannot select newer commit than "To" commit' : `${commit.hash} - ${commit.message || 'No message'}`}"
+              title="${isDisabled ? disabledMessage : `${commit.hash} - ${commit.message || 'No message'}`}"
               style="${isDisabled ? 'cursor: not-allowed; opacity: 0.5;' : ''}"
             >
               ${commit.hash?.substring(0, 7) || '???????'}
@@ -316,6 +365,7 @@ export class GitHistoryView extends JRPCClient {
             <commit-list
               .commits=${this.commits}
               .selectedCommit=${this.toCommit}
+              .disabledCommits=${this.getDisabledCommitsForTo()}
               .serverURI=${this.serverURI}
               @commit-select=${this.handleToCommitSelect}
               @commit-list-scroll=${this.handleCommitListScroll}

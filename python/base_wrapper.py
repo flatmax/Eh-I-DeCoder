@@ -1,7 +1,10 @@
 import asyncio
 import threading
 from datetime import datetime
-from eh_i_decoder.logger import Logger
+try:
+    from .logger import Logger
+except ImportError:
+    from logger import Logger
 
 class BaseWrapper:
     """Base class for wrappers that provides common functionality"""

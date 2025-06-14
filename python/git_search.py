@@ -2,7 +2,6 @@ import os
 import re
 import git
 
-
 class GitSearch:
     """Handles searching for content in repository files"""
     

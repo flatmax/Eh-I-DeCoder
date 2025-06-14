@@ -3,11 +3,18 @@ import os
 import asyncio
 import subprocess
 import mimetypes
-from eh_i_decoder.base_wrapper import BaseWrapper
-from eh_i_decoder.logger import Logger
-from .git_monitor import GitMonitor
-from .git_operations import GitOperations
-from .git_search import GitSearch
+try:
+    from .base_wrapper import BaseWrapper
+    from .logger import Logger
+    from .git_monitor import GitMonitor
+    from .git_operations import GitOperations
+    from .git_search import GitSearch
+except ImportError:
+    from base_wrapper import BaseWrapper
+    from logger import Logger
+    from git_monitor import GitMonitor
+    from git_operations import GitOperations
+    from git_search import GitSearch
 
 
 class Repo(BaseWrapper):

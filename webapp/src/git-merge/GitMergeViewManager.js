@@ -10,7 +10,15 @@ export class GitMergeViewManager {
 
   initialize() {
     this.lineHighlight = new LineHighlight(this.view.shadowRoot);
-    this.mergeViewManager = new MergeViewManager(this.view.shadowRoot, '');
+    this.mergeViewManager = new MergeViewManager(this.view.shadowRoot.querySelector('.merge-container'), {
+      shadowRoot: this.view.shadowRoot,
+      onContentChange: () => {
+        // Notify the view that content has changed
+        if (this.view.onContentChange) {
+          this.view.onContentChange();
+        }
+      }
+    });
   }
 
   cleanup() {
@@ -22,7 +30,8 @@ export class GitMergeViewManager {
     if (!container || !this.mergeViewManager) return;
     
     try {
-      this.mergeViewManager.filePath = this.view.selectedFile;
+      // Recreate the MergeViewManager with the container
+      this.mergeViewManager.container = container;
       
       // Determine if this is read-only mode
       let readOnly = this.view.gitHistoryMode && !this.view.hasConflicts;
@@ -32,13 +41,13 @@ export class GitMergeViewManager {
         readOnly = false;
       }
       
-      this.mergeViewManager.createMergeView(
-        container,
+      // Initialize the merge view with the correct parameters
+      this.mergeViewManager.initialize(
+        this.view.selectedFile || '',
         this.view.fromContent || '',
         this.view.toContent || '',
-        this.view.unifiedView || this.view.gitEditorMode, // Force unified view for git editor
-        this.view,
-        readOnly
+        this.view.languageClient,
+        this.view.languageClientConnected
       );
     } catch (error) {
       console.error('Error creating MergeView:', error);
@@ -49,14 +58,16 @@ export class GitMergeViewManager {
 
   getCurrentContent() {
     if (!this.mergeViewManager) return '';
-    return this.mergeViewManager.getCurrentContent(this.view.unifiedView || this.view.gitEditorMode);
+    return this.mergeViewManager.getWorkingContent();
   }
 
   goToNextChunk() {
-    this.mergeViewManager?.goToNextChunk(this.view.unifiedView);
+    // TODO: Implement chunk navigation if needed
+    console.warn('goToNextChunk not implemented');
   }
 
   goToPreviousChunk() {
-    this.mergeViewManager?.goToPreviousChunk(this.view.unifiedView);
+    // TODO: Implement chunk navigation if needed
+    console.warn('goToPreviousChunk not implemented');
   }
 }
