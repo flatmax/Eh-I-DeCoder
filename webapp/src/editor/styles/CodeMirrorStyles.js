@@ -7,6 +7,8 @@ export const codeMirrorStyles = css`
     flex: 1 !important;
     min-height: 0 !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .cm-editor.cm-focused {
@@ -16,13 +18,25 @@ export const codeMirrorStyles = css`
   /* Force scrollbars to be visible and contained */
   .cm-scroller {
     overflow: auto !important;
-    scrollbar-width: thin;
-    scrollbar-color: #424242 #1e1e1e;
+    scrollbar-width: thin !important;
+    scrollbar-color: #424242 #1e1e1e !important;
     height: 100% !important;
     max-height: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  /* Ensure content area is properly sized */
+  .cm-content {
+    min-height: 100% !important;
+    padding: 4px 0 !important;
   }
 
   /* Gutter styling */
+  .cm-gutters {
+    flex-shrink: 0 !important;
+  }
+
   .cm-gutter-lint {
     width: 8px;
   }

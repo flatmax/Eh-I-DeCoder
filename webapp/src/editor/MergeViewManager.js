@@ -29,8 +29,10 @@ export class MergeViewManager {
     this.container.innerHTML = '';
     this.container.style.height = '100%';
     this.container.style.width = '100%';
-    this.container.style.display = 'block';
+    this.container.style.display = 'flex';
+    this.container.style.flexDirection = 'column';
     this.container.style.overflow = 'hidden';
+    this.container.style.minHeight = '0';
     
     // Get language-specific extension
     const langExtension = getLanguageExtension(filePath);
@@ -42,15 +44,22 @@ export class MergeViewManager {
       EditorView.theme({
         "&": { 
           height: "100%",
-          fontSize: "14px"
+          fontSize: "14px",
+          display: "flex",
+          flexDirection: "column"
         },
         ".cm-editor": {
-          height: "100%"
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "0"
         },
         ".cm-scroller": { 
           overflow: "auto !important",
           fontFamily: "Monaco, Menlo, 'Ubuntu Mono', monospace",
           height: "100%",
+          flex: "1",
+          minHeight: "0",
           scrollbarWidth: "thin",
           scrollbarColor: "#424242 #1e1e1e"
         },
@@ -79,7 +88,8 @@ export class MergeViewManager {
         ".cm-gutters": {
           backgroundColor: "#1e1e1e",
           color: "#858585",
-          border: "none"
+          border: "none",
+          flexShrink: "0"
         },
         ".cm-activeLineGutter": {
           backgroundColor: "#2d2d30"
@@ -174,11 +184,23 @@ export class MergeViewManager {
             this.mergeView.a.requestMeasure();
             this.mergeView.b.requestMeasure();
             
-            // Force scrollbar visibility
+            // Force scrollbar visibility and proper sizing
             const scrollers = this.container.querySelectorAll('.cm-scroller');
             scrollers.forEach(scroller => {
               scroller.style.overflow = 'auto';
               scroller.style.scrollbarWidth = 'thin';
+              scroller.style.height = '100%';
+              scroller.style.flex = '1';
+              scroller.style.minHeight = '0';
+            });
+            
+            // Ensure editors have proper flex layout
+            const editors = this.container.querySelectorAll('.cm-editor');
+            editors.forEach(editor => {
+              editor.style.height = '100%';
+              editor.style.display = 'flex';
+              editor.style.flexDirection = 'column';
+              editor.style.minHeight = '0';
             });
             
             // Also check if the container has proper dimensions
