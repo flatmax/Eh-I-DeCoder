@@ -1,4 +1,4 @@
-// Definition request handler
+// Enhanced definition request handler with symbol analysis
 const BaseHandler = require('./base-handler');
 
 class DefinitionHandler extends BaseHandler {
@@ -22,14 +22,21 @@ class DefinitionHandler extends BaseHandler {
   }
 
   findDefinition(word, textDocument, doc) {
+    // First try to find definition using symbol analysis
+    const symbolDefinition = this.findSymbolDefinition(word, textDocument.uri);
+    if (symbolDefinition) {
+      console.log(`Found symbol definition for ${word}:`, symbolDefinition);
+      return symbolDefinition;
+    }
+
     // Check for known external definitions
     const externalDefinition = this.findExternalDefinition(word);
     if (externalDefinition) {
-      console.log(`Found definition for ${word}:`, externalDefinition);
+      console.log(`Found external definition for ${word}:`, externalDefinition);
       return externalDefinition;
     }
 
-    // Check for local definitions in the same file
+    // Check for local definitions in the same file (fallback)
     const localDefinition = this.findLocalDefinition(word, textDocument, doc);
     if (localDefinition) {
       console.log(`Found local definition for ${word}:`, localDefinition);
@@ -39,6 +46,29 @@ class DefinitionHandler extends BaseHandler {
     // No definition found
     console.log(`No definition found for ${word}`);
     return null;
+  }
+
+  findSymbolDefinition(word, uri) {
+    const symbolAnalyzer = this.documentManager.getSymbolAnalyzer();
+    const symbol = symbolAnalyzer.findSymbol(word, uri);
+    
+    if (!symbol || !symbol.location) return null;
+    
+    // Convert symbol location to LSP definition format
+    return {
+      uri: symbol.uri || uri,
+      range: {
+        start: this.offsetToPosition(symbol.location.start),
+        end: this.offsetToPosition(symbol.location.end)
+      }
+    };
+  }
+
+  offsetToPosition(offset) {
+    // This is a simplified conversion - in a real implementation,
+    // you'd need to convert byte offset to line/character position
+    // For now, return a default position
+    return { line: 0, character: 0 };
   }
 
   findExternalDefinition(word) {
@@ -51,7 +81,9 @@ class DefinitionHandler extends BaseHandler {
       'extractResponseData': 'file://webapp/src/Utils.js',
       'FileContentLoader': 'file://webapp/src/editor/FileContentLoader.js',
       'languageClient': 'file://webapp/src/editor/LanguageClient.js',
-      'MergeViewManager': 'file://webapp/src/editor/MergeViewManager.js'
+      'MergeViewManager': 'file://webapp/src/editor/MergeViewManager.js',
+      'SymbolAnalyzer': 'file://webapp/language-server/symbol-analyzer.js',
+      'DocumentManager': 'file://webapp/language-server/document-manager.js'
     };
 
     if (definitionMap[word]) {
@@ -85,7 +117,11 @@ class DefinitionHandler extends BaseHandler {
       // Class declarations: class Name
       new RegExp(`class\\s+${word}\\b`, 'g'),
       // Property assignments: this.name = 
-      new RegExp(`this\\.${word}\\s*=`, 'g')
+      new RegExp(`this\\.${word}\\s*=`, 'g'),
+      // Import declarations: import { name } from
+      new RegExp(`import\\s+.*\\b${word}\\b.*from`, 'g'),
+      // Export declarations: export { name }
+      new RegExp(`export\\s+.*\\b${word}\\b`, 'g')
     ];
     
     for (const pattern of patterns) {

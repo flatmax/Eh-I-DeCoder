@@ -33,6 +33,9 @@
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-languageserver-types": "^3.17.5",
+    "@babel/parser": "^7.23.0",
+    "@babel/traverse": "^7.23.0",
+    "@babel/types": "^7.23.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {

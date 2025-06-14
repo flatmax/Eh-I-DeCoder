@@ -65,13 +65,20 @@ export function createLanguageClientExtension(languageClient, filePath) {
       if (!hover || !hover.contents) return null;
       
       const content = hover.contents.value || hover.contents;
+      console.log('Hover content received:', content);
+      
       return {
         pos,
         above: true,
         create() {
           const dom = document.createElement('div');
           dom.className = 'cm-tooltip-hover';
-          dom.innerHTML = formatHoverContent(content);
+          
+          // Enhanced markdown rendering
+          const htmlContent = formatHoverContent(content);
+          console.log('Formatted HTML content:', htmlContent);
+          
+          dom.innerHTML = htmlContent;
           return { dom };
         }
       };
@@ -243,13 +250,52 @@ export function createLanguageClientExtension(languageClient, filePath) {
     documentSyncPlugin,
     EditorView.theme({
       '.cm-tooltip-hover': {
-        backgroundColor: '#f8f8f8',
-        border: '1px solid #ddd',
+        backgroundColor: '#2d2d30',
+        color: '#cccccc',
+        border: '1px solid #3e3e42',
+        borderRadius: '4px',
+        padding: '8px 12px',
+        maxWidth: '600px',
+        fontSize: '13px',
+        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        lineHeight: '1.4',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        zIndex: '1000'
+      },
+      '.cm-tooltip-hover h1, .cm-tooltip-hover h2, .cm-tooltip-hover h3': {
+        margin: '0 0 8px 0',
+        color: '#4ec9b0'
+      },
+      '.cm-tooltip-hover code': {
+        backgroundColor: '#1e1e1e',
+        color: '#d4d4d4',
+        padding: '2px 4px',
         borderRadius: '3px',
-        padding: '4px 8px',
-        maxWidth: '500px',
-        fontSize: '14px',
-        fontFamily: 'monospace'
+        fontSize: '12px'
+      },
+      '.cm-tooltip-hover pre': {
+        backgroundColor: '#1e1e1e',
+        color: '#d4d4d4',
+        padding: '8px',
+        borderRadius: '4px',
+        margin: '4px 0',
+        overflow: 'auto',
+        fontSize: '12px'
+      },
+      '.cm-tooltip-hover strong': {
+        color: '#4ec9b0',
+        fontWeight: '600'
+      },
+      '.cm-tooltip-hover em': {
+        color: '#9cdcfe',
+        fontStyle: 'italic'
+      },
+      '.cm-tooltip-hover ul, .cm-tooltip-hover ol': {
+        margin: '4px 0',
+        paddingLeft: '16px'
+      },
+      '.cm-tooltip-hover li': {
+        margin: '2px 0'
       }
     })
   ];
@@ -298,17 +344,69 @@ function getCompletionType(kind) {
 }
 
 function formatHoverContent(content) {
+  if (!content) return '';
+  
   if (typeof content === 'string') {
-    // Simple text content
-    return content.replace(/\n/g, '<br>');
+    // Handle plain text content
+    return convertMarkdownToHtml(content);
   } else if (content.kind === 'markdown') {
-    // Markdown content - simple conversion
-    return content.value
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n/g, '<br>');
+    // Handle markdown content
+    return convertMarkdownToHtml(content.value || '');
   }
+  
   return '';
+}
+
+function convertMarkdownToHtml(markdown) {
+  if (!markdown) return '';
+  
+  let html = markdown;
+  
+  // Convert code blocks first (to avoid conflicts with inline code)
+  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+    return `<pre><code class="language-${lang || 'text'}">${escapeHtml(code.trim())}</code></pre>`;
+  });
+  
+  // Convert inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // Convert bold text
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  
+  // Convert italic text
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
+  // Convert headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  
+  // Convert unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+  
+  // Convert line breaks
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+  
+  // Wrap in paragraph if not already wrapped
+  if (!html.startsWith('<') || html.startsWith('<br>')) {
+    html = '<p>' + html + '</p>';
+  }
+  
+  // Clean up empty paragraphs and fix nested lists
+  html = html.replace(/<p><\/p>/g, '');
+  html = html.replace(/<p>(<ul>.*<\/ul>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<pre>.*<\/pre>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<h[1-6]>.*<\/h[1-6]>)<\/p>/g, '$1');
+  
+  return html;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function offsetToPosition(doc, offset) {
