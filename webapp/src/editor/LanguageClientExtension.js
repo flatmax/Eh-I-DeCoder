@@ -5,7 +5,6 @@ import { hoverTooltip } from '@codemirror/view';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 
 export function createLanguageClientExtension(languageClient, filePath) {
-  console.log('Creating language client extension for:', filePath);
   const fileUri = `file://${filePath}`;
   let documentVersion = 0;
   
@@ -65,7 +64,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
       if (!hover || !hover.contents) return null;
       
       const content = hover.contents.value || hover.contents;
-      console.log('Hover content received:', content);
       
       return {
         pos,
@@ -76,7 +74,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
           
           // Enhanced markdown rendering
           const htmlContent = formatHoverContent(content);
-          console.log('Formatted HTML content:', htmlContent);
           
           dom.innerHTML = htmlContent;
           return { dom };
@@ -93,7 +90,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
     {
       key: 'F12',
       run: (view) => {
-        console.log('F12 pressed in editor');
         goToDefinition(view);
         return true;
       }
@@ -102,7 +98,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
       key: 'Ctrl-F12',
       mac: 'Cmd-F12',
       run: (view) => {
-        console.log('Ctrl-F12/Cmd-F12 pressed in editor');
         findReferences(view);
         return true;
       }
@@ -110,7 +105,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
     {
       key: 'Mod-s',
       run: (view) => {
-        console.log('Mod-s pressed in editor - dispatching save event');
         // Dispatch a custom save event that the MergeEditor can handle
         view.dom.dispatchEvent(new CustomEvent('editor-save', {
           bubbles: true,
@@ -123,7 +117,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
       key: 'Ctrl-Shift-f',
       mac: 'Cmd-Shift-f',
       run: (view) => {
-        console.log('Ctrl-Shift-f/Cmd-Shift-f pressed in editor');
         openFindInFiles(view);
         return true;
       }
@@ -147,9 +140,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
   });
 
   async function goToDefinition(view) {
-    console.log('goToDefinition called');
     if (!languageClient.connected) {
-      console.log('Language client not connected');
       return;
     }
     
@@ -163,11 +154,9 @@ export function createLanguageClientExtension(languageClient, filePath) {
     // Get word at cursor for logging
     const wordAt = view.state.wordAt(pos);
     const word = wordAt ? view.state.doc.sliceString(wordAt.from, wordAt.to) : 'unknown';
-    console.log(`Requesting definition for "${word}" at line ${position.line + 1}, char ${position.character}`);
     
     try {
       const definition = await languageClient.definition(fileUri, position);
-      console.log('Definition response:', definition);
       
       if (definition) {
         // Emit event to open file at definition location
@@ -176,8 +165,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
           bubbles: true,
           composed: true
         }));
-      } else {
-        console.log('No definition found');
       }
     } catch (error) {
       console.error('Go to definition error:', error);
@@ -185,9 +172,7 @@ export function createLanguageClientExtension(languageClient, filePath) {
   }
 
   async function findReferences(view) {
-    console.log('findReferences called');
     if (!languageClient.connected) {
-      console.log('Language client not connected');
       return;
     }
     
@@ -200,7 +185,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
     
     try {
       const references = await languageClient.references(fileUri, position);
-      console.log('References response:', references);
       
       if (references && references.length > 0) {
         // Emit event to show references
@@ -209,8 +193,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
           bubbles: true,
           composed: true
         }));
-      } else {
-        console.log('No references found');
       }
     } catch (error) {
       console.error('Find references error:', error);
@@ -218,15 +200,12 @@ export function createLanguageClientExtension(languageClient, filePath) {
   }
 
   function openFindInFiles(view) {
-    console.log('openFindInFiles called');
-    
     // Get selected text if any
     const selection = view.state.selection.main;
     let selectedText = '';
     
     if (!selection.empty) {
       selectedText = view.state.doc.sliceString(selection.from, selection.to);
-      console.log('Selected text for find in files:', selectedText);
     }
     
     // Dispatch event to open find in files with selected text
@@ -251,7 +230,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
       
       try {
         await languageClient.didOpen(fileUri, languageId, documentVersion, text);
-        console.log('Document opened in language server:', fileUri);
       } catch (error) {
         console.error('Failed to open document:', error);
       }
@@ -296,8 +274,6 @@ export function createLanguageClientExtension(languageClient, filePath) {
       console.log('Diagnostics received:', event.detail.diagnostics);
     }
   });
-
-  console.log('Language client extension created with keybindings');
 
   return [
     diagnosticsState,

@@ -165,7 +165,6 @@ export class MergeEditor extends JRPCClient {
 
   processPendingScroll() {
     if (this.pendingScrollToLine !== null) {
-      console.log('Processing pending scroll to line:', this.pendingScrollToLine);
       // Use multiple delays to ensure the editor is fully rendered
       setTimeout(() => {
         if (this.mergeViewManager && this.lineHighlight) {
@@ -192,14 +191,12 @@ export class MergeEditor extends JRPCClient {
 
     // If we're already loading this file with the same line number, don't load again
     if (this.loadingPromise && this.currentFile === filePath && this.pendingScrollToLine === lineNumber) {
-      console.log('Already loading this file, waiting for completion');
       return this.loadingPromise;
     }
 
     // Store the line number for later scrolling if provided
     if (lineNumber !== null) {
       this.pendingScrollToLine = lineNumber;
-      console.log('Storing pending scroll to line:', lineNumber);
     } else {
       this.pendingScrollToLine = null;
     }
@@ -251,14 +248,12 @@ export class MergeEditor extends JRPCClient {
   }
 
   handleEditorSave(event) {
-    console.log('Editor save event received');
     event.preventDefault();
     event.stopPropagation();
     this.saveFile();
   }
 
   handleOpenFindInFiles(event) {
-    console.log('Open find in files event received:', event.detail);
     event.preventDefault();
     event.stopPropagation();
     
@@ -354,7 +349,6 @@ export class MergeEditor extends JRPCClient {
    */
   scrollToLine(lineNumber) {
     if (!this.mergeViewManager || !this.mergeViewManager.mergeView || !this.lineHighlight) {
-      console.log('MergeEditor: Editor not ready, storing scroll request for later');
       this.pendingScrollToLine = lineNumber;
       return;
     }
@@ -366,7 +360,6 @@ export class MergeEditor extends JRPCClient {
       return;
     }
 
-    console.log('MergeEditor: Scrolling to line', lineNumber);
     // Use the line highlight utility to scroll and highlight
     this.lineHighlight.scrollToLine(workingEditor, lineNumber);
   }

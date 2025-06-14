@@ -145,7 +145,6 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
   }
 
   handleRequestFindInFiles(event) {
-    console.log('MainWindow: request-find-in-files event received:', event.detail);
     const selectedText = event.detail.selectedText || '';
     
     // Switch to find-in-files tab (assuming it's tab index 2)
@@ -155,19 +154,13 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.updateComplete.then(() => {
       const sidebar = this.shadowRoot.querySelector('app-sidebar');
       if (sidebar) {
-        console.log('MainWindow: Found sidebar, looking for find-in-files component');
         // Give the sidebar time to switch tabs and render the find-in-files component
         setTimeout(() => {
           const findInFiles = sidebar.shadowRoot?.querySelector('find-in-files');
           if (findInFiles) {
-            console.log('MainWindow: Found find-in-files component, calling focusSearchInput with selectedText:', selectedText);
             findInFiles.focusSearchInput(selectedText);
-          } else {
-            console.warn('MainWindow: find-in-files component not found in sidebar');
           }
         }, 100);
-      } else {
-        console.warn('MainWindow: app-sidebar element not found');
       }
     });
   }

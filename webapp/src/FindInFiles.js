@@ -36,14 +36,10 @@ export class FindInFiles extends JRPCClient {
    * @param {string} [selectedText] - Optional text to set as the search query
    */
   focusSearchInput(selectedText = '') {
-    console.log('FindInFiles.focusSearchInput called with selectedText:', selectedText);
     this.updateComplete.then(() => {
       const searchForm = this.shadowRoot.querySelector('search-form');
       if (searchForm) {
-        console.log('Found search-form element, calling focusInput');
         searchForm.focusInput(selectedText);
-      } else {
-        console.warn('search-form element not found in FindInFiles');
       }
     });
   }
