@@ -171,3 +171,22 @@ export function getAllCustomElements(rootElement) {
   collectElements(rootElement);
   return Array.from(elements);
 }
+
+/**
+ * Initialize beforeunload handler to warn users before closing the tab
+ * This gives users a choice to keep the tab open
+ */
+export function initializeBeforeUnloadWarning() {
+  window.addEventListener('beforeunload', (event) => {
+    // Show confirmation dialog before closing tab
+    const message = 'Are you sure you want to leave? Any unsaved changes will be lost.';
+    
+    // Standard way to show confirmation dialog
+    event.preventDefault();
+    event.returnValue = message;
+    
+    return message;
+  });
+  
+  console.log('Before unload warning initialized - users will be prompted before closing tab');
+}

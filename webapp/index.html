@@ -9,6 +9,22 @@
   <link rel="stylesheet" href="node_modules/@mdi/font/css/materialdesignicons.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&family=Roboto:wght@400;500&display=swap">
   <script type="module" src="./main-window.js"></script>
+  <script type="module">
+    import { initializeBeforeUnloadWarning } from './src/Utils.js';
+    
+    // Initialize beforeunload warning when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeBeforeUnloadWarning();
+    });
+    
+    // Also initialize immediately in case DOMContentLoaded has already fired
+    if (document.readyState === 'loading') {
+      // DOM is still loading, wait for DOMContentLoaded
+    } else {
+      // DOM is already loaded
+      initializeBeforeUnloadWarning();
+    }
+  </script>
   <style>
     body {
       margin: 0;
