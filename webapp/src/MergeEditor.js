@@ -102,30 +102,30 @@ export class MergeEditor extends JRPCClient {
   }
 
   render() {
-    const historyGraph = html`
-      <navigation-history-graph
-        .currentFile=${this.currentFile}
-      ></navigation-history-graph>
-    `;
-
     return html`
       <div class="merge-editor-container">
-        ${historyGraph}
-        
         <div class="merge-header">
-          <div class="header-left">
-            ${this.currentFile ? html`
-              <h3>${this.currentFile}${this.hasChanges ? html`<span class="unsaved-indicator">●</span>` : ''}</h3>
-            ` : html`
-              <h3>No file open</h3>
-            `}
-          </div>
+          <div class="header-top">
+            <div class="header-left">
+              ${this.currentFile ? html`
+                <h3>${this.currentFile}${this.hasChanges ? html`<span class="unsaved-indicator">●</span>` : ''}</h3>
+              ` : html`
+                <h3>No file open</h3>
+              `}
+              <span class="label head-label">HEAD</span>
+            </div>
           <div class="header-center">
-            <span class="label head-label">HEAD</span>
+          <div class="header-graph">
+            <navigation-history-graph
+              .currentFile=${this.currentFile}
+            ></navigation-history-graph>
           </div>
-          <div class="header-center">
-            <span class="label working-label">Working Copy</span>
           </div>
+            <div class="header-right">
+              <span class="label working-label">Working Copy</span>
+            </div>
+          </div>
+          
         </div>
         
         <div class="merge-container">

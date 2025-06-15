@@ -3,22 +3,30 @@ import {css} from 'lit';
 export const headerStyles = css`
   .merge-header {
     display: flex;
+    flex-direction: column;
+    background: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    flex-shrink: 0;
+  }
+  
+  .header-top {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 8px 16px;
-    background: #2d2d30;
-    border-bottom: 1px solid #3e3e42;
     min-height: 40px;
     gap: 16px;
-    flex-shrink: 0;
+  }
+  
+  .header-graph {
+    border-top: 1px solid #3e3e42;
   }
   
   .header-left {
     flex: 1;
-  }
-  
-  .header-center {
-    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
   
   .header-right {

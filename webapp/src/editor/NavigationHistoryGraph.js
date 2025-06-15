@@ -19,7 +19,6 @@ export class NavigationHistoryGraph extends LitElement {
     :host {
       display: block;
       background: #252526;
-      border-bottom: 1px solid #3e3e42;
       overflow: hidden;
     }
 
@@ -28,10 +27,11 @@ export class NavigationHistoryGraph extends LitElement {
       width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
+      height: 60px;
     }
 
     .graph-container::-webkit-scrollbar {
-      height: 8px;
+      height: 6px;
     }
 
     .graph-container::-webkit-scrollbar-track {
@@ -40,7 +40,7 @@ export class NavigationHistoryGraph extends LitElement {
 
     .graph-container::-webkit-scrollbar-thumb {
       background: #424242;
-      border-radius: 4px;
+      border-radius: 3px;
     }
 
     .graph-container::-webkit-scrollbar-thumb:hover {
@@ -87,7 +87,7 @@ export class NavigationHistoryGraph extends LitElement {
     }
 
     .node-label {
-      font-size: 11px;
+      font-size: 10px;
       fill: #cccccc;
       pointer-events: none;
       text-anchor: start;
@@ -95,17 +95,17 @@ export class NavigationHistoryGraph extends LitElement {
 
     .tooltip {
       position: absolute;
-      padding: 8px;
+      padding: 6px 8px;
       background: #2d2d30;
       border: 1px solid #3e3e42;
-      border-radius: 4px;
+      border-radius: 3px;
       color: #cccccc;
-      font-size: 12px;
+      font-size: 11px;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.2s;
       z-index: 100;
-      max-width: 300px;
+      max-width: 250px;
     }
 
     .tooltip.visible {
@@ -114,12 +114,12 @@ export class NavigationHistoryGraph extends LitElement {
 
     .tooltip .file-path {
       font-weight: bold;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       color: #4ec9b0;
     }
 
     .tooltip .position {
-      font-size: 11px;
+      font-size: 10px;
       color: #969696;
     }
   `;
@@ -188,13 +188,12 @@ export class NavigationHistoryGraph extends LitElement {
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const nodeRadius = 8;
-    const nodeSpacing = 75;
-    const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+    const nodeRadius = 6;
+    const nodeSpacing = 60;
+    const margin = { top: 10, right: 15, bottom: 10, left: 15 };
     
-    // Calculate height based on content - account for labels both above and below
-    const labelHeight = 15; // Height for node labels
-    const height = margin.top + labelHeight + (nodeRadius * 2) + labelHeight + margin.bottom;
+    // Fixed height for header integration
+    const height = 60;
 
     // Calculate required width
     const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
@@ -204,15 +203,12 @@ export class NavigationHistoryGraph extends LitElement {
       .attr('width', requiredWidth)
       .attr('height', height);
 
-    // Update container height to match SVG
-    container.style.height = height + 'px';
-
     // Clear previous content
     this.svg.selectAll('*').remove();
 
-    // Create main group - center vertically to account for labels above and below
+    // Create main group - center vertically
     const g = this.svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top + labelHeight + nodeRadius})`);
+      .attr('transform', `translate(${margin.left},${height / 2})`);
 
     // Prepare node data with positions
     const nodes = historyArray.map((entry, i) => ({
@@ -260,11 +256,10 @@ export class NavigationHistoryGraph extends LitElement {
       .on('mouseenter', (event, d) => this.showTooltip(event, d))
       .on('mouseleave', () => this.hideTooltip());
 
-    // Add labels with alternating positions
+    // Add labels with alternating positions (above/below)
     nodeGroups.append('text')
       .attr('class', 'node-label')
-      .attr('y', (d, i) => i % 2 === 0 ? nodeRadius + 15 : -(nodeRadius + 8))
-      // .attr('text-anchor', 'start')
+      .attr('y', (d, i) => i % 2 === 0 ? nodeRadius + 12 : -(nodeRadius + 5))
       .text(d => d.filename);
 
     // Scroll to current node if needed
