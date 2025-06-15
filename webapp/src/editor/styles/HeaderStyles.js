@@ -23,14 +23,40 @@ export const headerStyles = css`
   }
   
   .header-left {
-    flex: 1;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 16px;
   }
   
-  .header-right {
+  .header-center {
     flex: 1;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+  }
+  
+  .header-center::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .header-center::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  .header-center::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 3px;
+  }
+
+  .header-center::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
+  }
+  
+  .header-right {
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
   }
