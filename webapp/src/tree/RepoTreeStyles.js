@@ -117,5 +117,33 @@ export class RepoTreeStyles {
     .git-clean {
       /* Default styling for clean files */
     }
+    
+    /* Enhanced current file highlighting for repo tree */
+    .file-node.current-file.git-modified {
+      background-color: #fff3e0;
+      border-left: 3px solid #ff9800;
+    }
+    
+    .file-node.current-file.git-staged {
+      background-color: #e8f5e8;
+      border-left: 3px solid #4caf50;
+    }
+    
+    .file-node.current-file.git-untracked {
+      background-color: #e3f2fd;
+      border-left: 3px solid #2196f3;
+    }
+    
+    .file-node.current-file.git-modified:hover {
+      background-color: #ffe0b2;
+    }
+    
+    .file-node.current-file.git-staged:hover {
+      background-color: #c8e6c9;
+    }
+    
+    .file-node.current-file.git-untracked:hover {
+      background-color: #bbdefb;
+    }
   `;
 }

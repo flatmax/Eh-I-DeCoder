@@ -302,6 +302,9 @@ export class MergeEditor extends JRPCClient {
         );
       }
       
+      // Emit event to notify tree components about the file change
+      this.dispatchFileLoadedEvent(filePath);
+      
       // The merge view will be initialized in updated() lifecycle
       // and any pending scroll will be handled there
     } catch (error) {
@@ -310,6 +313,14 @@ export class MergeEditor extends JRPCClient {
       this.pendingScrollToLine = null; // Clear pending scroll on error
       throw error;
     }
+  }
+
+  dispatchFileLoadedEvent(filePath) {
+    this.dispatchEvent(new CustomEvent('file-loaded-in-editor', {
+      detail: { filePath },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   handleContentChange() {
