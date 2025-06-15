@@ -92,11 +92,15 @@ export class MergeEditor extends JRPCClient {
   }
 
   render() {
+    const historyGraph = html`
+      <navigation-history-graph
+        .currentFile=${this.currentFile}
+      ></navigation-history-graph>
+    `;
+
     return html`
       <div class="merge-editor-container">
-        <navigation-history-graph
-          .currentFile=${this.currentFile}
-        ></navigation-history-graph>
+        ${historyGraph}
         
         <div class="merge-header">
           <div class="header-left">

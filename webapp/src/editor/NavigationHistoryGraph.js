@@ -4,13 +4,11 @@ import { navigationHistory } from './NavigationHistory.js';
 
 export class NavigationHistoryGraph extends LitElement {
   static properties = {
-    expanded: { type: Boolean, state: true },
     currentFile: { type: String }
   };
 
   constructor() {
     super();
-    this.expanded = false;
     this.currentFile = null;
     this.svg = null;
     this.colorScale = null;
@@ -22,7 +20,7 @@ export class NavigationHistoryGraph extends LitElement {
       display: block;
       background: #252526;
       border-bottom: 1px solid #3e3e42;
-      transition: height 0.3s ease;
+      height: 120px;
       overflow: hidden;
     }
 
@@ -48,25 +46,6 @@ export class NavigationHistoryGraph extends LitElement {
     }
 
     .graph-container::-webkit-scrollbar-thumb:hover {
-      background: #4f4f4f;
-    }
-
-    .expand-toggle {
-      position: absolute;
-      top: 4px;
-      right: 8px;
-      background: #3e3e42;
-      border: none;
-      color: #cccccc;
-      padding: 2px 8px;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 11px;
-      z-index: 10;
-      transition: background 0.2s;
-    }
-
-    .expand-toggle:hover {
       background: #4f4f4f;
     }
 
@@ -114,6 +93,7 @@ export class NavigationHistoryGraph extends LitElement {
       fill: #cccccc;
       pointer-events: none;
       text-anchor: middle;
+      text-anchor: start;
     }
 
     .tooltip {
@@ -163,31 +143,13 @@ export class NavigationHistoryGraph extends LitElement {
     this.initializeGraph();
   }
 
-  updated(changedProperties) {
-    if (changedProperties.has('expanded')) {
-      // Redraw graph when expanded state changes
-      setTimeout(() => this.updateGraph(), 300);
-    }
-  }
-
   render() {
-    const height = this.expanded ? '120px' : '40px';
-    
     return html`
-      <div style="height: ${height}">
-        <button class="expand-toggle" @click=${this.toggleExpanded}>
-          ${this.expanded ? 'Collapse' : 'Expand'}
-        </button>
-        <div class="graph-container">
-          <svg></svg>
-        </div>
-        <div class="tooltip"></div>
+      <div class="graph-container">
+        <svg></svg>
       </div>
+      <div class="tooltip"></div>
     `;
-  }
-
-  toggleExpanded() {
-    this.expanded = !this.expanded;
   }
 
   initializeGraph() {
@@ -222,9 +184,9 @@ export class NavigationHistoryGraph extends LitElement {
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const height = this.expanded ? 120 : 40;
-    const nodeRadius = this.expanded ? 8 : 6;
-    const nodeSpacing = this.expanded ? 100 : 60;
+    const height = 120;
+    const nodeRadius = 8;
+    const nodeSpacing = 100;
     const margin = { top: 20, right: 20, bottom: 20, left: 20 };
 
     // Calculate required width
@@ -288,13 +250,11 @@ export class NavigationHistoryGraph extends LitElement {
       .on('mouseenter', (event, d) => this.showTooltip(event, d))
       .on('mouseleave', () => this.hideTooltip());
 
-    // Add labels if expanded
-    if (this.expanded) {
-      nodeGroups.append('text')
-        .attr('class', 'node-label')
-        .attr('y', nodeRadius + 15)
-        .text(d => this.truncateFilename(d.filename, 15));
-    }
+    // Add labels
+    nodeGroups.append('text')
+      .attr('class', 'node-label')
+      .attr('y', nodeRadius + 15)
+      .text(d => this.truncateFilename(d.filename, 15));
 
     // Scroll to current node if needed
     const currentNode = nodes.find(n => n.isCurrent);
