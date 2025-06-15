@@ -114,7 +114,7 @@ export class MergeEditor extends JRPCClient {
               `}
               <span class="label head-label">HEAD</span>
             </div>
-          <div class="header-center">
+          <div class="header-center-graph">
           <div class="header-graph">
             <navigation-history-graph
               .currentFile=${this.currentFile}

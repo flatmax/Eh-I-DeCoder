@@ -38,6 +38,14 @@ export const headerStyles = css`
     min-width: 0;
   }
   
+  .header-center-graph {
+    flex: 1;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+  }
+  
   .header-center::-webkit-scrollbar {
     height: 6px;
   }
