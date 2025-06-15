@@ -20,14 +20,12 @@ export class NavigationHistoryGraph extends LitElement {
       display: block;
       background: #252526;
       border-bottom: 1px solid #3e3e42;
-      height: 120px;
       overflow: hidden;
     }
 
     .graph-container {
       position: relative;
       width: 100%;
-      height: 100%;
       overflow-x: auto;
       overflow-y: hidden;
     }
@@ -175,7 +173,14 @@ export class NavigationHistoryGraph extends LitElement {
     if (!this.svg) return;
 
     const historyArray = navigationHistory.toArray();
-    if (historyArray.length === 0) return;
+    if (historyArray.length === 0) {
+      // Hide the component when there's no history
+      this.style.display = 'none';
+      return;
+    } else {
+      // Show the component when there is history
+      this.style.display = 'block';
+    }
 
     // Check if history has actually changed
     const historyState = JSON.stringify(historyArray);
@@ -184,10 +189,13 @@ export class NavigationHistoryGraph extends LitElement {
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const height = 120;
     const nodeRadius = 8;
     const nodeSpacing = 100;
     const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+    
+    // Calculate height based on content
+    const labelHeight = 15; // Height for node labels
+    const height = margin.top + (nodeRadius * 2) + labelHeight + margin.bottom;
 
     // Calculate required width
     const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
@@ -197,12 +205,15 @@ export class NavigationHistoryGraph extends LitElement {
       .attr('width', requiredWidth)
       .attr('height', height);
 
+    // Update container height to match SVG
+    container.style.height = height + 'px';
+
     // Clear previous content
     this.svg.selectAll('*').remove();
 
     // Create main group
     const g = this.svg.append('g')
-      .attr('transform', `translate(${margin.left},${height / 2})`);
+      .attr('transform', `translate(${margin.left},${margin.top + nodeRadius})`);
 
     // Prepare node data with positions
     const nodes = historyArray.map((entry, i) => ({
@@ -254,7 +265,7 @@ export class NavigationHistoryGraph extends LitElement {
     nodeGroups.append('text')
       .attr('class', 'node-label')
       .attr('y', nodeRadius + 15)
-      .text(d => this.truncateFilename(d.filename, 15));
+      .text(d => d.filename);
 
     // Scroll to current node if needed
     const currentNode = nodes.find(n => n.isCurrent);
@@ -271,11 +282,6 @@ export class NavigationHistoryGraph extends LitElement {
 
   getFilename(filePath) {
     return filePath.split('/').pop();
-  }
-
-  truncateFilename(filename, maxLength) {
-    if (filename.length <= maxLength) return filename;
-    return filename.substring(0, maxLength - 3) + '...';
   }
 
   handleNodeClick(node) {
