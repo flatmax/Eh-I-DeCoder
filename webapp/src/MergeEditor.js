@@ -61,7 +61,7 @@ export class MergeEditor extends JRPCClient {
       this.languageClientConnected = true;
       console.log('Language client connected successfully');
     } catch (error) {
-      console.error('Failed to connect language client:', error);
+      // Silenced: console.error('Failed to connect language client:', error);
       this.languageClientConnected = false;
       
       // Retry connection after delay
