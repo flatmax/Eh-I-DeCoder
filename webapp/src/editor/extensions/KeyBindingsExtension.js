@@ -2,7 +2,43 @@ import { keymap } from '@codemirror/view';
 import { goToDefinition, findReferences, openFindInFiles } from './utils/NavigationUtils.js';
 
 export function createKeyBindingsExtension(languageClient, fileUri) {
-  return keymap.of([
+  // Create navigation keybindings with highest precedence
+  const navigationKeymap = keymap.of([
+    {
+      key: 'Alt-ArrowLeft',
+      mac: 'Cmd-ArrowLeft',
+      run: (view) => {
+        // Dispatch navigate-back event
+        view.dom.dispatchEvent(new CustomEvent('navigate-back', {
+          bubbles: true,
+          composed: true
+        }));
+        return true;
+      },
+      preventDefault: true,
+      stopPropagation: true
+    },
+    {
+      key: 'Alt-ArrowRight',
+      mac: 'Cmd-ArrowRight',
+      run: (view) => {
+        // Dispatch navigate-forward event
+        view.dom.dispatchEvent(new CustomEvent('navigate-forward', {
+          bubbles: true,
+          composed: true
+        }));
+        return true;
+      },
+      preventDefault: true,
+      stopPropagation: true
+    }
+  ], {
+    // Highest precedence to ensure these override default word navigation
+    precedence: "highest"
+  });
+
+  // Create other keybindings with high precedence
+  const otherKeymap = keymap.of([
     {
       key: 'F12',
       run: (view) => {
@@ -37,5 +73,10 @@ export function createKeyBindingsExtension(languageClient, fileUri) {
         return true;
       }
     }
-  ]);
+  ], {
+    precedence: "high"
+  });
+
+  // Return both keymaps, with navigation first to ensure highest priority
+  return [navigationKeymap, otherKeymap];
 }

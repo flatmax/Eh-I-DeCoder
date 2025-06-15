@@ -20,6 +20,7 @@ export class AppSidebar extends LitElement {
     serverURI: { type: String },
     newServerURI: { type: String },
     connectionStatus: { type: String },
+    lspConnectionStatus: { type: String },
     showConnectionDetails: { type: Boolean }
   };
 
@@ -29,6 +30,7 @@ export class AppSidebar extends LitElement {
     this.width = 280;
     this.activeTabIndex = 0;
     this.showConnectionDetails = false;
+    this.lspConnectionStatus = 'disconnected';
   }
 
   static styles = css`
@@ -83,10 +85,26 @@ export class AppSidebar extends LitElement {
     };
   }
 
+  _getLspLedClasses() {
+    return {
+      'connection-led': true,
+      [`led-${this.lspConnectionStatus}`]: true
+    };
+  }
+
   _renderHeader() {
     return html`
       <div class="sidebar-header">
-        <span class=${classMap(this._getLedClasses())}></span>
+        <div class="connection-indicators">
+          <div class="connection-item">
+            <span class=${classMap(this._getLedClasses())}></span>
+            <span class="connection-label">Server</span>
+          </div>
+          <div class="connection-item">
+            <span class=${classMap(this._getLspLedClasses())}></span>
+            <span class="connection-label">LSP</span>
+          </div>
+        </div>
         <md-filled-icon-button 
           icon="${this.expanded ? 'chevron_left' : 'chevron_right'}" 
           @click=${this.toggleExpanded}>
@@ -128,8 +146,14 @@ export class AppSidebar extends LitElement {
   _renderServerSettings() {
     return html`
       <div class="connection-status">
-        <span class=${classMap(this._getLedClasses())}></span>
-        <span>${this.connectionStatus}</span>
+        <div class="status-row">
+          <span class=${classMap(this._getLedClasses())}></span>
+          <span>Server: ${this.connectionStatus}</span>
+        </div>
+        <div class="status-row">
+          <span class=${classMap(this._getLspLedClasses())}></span>
+          <span>LSP: ${this.lspConnectionStatus}</span>
+        </div>
       </div>
       
       <div class="sidebar-section">

@@ -16,7 +16,14 @@ export class LanguageClient {
   async connect(uri = 'ws://localhost:8998') {
     return new Promise((resolve, reject) => {
       try {
+        // Create WebSocket with error suppression
         this.ws = new WebSocket(uri);
+        
+        // Set up handlers immediately to catch any errors
+        this.ws.onerror = (error) => {
+          // Completely silence WebSocket errors
+          reject(error);
+        };
         
         this.ws.onopen = () => {
           console.log('Language client connected');
@@ -34,18 +41,17 @@ export class LanguageClient {
           }
         };
         
-        this.ws.onerror = (error) => {
-          console.error('Language client error:', error);
-          reject(error);
-        };
-        
         this.ws.onclose = () => {
-          console.log('Language client disconnected');
+          // Only log if we were previously connected
+          if (this.connected) {
+            console.log('Language client disconnected');
+          }
           this.connected = false;
           this.handleDisconnect();
         };
         
       } catch (error) {
+        // Silence connection creation errors
         reject(error);
       }
     });
@@ -61,10 +67,10 @@ export class LanguageClient {
     // Attempt reconnection
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      // Silenced: console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
       setTimeout(() => {
         this.connect().catch(error => {
-          console.error('Reconnection failed:', error);
+          // Silenced: console.error('Reconnection failed:', error);
         });
       }, this.reconnectDelay * this.reconnectAttempts);
     }

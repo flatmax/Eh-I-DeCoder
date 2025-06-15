@@ -21,6 +21,24 @@ export class SidebarStyles {
         justify-content: space-between;
       }
       
+      .connection-indicators {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      
+      .connection-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+      }
+      
+      .connection-label {
+        font-weight: 500;
+        color: #666;
+      }
+      
       .sidebar-content {
         flex: 1;
         overflow: auto;
@@ -89,8 +107,15 @@ export class SidebarStyles {
       .connection-status {
         padding: 8px 12px;
         display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .status-row {
+        display: flex;
         align-items: center;
         gap: 8px;
+        font-size: 14px;
       }
       
       .sidebar-section {
@@ -141,6 +166,15 @@ export class SidebarStyles {
       }
       
       :host(.collapsed) .sidebar-section-content {
+        display: none;
+      }
+      
+      :host(.collapsed) .connection-indicators {
+        flex-direction: row;
+        gap: 8px;
+      }
+      
+      :host(.collapsed) .connection-label {
         display: none;
       }
     `;
