@@ -9,6 +9,7 @@ import { Prec } from '@codemirror/state';
 import { addCursorUp, addCursorDown } from './extensions/MultiCursorExtension.js';
 import { createKeyBindingsExtension } from './extensions/KeyBindingsExtension.js';
 import { createClickHandlerExtension } from './extensions/ClickHandlerExtension.js';
+import { search } from '@codemirror/search';
 
 export class MergeViewManager {
   constructor(container, options = {}) {
@@ -91,12 +92,18 @@ export class MergeViewManager {
       precedence: "highest"
     });
     
+    // Configure search to appear at the top
+    const searchConfig = {
+      top: true
+    };
+    
     // Create base extensions with VS Code dark theme
     // IMPORTANT: navigationOverrideKeymap MUST be first to have highest priority
     const baseExtensions = [
       navigationOverrideKeymap, // Absolute highest priority navigation override
       multiCursorKeymap, // Put multi-cursor second with highest precedence
       basicSetup,
+      search(searchConfig), // Override the search from basicSetup with our config
       oneDark,
       EditorView.theme({
         "&": {
@@ -145,6 +152,14 @@ export class MergeViewManager {
         },
         ".cm-cursor-secondary": {
           borderLeftColor: "#ff9b00"
+        },
+        // Search panel styling
+        ".cm-search": {
+          top: "0 !important",
+          bottom: "auto !important"
+        },
+        ".cm-panels-top": {
+          borderBottom: "1px solid #424242"
         }
       }),
       createKeyBindingsExtension(languageClient, filePath),
