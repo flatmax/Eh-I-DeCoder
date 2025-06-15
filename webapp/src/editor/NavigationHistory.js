@@ -41,6 +41,15 @@ export class NavigationHistory {
       return;
     }
 
+    // If switching to the same file, just update the position
+    if (fromFile === toFile && this.current && this.current.filePath === toFile) {
+      this.current.line = toLine;
+      this.current.character = toChar;
+      this.current.timestamp = Date.now();
+      this.emitUpdate();
+      return;
+    }
+
     // Update the current file's position if we're leaving a file
     if (fromFile && this.current && this.current.filePath === fromFile) {
       this.current.line = fromLine;
