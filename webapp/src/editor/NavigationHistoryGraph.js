@@ -90,7 +90,6 @@ export class NavigationHistoryGraph extends LitElement {
       font-size: 11px;
       fill: #cccccc;
       pointer-events: none;
-      text-anchor: middle;
       text-anchor: start;
     }
 
@@ -190,12 +189,12 @@ export class NavigationHistoryGraph extends LitElement {
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
     const nodeRadius = 8;
-    const nodeSpacing = 100;
+    const nodeSpacing = 75;
     const margin = { top: 20, right: 20, bottom: 20, left: 20 };
     
-    // Calculate height based on content
+    // Calculate height based on content - account for labels both above and below
     const labelHeight = 15; // Height for node labels
-    const height = margin.top + (nodeRadius * 2) + labelHeight + margin.bottom;
+    const height = margin.top + labelHeight + (nodeRadius * 2) + labelHeight + margin.bottom;
 
     // Calculate required width
     const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
@@ -211,9 +210,9 @@ export class NavigationHistoryGraph extends LitElement {
     // Clear previous content
     this.svg.selectAll('*').remove();
 
-    // Create main group
+    // Create main group - center vertically to account for labels above and below
     const g = this.svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top + nodeRadius})`);
+      .attr('transform', `translate(${margin.left},${margin.top + labelHeight + nodeRadius})`);
 
     // Prepare node data with positions
     const nodes = historyArray.map((entry, i) => ({
@@ -261,10 +260,11 @@ export class NavigationHistoryGraph extends LitElement {
       .on('mouseenter', (event, d) => this.showTooltip(event, d))
       .on('mouseleave', () => this.hideTooltip());
 
-    // Add labels
+    // Add labels with alternating positions
     nodeGroups.append('text')
       .attr('class', 'node-label')
-      .attr('y', nodeRadius + 15)
+      .attr('y', (d, i) => i % 2 === 0 ? nodeRadius + 15 : -(nodeRadius + 8))
+      // .attr('text-anchor', 'start')
       .text(d => d.filename);
 
     // Scroll to current node if needed
