@@ -18,6 +18,8 @@ export class MergeViewManager {
     this.options = options;
     this.onContentChange = options.onContentChange || (() => {});
     this.shadowRoot = options.shadowRoot || null;
+    this.currentChunkIndex = -1;
+    this.chunks = [];
   }
 
   initialize(filePath, headContent, workingContent, languageClient, languageClientConnected) {
@@ -68,6 +70,24 @@ export class MergeViewManager {
             bubbles: true,
             composed: true
           }));
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-n',
+        run: (view) => {
+          this.goToNextChunk();
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-p',
+        run: (view) => {
+          this.goToPreviousChunk();
           return true;
         },
         preventDefault: true,
@@ -268,6 +288,9 @@ export class MergeViewManager {
               width: rect.width,
               height: rect.height
             });
+
+            // Initialize chunk navigation after the merge view is ready
+            this.initializeChunkNavigation();
           }
         });
 
@@ -281,6 +304,225 @@ export class MergeViewManager {
       console.error('Error stack:', error.stack);
       // Try to show error in container
       this.container.innerHTML = `<div style="color: red; padding: 20px;">Error creating merge view: ${error.message}</div>`;
+    }
+  }
+
+  initializeChunkNavigation() {
+    if (!this.mergeView) return;
+
+    // Find all diff chunks by looking for merge view chunks
+    this.chunks = [];
+    this.currentChunkIndex = -1;
+
+    try {
+      // Use a more reliable method to find chunks
+      this.findChunksFromMergeView();
+      
+      console.log('Found chunks for navigation:', this.chunks.length, this.chunks);
+    } catch (error) {
+      console.error('Error initializing chunk navigation:', error);
+    }
+  }
+
+  findChunksFromMergeView() {
+    if (!this.mergeView || !this.mergeView.b) return;
+
+    const chunks = [];
+    
+    // Try to access the merge view's internal chunk data
+    if (this.mergeView.chunks && Array.isArray(this.mergeView.chunks)) {
+      // Use the merge view's chunks directly
+      this.chunks = this.mergeView.chunks.map((chunk, index) => ({
+        index,
+        from: chunk.fromB || chunk.from,
+        to: chunk.toB || chunk.to,
+        type: chunk.type || 'change',
+        lineStart: this.mergeView.b.state.doc.lineAt(chunk.fromB || chunk.from).number,
+        lineEnd: this.mergeView.b.state.doc.lineAt(chunk.toB || chunk.to).number
+      }));
+    } else {
+      // Fallback: scan for diff decorations in the working editor
+      const state = this.mergeView.b.state;
+      const doc = state.doc;
+      
+      // Look for diff-related decorations
+      const decorations = state.facet(EditorView.decorations);
+      const foundChunks = new Set(); // Use Set to avoid duplicates
+      
+      decorations.forEach(decoSet => {
+        if (decoSet && typeof decoSet.iter === 'function') {
+          decoSet.iter(0, doc.length, (from, to, value) => {
+            const classes = value.class || '';
+            if (classes.includes('cm-merge') || 
+                classes.includes('cm-diff') ||
+                classes.includes('cm-changed') ||
+                classes.includes('cm-inserted') ||
+                classes.includes('cm-deleted')) {
+              
+              const lineStart = doc.lineAt(from).number;
+              const lineEnd = doc.lineAt(to).number;
+              const chunkKey = `${lineStart}-${lineEnd}`;
+              
+              if (!foundChunks.has(chunkKey)) {
+                foundChunks.add(chunkKey);
+                chunks.push({
+                  from,
+                  to,
+                  lineStart,
+                  lineEnd,
+                  type: classes.includes('cm-deleted') ? 'delete' :
+                        classes.includes('cm-inserted') ? 'insert' : 'change'
+                });
+              }
+            }
+          });
+        }
+      });
+      
+      // Sort chunks by line position
+      this.chunks = chunks.sort((a, b) => a.lineStart - b.lineStart);
+    }
+    
+    // If we still don't have chunks, try a different approach
+    if (this.chunks.length === 0) {
+      this.findChunksFromLineComparison();
+    }
+  }
+
+  findChunksFromLineComparison() {
+    if (!this.mergeView || !this.mergeView.a || !this.mergeView.b) return;
+
+    const headDoc = this.mergeView.a.state.doc;
+    const workingDoc = this.mergeView.b.state.doc;
+    
+    const headLines = headDoc.toString().split('\n');
+    const workingLines = workingDoc.toString().split('\n');
+    
+    const chunks = [];
+    let currentChunk = null;
+    
+    // Simple line-by-line comparison to find differences
+    const maxLines = Math.max(headLines.length, workingLines.length);
+    
+    for (let i = 0; i < maxLines; i++) {
+      const headLine = headLines[i] || '';
+      const workingLine = workingLines[i] || '';
+      
+      if (headLine !== workingLine) {
+        if (!currentChunk) {
+          // Start a new chunk
+          const linePos = workingDoc.line(i + 1);
+          currentChunk = {
+            from: linePos.from,
+            to: linePos.to,
+            lineStart: i + 1,
+            lineEnd: i + 1,
+            type: 'change'
+          };
+        } else {
+          // Extend current chunk
+          const linePos = workingDoc.line(i + 1);
+          currentChunk.to = linePos.to;
+          currentChunk.lineEnd = i + 1;
+        }
+      } else if (currentChunk) {
+        // End of current chunk
+        chunks.push(currentChunk);
+        currentChunk = null;
+      }
+    }
+    
+    // Add final chunk if it exists
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+    
+    this.chunks = chunks;
+  }
+
+  goToNextChunk() {
+    if (!this.mergeView || !this.mergeView.b || this.chunks.length === 0) {
+      console.log('No chunks available for navigation');
+      return;
+    }
+
+    // Get current cursor position
+    const currentPos = this.mergeView.b.state.selection.main.head;
+    const currentLine = this.mergeView.b.state.doc.lineAt(currentPos).number;
+    
+    console.log('Current position:', currentPos, 'Current line:', currentLine);
+    console.log('Available chunks:', this.chunks.map(c => `Line ${c.lineStart}-${c.lineEnd}`));
+    
+    // Find the next chunk after the current line
+    let nextChunkIndex = this.chunks.findIndex(chunk => chunk.lineStart > currentLine);
+    
+    if (nextChunkIndex === -1) {
+      // No chunk found after current position, wrap to first chunk
+      nextChunkIndex = 0;
+    }
+
+    this.currentChunkIndex = nextChunkIndex;
+    const targetChunk = this.chunks[nextChunkIndex];
+    
+    console.log('Navigating to chunk:', nextChunkIndex, 'Line:', targetChunk.lineStart);
+    this.navigateToChunk(targetChunk);
+  }
+
+  goToPreviousChunk() {
+    if (!this.mergeView || !this.mergeView.b || this.chunks.length === 0) {
+      console.log('No chunks available for navigation');
+      return;
+    }
+
+    // Get current cursor position
+    const currentPos = this.mergeView.b.state.selection.main.head;
+    const currentLine = this.mergeView.b.state.doc.lineAt(currentPos).number;
+    
+    console.log('Current position:', currentPos, 'Current line:', currentLine);
+    
+    // Find the previous chunk before the current line
+    let prevChunkIndex = -1;
+    for (let i = this.chunks.length - 1; i >= 0; i--) {
+      if (this.chunks[i].lineStart < currentLine) {
+        prevChunkIndex = i;
+        break;
+      }
+    }
+    
+    if (prevChunkIndex === -1) {
+      // No chunk found before current position, wrap to last chunk
+      prevChunkIndex = this.chunks.length - 1;
+    }
+
+    this.currentChunkIndex = prevChunkIndex;
+    const targetChunk = this.chunks[prevChunkIndex];
+    
+    console.log('Navigating to chunk:', prevChunkIndex, 'Line:', targetChunk.lineStart);
+    this.navigateToChunk(targetChunk);
+  }
+
+  navigateToChunk(chunk) {
+    if (!this.mergeView || !this.mergeView.b || !chunk) return;
+
+    try {
+      // Calculate the position at the start of the target line
+      const targetLine = this.mergeView.b.state.doc.line(chunk.lineStart);
+      const targetPos = targetLine.from;
+      
+      console.log(`Navigating to ${chunk.type} chunk at line ${chunk.lineStart}, position ${targetPos}`);
+      
+      // Move cursor to the beginning of the chunk line
+      this.mergeView.b.dispatch({
+        selection: { anchor: targetPos, head: targetPos },
+        scrollIntoView: true,
+        effects: EditorView.scrollIntoView(targetPos, { y: "center" })
+      });
+
+      // Focus the editor
+      this.mergeView.b.focus();
+
+    } catch (error) {
+      console.error('Error navigating to chunk:', error);
     }
   }
 
@@ -325,5 +567,7 @@ export class MergeViewManager {
       }
       this.mergeView = null;
     }
+    this.chunks = [];
+    this.currentChunkIndex = -1;
   }
 }
