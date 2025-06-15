@@ -100,6 +100,39 @@ export class NavigationHistory {
   }
 
   /**
+   * Navigate directly to a specific file and position in the history
+   * @param {string} filePath - File path to navigate to
+   * @param {number} line - Line number
+   * @param {number} character - Character position
+   * @returns {Object|null} Position {filePath, line, character} or null if not found
+   */
+  navigateToPosition(filePath, line, character) {
+    const targetNode = this.fileMap.get(filePath);
+    if (!targetNode) {
+      return null;
+    }
+
+    this.isNavigating = true;
+    
+    // Update the target node's position
+    targetNode.line = line;
+    targetNode.character = character;
+    targetNode.timestamp = Date.now();
+    
+    // Make it the current node
+    this.current = targetNode;
+    
+    // Emit update event
+    this.emitUpdate();
+    
+    return {
+      filePath: targetNode.filePath,
+      line: targetNode.line,
+      character: targetNode.character
+    };
+  }
+
+  /**
    * Update the cursor position for the current file
    * @param {number} line - New line number
    * @param {number} character - New character position

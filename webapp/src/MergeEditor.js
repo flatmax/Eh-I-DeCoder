@@ -373,16 +373,19 @@ export class MergeEditor extends JRPCClient {
     
     const { filePath, line, character } = event.detail;
     
-    // Load the file and jump to position
-    await this.loadFileContent(filePath, line, true);
-    
-    // Jump to the stored cursor position after loading
-    setTimeout(() => {
-      if (this.mergeViewManager) {
-        this.mergeViewManager.jumpToPosition(line, character);
-      }
-      navigationHistory.clearNavigationFlag();
-    }, 100);
+    // Use the new navigateToPosition method to update the history state
+    const position = navigationHistory.navigateToPosition(filePath, line, character);
+    if (position) {
+      await this.loadFileContent(filePath, line, true);
+      
+      // Jump to the stored cursor position after loading
+      setTimeout(() => {
+        if (this.mergeViewManager) {
+          this.mergeViewManager.jumpToPosition(line, character);
+        }
+        navigationHistory.clearNavigationFlag();
+      }, 100);
+    }
   }
 
   async saveFile() {
