@@ -14,6 +14,19 @@ export class NavigationHistory {
   }
 
   /**
+   * Emit an event when navigation history changes
+   */
+  emitUpdate() {
+    window.dispatchEvent(new CustomEvent('navigation-history-updated', {
+      detail: {
+        currentFile: this.current?.filePath,
+        canGoBack: this.canGoBack(),
+        canGoForward: this.canGoForward()
+      }
+    }));
+  }
+
+  /**
    * Record a file switch in the navigation history
    * @param {string} fromFile - File path we're switching from (can be null)
    * @param {number} fromLine - Line number in the from file
@@ -72,6 +85,9 @@ export class NavigationHistory {
       // Check size limit
       this.enforceMaxSize();
     }
+
+    // Emit update event
+    this.emitUpdate();
   }
 
   /**
@@ -101,6 +117,9 @@ export class NavigationHistory {
     // Move current pointer back
     this.current = this.current.prev;
     
+    // Emit update event
+    this.emitUpdate();
+    
     return {
       filePath: this.current.filePath,
       line: this.current.line,
@@ -110,7 +129,7 @@ export class NavigationHistory {
 
   /**
    * Navigate forward in history
-   * @returns {Object|null} Next position {filePath, line, character} or null
+   * @returns {Object|null}Next position {filePath, line, character} or null
    */
   goForward() {
     if (!this.canGoForward()) {
@@ -121,6 +140,9 @@ export class NavigationHistory {
     
     // Move current pointer forward
     this.current = this.current.next;
+    
+    // Emit update event
+    this.emitUpdate();
     
     return {
       filePath: this.current.filePath,
@@ -245,6 +267,7 @@ export class NavigationHistory {
     this.size = 0;
     this.fileMap.clear();
     this.isNavigating = false;
+    this.emitUpdate();
   }
 
   /**

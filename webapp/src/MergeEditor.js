@@ -6,6 +6,7 @@ import {MergeViewManager} from './editor/MergeViewManager.js';
 import {LineHighlight} from './editor/LineHighlight.js';
 import {mergeEditorStyles} from './editor/MergeEditorStyles.js';
 import {navigationHistory} from './editor/NavigationHistory.js';
+import './editor/NavigationHistoryGraph.js';
 
 export class MergeEditor extends JRPCClient {
   static properties = {
@@ -53,6 +54,9 @@ export class MergeEditor extends JRPCClient {
     // Listen for navigation events
     this.addEventListener('navigate-back', this.handleNavigateBack.bind(this));
     this.addEventListener('navigate-forward', this.handleNavigateForward.bind(this));
+    
+    // Listen for navigation from the graph
+    this.addEventListener('navigate-to-history', this.handleNavigateToHistory.bind(this));
   }
 
   async initializeLanguageClient() {
@@ -90,6 +94,10 @@ export class MergeEditor extends JRPCClient {
   render() {
     return html`
       <div class="merge-editor-container">
+        <navigation-history-graph
+          .currentFile=${this.currentFile}
+        ></navigation-history-graph>
+        
         <div class="merge-header">
           <div class="header-left">
             ${this.currentFile ? html`
@@ -357,6 +365,24 @@ export class MergeEditor extends JRPCClient {
         navigationHistory.clearNavigationFlag();
       }, 100);
     }
+  }
+
+  async handleNavigateToHistory(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const { filePath, line, character } = event.detail;
+    
+    // Load the file and jump to position
+    await this.loadFileContent(filePath, line, true);
+    
+    // Jump to the stored cursor position after loading
+    setTimeout(() => {
+      if (this.mergeViewManager) {
+        this.mergeViewManager.jumpToPosition(line, character);
+      }
+      navigationHistory.clearNavigationFlag();
+    }, 100);
   }
 
   async saveFile() {
