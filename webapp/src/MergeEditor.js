@@ -63,14 +63,24 @@ export class MergeEditor extends JRPCClient {
     try {
       await languageClient.connect();
       this.languageClientConnected = true;
+      this.dispatchLspStatusChange(true);
       console.log('Language client connected successfully');
     } catch (error) {
       // Silenced: console.error('Failed to connect language client:', error);
       this.languageClientConnected = false;
+      this.dispatchLspStatusChange(false);
       
       // Retry connection after delay
       setTimeout(() => this.initializeLanguageClient(), 5000);
     }
+  }
+
+  dispatchLspStatusChange(connected) {
+    this.dispatchEvent(new CustomEvent('lsp-status-change', {
+      detail: { connected },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   async remoteIsUp() {
@@ -115,12 +125,6 @@ export class MergeEditor extends JRPCClient {
           </div>
           <div class="header-center">
             <span class="label working-label">Working Copy</span>
-          </div>
-          <div class="header-right">
-            <div class="language-status ${this.languageClientConnected ? 'connected' : ''}">
-              <span>LSP:</span>
-              <span>${this.languageClientConnected ? 'Connected' : 'Disconnected'}</span>
-            </div>
           </div>
         </div>
         

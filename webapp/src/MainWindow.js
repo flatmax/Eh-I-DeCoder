@@ -21,7 +21,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     headerExpanded: { type: Boolean, state: true },
     sidebarExpanded: { type: Boolean, state: true },
     activeTabIndex: { type: Number, state: true },
-    gitHistoryMode: { type: Boolean, state: true }
+    gitHistoryMode: { type: Boolean, state: true },
+    lspConnectionStatus: { type: String, state: true }
   };
   
   constructor() {
@@ -35,6 +36,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.sidebarExpanded = true;
     this.activeTabIndex = 0;
     this.gitHistoryMode = false;
+    this.lspConnectionStatus = 'disconnected';
     
     // Bind methods
     this.handleOpenFile = this.handleOpenFile.bind(this);
@@ -42,6 +44,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleModeToggle = this.handleModeToggle.bind(this);
     this.handleRequestFindInFiles = this.handleRequestFindInFiles.bind(this);
+    this.handleLspStatusChange = this.handleLspStatusChange.bind(this);
   }
   
   static styles = css`
@@ -114,6 +117,9 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     // Listen for request-find-in-files events from MergeEditor
     this.addEventListener('request-find-in-files', this.handleRequestFindInFiles);
     
+    // Listen for LSP status changes from MergeEditor
+    this.addEventListener('lsp-status-change', this.handleLspStatusChange);
+    
     // Connect on startup
     console.log('MainWindow: First connection attempt on startup');
     
@@ -125,6 +131,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     super.disconnectedCallback();
     document.removeEventListener('keydown', this.handleKeyDown);
     this.removeEventListener('request-find-in-files', this.handleRequestFindInFiles);
+    this.removeEventListener('lsp-status-change', this.handleLspStatusChange);
   }
 
   handleKeyDown(event) {
@@ -164,6 +171,11 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       }
     });
   }
+
+  handleLspStatusChange(event) {
+    const connected = event.detail.connected;
+    this.lspConnectionStatus = connected ? 'connected' : 'disconnected';
+  }
   
   /**
    * LitElement render method
@@ -192,6 +204,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
           .serverURI=${this.serverURI}
           .newServerURI=${this.newServerURI}
           .connectionStatus=${this.connectionStatus}
+          .lspConnectionStatus=${this.lspConnectionStatus}
           .showConnectionDetails=${this.showConnectionDetails}
           @toggle-expanded=${this.handleSidebarToggle}
           @tab-change=${this.handleTabChange}

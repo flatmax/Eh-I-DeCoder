@@ -58,15 +58,4 @@ export const headerStyles = css`
     margin-left: 8px;
   }
 
-  .language-status {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: #888;
-  }
-
-  .language-status.connected {
-    color: #4ec9b0;
-  }
 `;
