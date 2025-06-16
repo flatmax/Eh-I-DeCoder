@@ -107,9 +107,9 @@ def start_npm_dev_server(webapp_port):
         print(f"Error starting npm dev server: {e}")
         return False
 
-def open_browser(port):
-    """Open the webapp in the default browser"""
-    url = f"http://localhost:{port}"
+def open_browser(webapp_port, aider_port):
+    """Open the webapp in the default browser with the aider port as a parameter"""
+    url = f"http://localhost:{webapp_port}/?port={aider_port}"
     print(f"Opening browser to {url}")
     try:
         webbrowser.open(url)
@@ -195,7 +195,7 @@ async def main_starter_async():
         if dev_server_started and not args.no_browser:
             # Wait a bit more for the dev server to be fully ready
             await asyncio.sleep(2)
-            open_browser(args.webapp_port)
+            open_browser(args.webapp_port, args.port)
         
         await shutdown_event.wait()
         print("Stopping server...")
