@@ -8,9 +8,6 @@ import signal
 import sys
 import os
 import threading
-import subprocess
-import webbrowser
-import time
 from asyncio import Event
 from jrpc_oo import JRPCServer
 
@@ -19,11 +16,13 @@ try:
     from .coder_wrapper import CoderWrapper
     from .repo import Repo
     from .chat_history import ChatHistory
+    from .webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
     from repo import Repo
     from chat_history import ChatHistory
+    from webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
@@ -40,96 +39,14 @@ def parse_args():
     return args, unknown_args
 
 shutdown_event = None
-npm_process = None
-
-def is_port_in_use(port):
-    """Check if a port is already in use"""
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(('localhost', port))
-            return False
-        except OSError:
-            return True
-
-def start_npm_dev_server(webapp_port):
-    """Start npm dev server if not already running"""
-    global npm_process
-    
-    if is_port_in_use(webapp_port):
-        print(f"Port {webapp_port} is already in use - assuming dev server is running")
-        return True
-    
-    # Find webapp directory
-    webapp_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'webapp')
-    if not os.path.exists(webapp_dir):
-        print(f"Warning: webapp directory not found at {webapp_dir}")
-        return False
-    
-    package_json = os.path.join(webapp_dir, 'package.json')
-    if not os.path.exists(package_json):
-        print(f"Warning: package.json not found at {package_json}")
-        return False
-    
-    print(f"Starting npm dev server on port {webapp_port}...")
-    try:
-        # Set environment variable for the port
-        env = os.environ.copy()
-        env['PORT'] = str(webapp_port)
-        
-        npm_process = subprocess.Popen(
-            ['npm', 'start'],
-            cwd=webapp_dir,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        
-        # Give the server a moment to start
-        time.sleep(3)
-        
-        # Check if process is still running
-        if npm_process.poll() is None:
-            print(f"npm dev server started successfully on port {webapp_port}")
-            return True
-        else:
-            stdout, stderr = npm_process.communicate()
-            print(f"npm start failed:")
-            print(f"stdout: {stdout}")
-            print(f"stderr: {stderr}")
-            return False
-            
-    except FileNotFoundError:
-        print("Error: npm not found. Please install Node.js and npm.")
-        return False
-    except Exception as e:
-        print(f"Error starting npm dev server: {e}")
-        return False
-
-def open_browser(webapp_port, aider_port):
-    """Open the webapp in the default browser with the aider port as a parameter"""
-    url = f"http://localhost:{webapp_port}/?port={aider_port}"
-    print(f"Opening browser to {url}")
-    try:
-        webbrowser.open(url)
-    except Exception as e:
-        print(f"Failed to open browser: {e}")
-        print(f"Please manually open: {url}")
 
 async def main_starter_async():
-    global shutdown_event, npm_process
+    global shutdown_event
     shutdown_event = Event()
     
     def sigint_handler(sig, frame):
         print("\nShutting down...")
-        if npm_process and npm_process.poll() is None:
-            print("Stopping npm dev server...")
-            npm_process.terminate()
-            try:
-                npm_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                npm_process.kill()
+        cleanup_npm_process()
         try:
             loop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(shutdown_event.set)
@@ -214,13 +131,7 @@ async def main_starter_async():
         return 3
     finally:
         # Clean up npm process
-        if npm_process and npm_process.poll() is None:
-            print("Cleaning up npm dev server...")
-            npm_process.terminate()
-            try:
-                npm_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                npm_process.kill()
+        cleanup_npm_process()
 
 def main_starter():
     try:
@@ -237,13 +148,11 @@ def main_starter():
         
     except KeyboardInterrupt:
         print("\nForced exit")
-        if npm_process and npm_process.poll() is None:
-            npm_process.terminate()
+        cleanup_npm_process()
         os._exit(1)
     except Exception as e:
         print(f"Unhandled exception: {e}")
-        if npm_process and npm_process.poll() is None:
-            npm_process.terminate()
+        cleanup_npm_process()
         os._exit(3)
 
 if __name__ == "__main__":
