@@ -21,11 +21,16 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
                        this._findVisibleFuzzySearch();
     
     if (fuzzySearch) {
-      console.log('FuzzySearch is visible, skipping global shortcuts');
       return;
     }
     
-    console.log('Keyboard shortcut detected:', event.key, 'Ctrl:', event.ctrlKey, 'Shift:', event.shiftKey);
+    // Only log for actual shortcuts we care about
+    const isShortcut = (event.ctrlKey && event.key === 'p') || 
+                      (event.ctrlKey && event.shiftKey && event.key === 'F');
+    
+    if (isShortcut) {
+      console.log('Keyboard shortcut detected:', event.key, 'Ctrl:', event.ctrlKey, 'Shift:', event.shiftKey);
+    }
     
     // Ctrl+P: Open fuzzy file search
     if (event.ctrlKey && event.key === 'p') {

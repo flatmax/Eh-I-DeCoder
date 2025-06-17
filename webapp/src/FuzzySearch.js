@@ -182,7 +182,11 @@ export class FuzzySearch extends LitElement {
     // Only handle keys when visible
     if (!this.visible) return;
     
-    console.log('FuzzySearch key pressed:', event.key);
+    // Only log navigation keys, not regular typing
+    const isNavigationKey = ['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(event.key);
+    if (isNavigationKey) {
+      console.log('FuzzySearch key pressed:', event.key);
+    }
     
     // Stop propagation to prevent other handlers from interfering
     event.stopPropagation();
