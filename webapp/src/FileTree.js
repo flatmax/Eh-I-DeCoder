@@ -6,8 +6,9 @@ import {FileTreeManager} from './tree/FileTreeManager.js';
 import {FileTreeRenderer} from './tree/FileTreeRenderer.js';
 import {fileTreeStyles} from './tree/FileTreeStyles.js';
 import {extractResponseData} from './Utils.js';
+import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 
-export class FileTree extends JRPCClient {
+export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   static properties = {
     files: { type: Array, state: true },
     addedFiles: { type: Array, state: true },
@@ -17,7 +18,8 @@ export class FileTree extends JRPCClient {
     serverURI: { type: String },
     showLineCounts: { type: Boolean, state: true },
     lineCounts: { type: Object, state: true },
-    currentFile: { type: String, state: true }
+    currentFile: { type: String, state: true },
+    fuzzySearchVisible: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -36,6 +38,7 @@ export class FileTree extends JRPCClient {
     this.showLineCounts = false;
     this.lineCounts = {};
     this.currentFile = null;
+    this.fuzzySearchVisible = false;
   }
   
   initializeManagers() {
@@ -74,6 +77,24 @@ export class FileTree extends JRPCClient {
         this.scrollToCurrentFile();
       });
     }
+  }
+  
+  openFuzzySearch() {
+    console.log('Opening fuzzy search with files:', this.files.length);
+    this.fuzzySearchVisible = true;
+    this.requestUpdate();
+  }
+  
+  closeFuzzySearch() {
+    this.fuzzySearchVisible = false;
+    this.requestUpdate();
+  }
+  
+  handleFuzzySearchFileSelected(event) {
+    console.log('Fuzzy search file selected:', event.detail.filePath);
+    const filePath = event.detail.filePath;
+    this.closeFuzzySearch();
+    this.handleFileClick(filePath, true);
   }
   
   scrollToCurrentFile() {

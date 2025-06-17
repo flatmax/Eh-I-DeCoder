@@ -3,23 +3,144 @@ import { deepQuerySelector, getAllCustomElements } from '../Utils.js';
 export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
   connectedCallback() {
     super.connectedCallback();
-    document.addEventListener('keydown', this._handleKeyboardShortcuts.bind(this));
+    this.boundKeyboardHandler = this._handleKeyboardShortcuts.bind(this);
+    document.addEventListener('keydown', this.boundKeyboardHandler);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    document.removeEventListener('keydown', this._handleKeyboardShortcuts.bind(this));
+    document.removeEventListener('keydown', this.boundKeyboardHandler);
   }
 
   /**
    * Handle keyboard shortcuts globally
    */
   _handleKeyboardShortcuts(event) {
+    // Check if fuzzy search is currently visible - if so, don't handle shortcuts
+    const fuzzySearch = document.querySelector('fuzzy-search[visible]') || 
+                       this._findVisibleFuzzySearch();
+    
+    if (fuzzySearch) {
+      console.log('FuzzySearch is visible, skipping global shortcuts');
+      return;
+    }
+    
+    console.log('Keyboard shortcut detected:', event.key, 'Ctrl:', event.ctrlKey, 'Shift:', event.shiftKey);
+    
+    // Ctrl+P: Open fuzzy file search
+    if (event.ctrlKey && event.key === 'p') {
+      console.log('Ctrl+P detected - opening fuzzy search');
+      event.preventDefault();
+      event.stopPropagation();
+      this._openFuzzySearch();
+      return;
+    }
+
     // Ctrl+Shift+F: Focus search input
     if (event.ctrlKey && event.shiftKey && event.key === 'F') {
       event.preventDefault();
+      event.stopPropagation();
       this._focusSearchInput();
     }
+  }
+
+  /**
+   * Find visible fuzzy search component
+   */
+  _findVisibleFuzzySearch() {
+    // Check in this component's render root
+    let fuzzySearch = this.renderRoot?.querySelector('fuzzy-search[visible]');
+    if (fuzzySearch) return fuzzySearch;
+    
+    // Check in shadow roots recursively
+    return this._findVisibleFuzzySearchRecursive(document.body);
+  }
+
+  /**
+   * Recursively search for visible fuzzy search
+   */
+  _findVisibleFuzzySearchRecursive(root) {
+    if (!root) return null;
+    
+    const fuzzySearch = root.querySelector('fuzzy-search[visible]');
+    if (fuzzySearch) return fuzzySearch;
+    
+    const elementsWithShadow = Array.from(root.querySelectorAll('*')).filter(el => el.shadowRoot);
+    
+    for (const element of elementsWithShadow) {
+      const found = this._findVisibleFuzzySearchRecursive(element.shadowRoot);
+      if (found) return found;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Open fuzzy file search
+   */
+  _openFuzzySearch() {
+    console.log('_openFuzzySearch called');
+    
+    // Check if this component has openFuzzySearch method (FileTree components)
+    if (typeof this.openFuzzySearch === 'function') {
+      console.log('Using local openFuzzySearch method');
+      this.openFuzzySearch();
+      return;
+    }
+    
+    // Get all files from the file tree
+    const files = this._getAllFiles();
+    console.log('Found files for fuzzy search:', files.length);
+    
+    // Find or create fuzzy search component
+    let fuzzySearch = this.renderRoot.querySelector('fuzzy-search');
+    if (!fuzzySearch) {
+      // Try alternative search strategies
+      fuzzySearch = deepQuerySelector(this.renderRoot, 'fuzzy-search');
+    }
+    
+    if (!fuzzySearch) {
+      console.log('FuzzySearch component not available - files found:', files.length);
+      // Could emit an event here for other components to handle
+      window.dispatchEvent(new CustomEvent('fuzzy-search-requested', {
+        detail: { files }
+      }));
+      return;
+    }
+
+    console.log('Found fuzzy search component, showing with files:', files.length);
+    fuzzySearch.show(files);
+  }
+
+  /**
+   * Get all files from the available file trees
+   */
+  _getAllFiles() {
+    const files = [];
+    
+    // If this component has files property, use it
+    if (this.files && Array.isArray(this.files)) {
+      files.push(...this.files);
+    }
+    
+    // Try to get files from RepoTree first
+    const repoTree = this.renderRoot.querySelector('repo-tree') || 
+                    deepQuerySelector(this.renderRoot, 'repo-tree');
+    
+    if (repoTree && repoTree.files) {
+      files.push(...repoTree.files);
+    } else {
+      // Fallback to FileTree
+      const fileTree = this.renderRoot.querySelector('file-tree') || 
+                      deepQuerySelector(this.renderRoot, 'file-tree');
+      
+      if (fileTree && fileTree.files) {
+        files.push(...fileTree.files);
+      }
+    }
+
+    // Remove duplicates and filter out empty entries
+    return [...new Set(files)].filter(file => file && typeof file === 'string');
   }
 
   /**
@@ -115,7 +236,7 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
       if (attempt < maxAttempts - 1) {
         this._tryFocusSearchInput(attempt + 1, selectedText);
       } else {
-        console.warn('FindInFiles component not found after all attempts');
+        console.log('FindInFiles component not found after all attempts');
       }
     }, delay);
   }

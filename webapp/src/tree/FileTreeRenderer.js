@@ -2,6 +2,7 @@ import {html} from 'lit';
 import {classMap} from 'lit/directives/class-map.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
+import '../FuzzySearch.js';
 
 export class FileTreeRenderer {
   constructor(host) {
@@ -41,6 +42,9 @@ export class FileTreeRenderer {
             <md-icon class="material-symbols-outlined">format_list_numbered</md-icon>
           </md-icon-button>
         ` : ''}
+        <md-icon-button title="Search Files (Ctrl+P)" @click=${() => this.host.openFuzzySearch()}>
+          <md-icon class="material-symbols-outlined">search</md-icon>
+        </md-icon-button>
       </div>
     `;
   }
@@ -124,6 +128,12 @@ export class FileTreeRenderer {
         }
         
         ${this.host.renderAdditionalContent()}
+        
+        <fuzzy-search 
+          ?visible=${this.host.fuzzySearchVisible || false}
+          .files=${this.host.files || []}
+          @file-selected=${this.host.handleFuzzySearchFileSelected}
+        ></fuzzy-search>
       </div>
     `;
   }
