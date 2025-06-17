@@ -133,6 +133,7 @@ export class FileTreeRenderer {
           ?visible=${this.host.fuzzySearchVisible || false}
           .files=${this.host.files || []}
           @file-selected=${this.host.handleFuzzySearchFileSelected}
+          @hide-requested=${this.host.closeFuzzySearch}
         ></fuzzy-search>
       </div>
     `;

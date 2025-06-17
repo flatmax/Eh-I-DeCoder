@@ -17,6 +17,7 @@ export class FuzzySearch extends LitElement {
     this.searchTerm = '';
     this.selectedIndex = 0;
     this.boundKeyHandler = this.handleKeyDown.bind(this);
+    this.boundBackdropHandler = this.handleBackdropClick.bind(this);
   }
 
   static styles = css`
@@ -170,10 +171,11 @@ export class FuzzySearch extends LitElement {
 
   hide() {
     console.log('FuzzySearch.hide() called');
-    this.visible = false;
-    this.searchTerm = '';
-    this.filteredFiles = [];
-    this.selectedIndex = 0;
+    // Emit event to notify parent that we want to hide
+    this.dispatchEvent(new CustomEvent('hide-requested', {
+      bubbles: true,
+      composed: true
+    }));
   }
 
   handleKeyDown(event) {
@@ -284,7 +286,10 @@ export class FuzzySearch extends LitElement {
   }
 
   handleBackdropClick(event) {
+    console.log('FuzzySearch backdrop clicked, target:', event.target, 'this:', this);
+    // Only hide if clicking on the backdrop (the host element itself)
     if (event.target === this) {
+      console.log('Hiding fuzzy search due to backdrop click');
       this.hide();
     }
   }
@@ -309,10 +314,6 @@ export class FuzzySearch extends LitElement {
   }
 
   render() {
-    if (!this.visible) {
-      return html``;
-    }
-    
     return html`
       <div class="fuzzy-search-container" @click=${(e) => e.stopPropagation()}>
         <input
@@ -341,12 +342,13 @@ export class FuzzySearch extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.addEventListener('click', this.handleBackdropClick.bind(this));
+    // Add the backdrop click listener to the host element
+    this.addEventListener('click', this.boundBackdropHandler);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.removeEventListener('click', this.handleBackdropClick.bind(this));
+    this.removeEventListener('click', this.boundBackdropHandler);
     // Make sure to remove the global listener if component is destroyed while visible
     document.removeEventListener('keydown', this.boundKeyHandler, true);
   }
