@@ -95,7 +95,7 @@ export class LineHighlight {
         lineElement.classList.add('line-highlight-effect');
         setTimeout(() => {
           lineElement.classList.remove('line-highlight-effect');
-        }, 3000);
+        }, 8000);
       }
     } catch (error) {
       console.error('Error scrolling to line:', error);

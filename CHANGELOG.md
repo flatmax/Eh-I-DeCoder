@@ -1,5 +1,37 @@
 # Changelog
 
+## [v1.2.0] - 2024-12-19
+
+### Added
+- Navigation history with back/forward support in merge editor
+- Navigation override keymap with Alt/Cmd arrow key events
+- Beforeunload warning to prevent accidental tab closure
+- Search configuration and styling to merge view editor
+- Interactive navigation history graph with file navigation
+- History graph with fixed height and labels in MergeEditor
+- Current file highlighting and scrolling in file tree
+- Chunk navigation support in merge view editor
+- Webapp dev server integration with auto-launch and browser opening
+- Aider port passing as URL parameter when opening browser
+- LSP connection status tracking and display
+
+### Changed
+- Updated default ports to 8000 for webapp and server
+- Restructured merge editor header layout and navigation graph
+- Updated header layout and scrollbar styles
+- Updated header center class for graph layout
+- Improved navigation history tracking for same file
+- Optimized navigation history with new navigateToPosition method
+- Updated navigation history graph styling and behavior
+- Adjusted node spacing, label positioning, and graph layout
+- Simplified chunk navigation using CodeMirror's built-in methods
+
+### Refactored
+- Extracted webapp server utilities to separate module
+- Removed click handler from language client extension
+- Removed key bindings extension from language client and added to merge view
+- Silenced language client connection errors and logs
+
 ## [v1.1.0] - 2025-06-14
 
 ### Added
