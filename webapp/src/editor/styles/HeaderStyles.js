@@ -3,26 +3,68 @@ import {css} from 'lit';
 export const headerStyles = css`
   .merge-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
+    flex-direction: column;
     background: #2d2d30;
     border-bottom: 1px solid #3e3e42;
-    min-height: 40px;
-    gap: 16px;
     flex-shrink: 0;
   }
   
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    min-height: 40px;
+    gap: 16px;
+  }
+  
+  .header-graph {
+    border-top: 1px solid #3e3e42;
+  }
+  
   .header-left {
-    flex: 1;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
   
   .header-center {
-    padding: 0 16px;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+  }
+  
+  .header-center-graph {
+    flex: 1;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-width: 0;
+  }
+  
+  .header-center::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .header-center::-webkit-scrollbar-track {
+    background: #1e1e1e;
+  }
+
+  .header-center::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 3px;
+  }
+
+  .header-center::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
   }
   
   .header-right {
-    flex: 1;
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
   }
@@ -58,15 +100,4 @@ export const headerStyles = css`
     margin-left: 8px;
   }
 
-  .language-status {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: #888;
-  }
-
-  .language-status.connected {
-    color: #4ec9b0;
-  }
 `;

@@ -1,13 +1,15 @@
-import { MergeView } from '@codemirror/merge';
+import { MergeView, goToNextChunk, goToPreviousChunk } from '@codemirror/merge';
 import { basicSetup, EditorView } from 'codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { getLanguageExtension } from './LanguageExtensions.js';
 import { createLanguageClientExtension } from './LanguageClientExtension.js';
 import { createScrollbarChangeIndicator } from './ScrollbarChangeIndicator.js';
 import { keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 import { addCursorUp, addCursorDown } from './extensions/MultiCursorExtension.js';
 import { createKeyBindingsExtension } from './extensions/KeyBindingsExtension.js';
 import { createClickHandlerExtension } from './extensions/ClickHandlerExtension.js';
+import { search } from '@codemirror/search';
 
 export class MergeViewManager {
   constructor(container, options = {}) {
@@ -41,6 +43,56 @@ export class MergeViewManager {
     // Get language-specific extension
     const langExtension = getLanguageExtension(filePath);
     
+    // Create navigation override keymap with absolute highest precedence
+    const navigationOverrideKeymap = Prec.highest(keymap.of([
+      {
+        key: 'Alt-ArrowLeft',
+        mac: 'Cmd-ArrowLeft',
+        run: (view) => {
+          // Dispatch navigate-back event
+          view.dom.dispatchEvent(new CustomEvent('navigate-back', {
+            bubbles: true,
+            composed: true
+          }));
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-ArrowRight',
+        mac: 'Cmd-ArrowRight',
+        run: (view) => {
+          // Dispatch navigate-forward event
+          view.dom.dispatchEvent(new CustomEvent('navigate-forward', {
+            bubbles: true,
+            composed: true
+          }));
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-n',
+        run: (view) => {
+          this.goToNextChunk();
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      },
+      {
+        key: 'Alt-p',
+        run: (view) => {
+          this.goToPreviousChunk();
+          return true;
+        },
+        preventDefault: true,
+        stopPropagation: true
+      }
+    ]));
+    
     // Multi-cursor keymap with high precedence
     const multiCursorKeymap = keymap.of([
       {
@@ -58,10 +110,18 @@ export class MergeViewManager {
       precedence: "highest"
     });
     
+    // Configure search to appear at the top
+    const searchConfig = {
+      top: true
+    };
+    
     // Create base extensions with VS Code dark theme
+    // IMPORTANT: navigationOverrideKeymap MUST be first to have highest priority
     const baseExtensions = [
-      multiCursorKeymap, // Put multi-cursor first with highest precedence
+      navigationOverrideKeymap, // Absolute highest priority navigation override
+      multiCursorKeymap, // Put multi-cursor second with highest precedence
       basicSetup,
+      search(searchConfig), // Override the search from basicSetup with our config
       oneDark,
       EditorView.theme({
         "&": {
@@ -110,6 +170,14 @@ export class MergeViewManager {
         },
         ".cm-cursor-secondary": {
           borderLeftColor: "#ff9b00"
+        },
+        // Search panel styling
+        ".cm-search": {
+          top: "0 !important",
+          bottom: "auto !important"
+        },
+        ".cm-panels-top": {
+          borderBottom: "1px solid #424242"
         }
       }),
       createKeyBindingsExtension(languageClient, filePath),
@@ -234,9 +302,62 @@ export class MergeViewManager {
     }
   }
 
+  goToNextChunk() {
+    if (!this.mergeView || !this.mergeView.b) {
+      console.log('No merge view available for chunk navigation');
+      return;
+    }
+
+    try {
+      // Use CodeMirror's built-in goToNextChunk command
+      const command = goToNextChunk;
+      if (command(this.mergeView.b)) {
+        console.log('Navigated to next chunk');
+        this.mergeView.b.focus();
+      } else {
+        console.log('No next chunk found');
+      }
+    } catch (error) {
+      console.error('Error navigating to next chunk:', error);
+    }
+  }
+
+  goToPreviousChunk() {
+    if (!this.mergeView || !this.mergeView.b) {
+      console.log('No merge view available for chunk navigation');
+      return;
+    }
+
+    try {
+      // Use CodeMirror's built-in goToPreviousChunk command
+      const command = goToPreviousChunk;
+      if (command(this.mergeView.b)) {
+        console.log('Navigated to previous chunk');
+        this.mergeView.b.focus();
+      } else {
+        console.log('No previous chunk found');
+      }
+    } catch (error) {
+      console.error('Error navigating to previous chunk:', error);
+    }
+  }
+
   getWorkingContent() {
     if (!this.mergeView || !this.mergeView.b) return '';
     return this.mergeView.b.state.doc.toString();
+  }
+
+  getCursorPosition() {
+    if (!this.mergeView || !this.mergeView.b) return { line: 1, character: 0 };
+    
+    const state = this.mergeView.b.state;
+    const pos = state.selection.main.head;
+    const line = state.doc.lineAt(pos);
+    
+    return {
+      line: line.number,
+      character: pos - line.from
+    };
   }
 
   jumpToPosition(line, character) {

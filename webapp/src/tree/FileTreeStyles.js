@@ -49,6 +49,16 @@ export const fileTreeStyles = css`
     background-color: #f5f5f5;
   }
   
+  .file-node.current-file {
+    background-color: #e3f2fd;
+    border-left: 3px solid #1976d2;
+    font-weight: 500;
+  }
+  
+  .file-node.current-file:hover {
+    background-color: #bbdefb;
+  }
+  
   .file-node md-icon {
     margin-right: 8px;
     font-size: 18px;

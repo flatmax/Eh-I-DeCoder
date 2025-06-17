@@ -4,6 +4,9 @@
 import { hmrPlugin, presets } from '@open-wc/dev-server-hmr';
 
 export default {
+  // Use PORT environment variable or default to 8000
+  port: process.env.PORT ? parseInt(process.env.PORT) : 8000,
+
   // Specifies the main HTML file for the application.
   // This is used for SPA routing and ensures the server knows where your app starts.
   appIndex: 'index.html',
@@ -13,8 +16,8 @@ export default {
   // without needing a full build step.
   nodeResolve: true,
 
-  // Automatically opens the browser to your application's URL when the server starts.
-  open: true,
+  // Don't automatically open the browser - aider_server.py will handle this
+  open: false,
 
   // Enables file watching, so the server detects changes in your files.
   // When changes are detected, it will trigger either an HMR update or a full page reload.

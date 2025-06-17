@@ -16,7 +16,8 @@ export class FileTree extends JRPCClient {
     treeData: { type: Object, state: true },
     serverURI: { type: String },
     showLineCounts: { type: Boolean, state: true },
-    lineCounts: { type: Object, state: true }
+    lineCounts: { type: Object, state: true },
+    currentFile: { type: String, state: true }
   };
   
   constructor() {
@@ -34,6 +35,7 @@ export class FileTree extends JRPCClient {
     this.treeExpansion = new TreeExpansion();
     this.showLineCounts = false;
     this.lineCounts = {};
+    this.currentFile = null;
   }
   
   initializeManagers() {
@@ -44,15 +46,112 @@ export class FileTree extends JRPCClient {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    
+    // Listen for file loaded events from the merge editor
+    document.addEventListener('file-loaded-in-editor', this.handleFileLoadedInEditor.bind(this));
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
     this.cleanup();
+    
+    // Remove event listener
+    document.removeEventListener('file-loaded-in-editor', this.handleFileLoadedInEditor.bind(this));
   }
   
   cleanup() {
     // Base class has no cleanup
+  }
+  
+  handleFileLoadedInEditor(event) {
+    const filePath = event.detail.filePath;
+    if (filePath !== this.currentFile) {
+      this.currentFile = filePath;
+      this.requestUpdate();
+      
+      // Scroll to the highlighted file after the update
+      this.updateComplete.then(() => {
+        this.scrollToCurrentFile();
+      });
+    }
+  }
+  
+  scrollToCurrentFile() {
+    if (!this.currentFile) return;
+    
+    // First expand the path to the current file
+    this.treeExpansion.expandPathToFile(this.currentFile);
+    this.requestUpdate();
+    
+    // Wait for the expansion to complete, then scroll
+    this.updateComplete.then(() => {
+      // Find the file node element
+      const fileNodes = this.shadowRoot.querySelectorAll('.file-node');
+      let targetNode = null;
+      
+      for (const node of fileNodes) {
+        const nodeText = node.textContent || '';
+        const fileName = this.currentFile.split('/').pop();
+        
+        // Check if this node represents our current file
+        if (nodeText.includes(fileName)) {
+          // Get the data-path attribute or check the full path
+          const fullPath = this.getNodePath(node);
+          if (fullPath === this.currentFile) {
+            targetNode = node;
+            break;
+          }
+        }
+      }
+      
+      if (targetNode) {
+        // Scroll the target node into view
+        targetNode.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    });
+  }
+  
+  getNodePath(nodeElement) {
+    // Try to find the path from the node's context
+    // This is a helper method that subclasses might need to override
+    // based on how they structure their DOM
+    
+    // Look for a data attribute or traverse up to find the path
+    let current = nodeElement;
+    while (current && current !== this.shadowRoot) {
+      if (current.dataset && current.dataset.path) {
+        return current.dataset.path;
+      }
+      current = current.parentElement;
+    }
+    
+    // Fallback: try to reconstruct path from the DOM structure
+    return this.reconstructPathFromDOM(nodeElement);
+  }
+  
+  reconstructPathFromDOM(nodeElement) {
+    // This method attempts to reconstruct the file path by walking up the DOM tree
+    // and collecting directory names. Subclasses should override this if needed.
+    const pathParts = [];
+    let current = nodeElement;
+    
+    while (current && current !== this.shadowRoot) {
+      if (current.classList.contains('file-node')) {
+        const textContent = current.textContent || '';
+        // Extract just the filename/dirname, removing extra content like line counts
+        const cleanText = textContent.split('\n')[0].trim();
+        if (cleanText && !pathParts.includes(cleanText)) {
+          pathParts.unshift(cleanText);
+        }
+      }
+      current = current.parentElement;
+    }
+    
+    return pathParts.join('/');
   }
   
   setupDone() {
@@ -221,7 +320,14 @@ export class FileTree extends JRPCClient {
   }
   
   getAdditionalNodeClasses(node, nodePath) {
-    return {};
+    const classes = {};
+    
+    // Add current file highlighting
+    if (node.isFile && nodePath === this.currentFile) {
+      classes['current-file'] = true;
+    }
+    
+    return classes;
   }
   
   renderAdditionalIndicators(node, nodePath) {

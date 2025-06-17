@@ -20,24 +20,34 @@ export function createCommonKeymap(editor) {
     {
       key: "Mod-s",
       run: () => {
-        editor.saveChanges();
+        if (editor.saveChanges) {
+          editor.saveChanges();
+        }
         return true; // Prevent other keymap handlers
       }
     },
     ...searchKeymap, // Add search keyboard shortcuts
-    // Next chunk navigation (Alt+n)
+    // Next chunk navigation (Alt+n) - now handled in MergeViewManager
     {
       key: "Alt-n",
       run: () => {
-        editor.goToNextChunk();
+        if (editor.goToNextChunk) {
+          editor.goToNextChunk();
+        } else if (editor.mergeViewManager && editor.mergeViewManager.goToNextChunk) {
+          editor.mergeViewManager.goToNextChunk();
+        }
         return true;
       }
     },
-    // Previous chunk navigation (Alt+p)
+    // Previous chunk navigation (Alt+p) - now handled in MergeViewManager
     {
       key: "Alt-p",
       run: () => {
-        editor.goToPreviousChunk();
+        if (editor.goToPreviousChunk) {
+          editor.goToPreviousChunk();
+        } else if (editor.mergeViewManager && editor.mergeViewManager.goToPreviousChunk) {
+          editor.mergeViewManager.goToPreviousChunk();
+        }
         return true;
       }
     },
