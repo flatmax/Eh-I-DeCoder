@@ -574,3 +574,27 @@ class Repo(BaseWrapper):
             
         except Exception as e:
             self.log(f"Error in _notify_git_change: {e}")
+
+    def _notify_file_saved(self, file_path):
+        """Notify MergeEditor about file save events"""
+        self.log(f"_notify_file_saved called for file: {file_path}")
+
+        try:
+            # Convert absolute path to relative path if needed
+            if os.path.isabs(file_path) and self.repo:
+                repo_root = self.repo.working_tree_dir
+                if file_path.startswith(repo_root):
+                    # Convert to relative path
+                    relative_path = os.path.relpath(file_path, repo_root)
+                    # Normalize path separators
+                    file_path = relative_path.replace(os.sep, '/')
+            
+            try:
+                # Notify MergeEditor using _safe_create_task
+                self._safe_create_task(self.get_call()['MergeEditor.reloadIfCurrentFile']({'filePath': file_path}))
+                self.log(f"Successfully called MergeEditor.reloadIfCurrentFile for file: {file_path}")
+            except Exception as e:
+                self.log(f"Error calling MergeEditor.reloadIfCurrentFile: {e}")
+            
+        except Exception as e:
+            self.log(f"Error in _notify_file_saved: {e}")

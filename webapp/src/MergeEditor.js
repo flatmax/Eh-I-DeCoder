@@ -41,6 +41,7 @@ export class MergeEditor extends JRPCClient {
 
   async connectedCallback() {
     super.connectedCallback();
+    this.addClass?.(this);
     
     // Initialize language client connection
     this.initializeLanguageClient();
@@ -404,6 +405,35 @@ export class MergeEditor extends JRPCClient {
         }
         navigationHistory.clearNavigationFlag();
       }, 100);
+    }
+  }
+
+  // New method called from Python when a file is saved
+  reloadIfCurrentFile(data) {
+    const filePath = data.filePath;
+    
+    // Only reload if this is the currently open file
+    if (filePath === this.currentFile) {
+      console.log(`Reloading current file ${filePath} due to external save`);
+      
+      // Get current cursor position to restore after reload
+      let currentLine = 1;
+      let currentChar = 0;
+      if (this.mergeViewManager) {
+        const pos = this.mergeViewManager.getCursorPosition();
+        currentLine = pos.line;
+        currentChar = pos.character;
+      }
+      
+      // Reload the file content
+      this.loadFileContent(filePath, null, true).then(() => {
+        // Restore cursor position after reload
+        setTimeout(() => {
+          if (this.mergeViewManager) {
+            this.mergeViewManager.jumpToPosition(currentLine, currentChar);
+          }
+        }, 100);
+      });
     }
   }
 
