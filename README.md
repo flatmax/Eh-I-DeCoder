@@ -20,6 +20,8 @@ This application has two core components:
 - **Python Backend**: A JSON-RPC-OO server that acts as the intelligent interface with Aider
 - **Web Frontend**: A user-friendly web application for seamless interaction with your AI coding assistant
 
+The `aider-server` automatically manages both components, starting the backend server, launching the webapp dev server, and opening your browser.
+
 ---
 
 ## Requirements
@@ -50,8 +52,9 @@ If you encounter a ModuleNotFoundError: No module named 'boto3', simply install 
 ```Bash
 pip install boto3
 ```
+
 ### Frontend Setup
-Navigate to the webapp directory and install its dependencies:
+Navigate to the webapp directory and install its dependencies (one-time setup):
 
 ```Bash
 cd webapp
@@ -59,37 +62,70 @@ npm install
 ```
 
 ## Running the Application
-To get Eh-I-DeCoder up and running, you'll need to start both the backend and frontend components.
 
-1. Start the Backend Server
-Once installed, use the aider-server console script (All arguments passed to aider-server are directly forwarded to Aider, allowing you to leverage any Aider configuration options.):
+Eh-I-DeCoder now provides a streamlined startup experience. The `aider-server` command automatically:
+- Starts the backend JSON-RPC server
+- Launches the webapp development server
+- Opens your browser to the application
+
+### Quick Start
+
 ```Bash
-# Start with default settings (port 8999)
-aider-server
+# Start with default settings
+# Backend server: port 8999
+# Webapp: port 8000
+# Browser opens automatically
+# You need to specify your model to use in the aider-server command below (you can use the same Aider arguments you would normally use)
+aider-server -no-show-model-warnings --no-auto-commits  --no-attribute-author --no-attribute-committer
+```
 
-# Specify a different port for the JSON-RPC server
-aider-server --port 8080
+### Advanced Options
+
+```Bash
+# Specify different ports
+aider-server --port 8080 --webapp-port 3000
+
+# Prevent automatic browser opening
+aider-server --no-browser
 
 # Pass any Aider arguments (model, API keys, etc.)
 aider-server --model deepseek --api-key deepseek=<your-key-here>
 aider-server --model gpt-4 --api-key openai=<your-key-here>
 aider-server --model claude-3-sonnet --api-key anthropic=<your-key-here>
 
-# Combine server port with Aider arguments
-aider-server --port 8080 --model gpt-4 --api-key openai=<your-key-here>
+# Combine server options with Aider arguments
+aider-server --port 8080 --webapp-port 3000 --no-browser --model gpt-4 --api-key openai=<your-key-here>
 ```
-Alternatively, you can run the script directly:
+
+### Alternative Startup Method
+
+You can also run the script directly:
 ```Bash
 # Navigate to the python directory
 cd python
 
-# Start the JSON-RPC server
-python ./aider_server.py
+# Start the integrated server
+python ./aider_server.py # with your aider args, e.g.  --no-auto-commits and more
 ```
-2. Start the Frontend
-In a new terminal, navigate to the webapp directory and start the development server:
+
+### Manual Frontend Development (Optional)
+
+If you need to run the frontend separately for development purposes:
 ```Bash
 cd webapp
 npm start
 ```
-Your web application will then be accessible at the URL shown in your terminal (typically http://localhost:8000).
+
+Your web application will be accessible at http://localhost:8000 (or your specified webapp port).
+
+---
+
+## Features
+
+- **Integrated Git Support**: Navigate through Git history, handle merges, and resolve conflicts
+- **Navigation History**: Back/forward navigation with visual history graph
+- **Chat History**: Browse previous AI conversations with infinite scrolling
+- **Language Server Protocol**: Code completion, hover information, and go-to-definition
+- **Merge Editor**: Side-by-side diff view with conflict resolution
+- **Auto-save**: Automatic saving with Ctrl+S/Cmd+S support
+- **Responsive UI**: Modern web interface optimized for coding workflows
