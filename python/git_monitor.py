@@ -50,8 +50,13 @@ class GitChangeHandler(FileSystemEventHandler):
                 return
                 
             self.repo.log(f"Important git file changed: {event.src_path}")
-        
-        # For files outside .git directory, process all events (no .lock filtering)
+        else:
+            # For files outside .git directory, this could be a file save event
+            # Check if it's a file modification (not creation or deletion)
+            if event.event_type == 'modified' and not event.is_directory:
+                self.repo.log(f"File modified externally: {event.src_path}")
+                # Notify MergeEditor about the file save
+                self.repo._notify_file_saved(event.src_path)
         
         # Debounce events to avoid multiple rapid notifications
         current_time = time.time()
