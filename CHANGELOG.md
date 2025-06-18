@@ -1,5 +1,23 @@
 # Changelog
 
+## [v1.3.0] - 2024-12-19
+
+### Added
+- Fuzzy file search with keyboard shortcut support (Ctrl+P/Cmd+P)
+- Backdrop click handling for fuzzy search modal
+- Hide event handling for fuzzy search component
+- File save notification system in MergeEditor
+- Auto-reload functionality in MergeEditor after file saves
+- Keyboard shortcut mixin for consistent shortcut handling across components
+
+### Changed
+- Improved logging for keyboard events in FuzzySearch and KeyboardShortcutsMixin
+- Enhanced fuzzy search user experience with better modal interactions
+- Updated README with comprehensive aider-server usage guide and examples
+
+### Fixed
+- Better keyboard event handling and logging in search components
+
 ## [v1.2.0] - 2024-12-19
 
 ### Added
