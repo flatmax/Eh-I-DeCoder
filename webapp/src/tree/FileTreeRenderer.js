@@ -79,6 +79,7 @@ export class FileTreeRenderer {
           this.host.treeExpansion.setExpanded(nodePath, e.target.open);
         }}>
           <summary class=${classMap(nodeClasses)}
+                   title=${nodePath}
                    @contextmenu=${(event) => this.host.handleContextMenu(event, nodePath, node.isFile)}>
             <md-icon class="material-symbols-outlined">
               ${isOpen ? 'folder_open' : 'folder'}
@@ -95,6 +96,7 @@ export class FileTreeRenderer {
       
       return html`
         <div class=${classMap(nodeClasses)}
+             title=${nodePath}
              @contextmenu=${(event) => this.host.handleContextMenu(event, nodePath, node.isFile)}>
           ${node.isFile ? html`<input type="checkbox" ?checked=${isAdded} class="file-checkbox" 
                                @click=${(e) => this.host.handleCheckboxClick(e, nodePath)}>` : ''}
