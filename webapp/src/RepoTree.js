@@ -106,6 +106,21 @@ export class RepoTree extends FileTree {
   }
   
   handleContextMenu(event, path, isFile) {
+    // Check for Ctrl+right-click to copy filename to prompt
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      
+      // Emit word-clicked event with the filename
+      document.dispatchEvent(new CustomEvent('word-clicked', {
+        detail: { word: path },
+        bubbles: true,
+        composed: true
+      }));
+      
+      return;
+    }
+    
+    // Regular context menu for git actions
     this.repoManagers.contextMenu.show(event, path, isFile);
   }
 

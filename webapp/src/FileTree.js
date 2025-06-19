@@ -356,7 +356,21 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   }
   
   handleContextMenu(event, path, isFile) {
-    // Base class does nothing - subclasses can override
+    // Check for Ctrl+right-click to copy filename to prompt
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      
+      // Emit word-clicked event with the filename
+      document.dispatchEvent(new CustomEvent('word-clicked', {
+        detail: { word: path },
+        bubbles: true,
+        composed: true
+      }));
+      
+      return;
+    }
+    
+    // Base class does nothing for regular context menu - subclasses can override
   }
   
   getHeaderControls() {
