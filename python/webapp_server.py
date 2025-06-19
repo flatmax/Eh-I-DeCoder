@@ -19,7 +19,7 @@ def is_port_in_use(port):
         except OSError:
             return True
 
-def start_npm_dev_server(webapp_port):
+def start_npm_dev_server(webapp_port=9876):
     """Start npm dev server if not already running"""
     global npm_process
     
@@ -74,7 +74,7 @@ def start_npm_dev_server(webapp_port):
         print(f"Error starting npm dev server: {e}")
         return False
 
-def open_browser(webapp_port, aider_port):
+def open_browser(webapp_port=9876, aider_port=8999):
     """Open the webapp in the default browser with the aider port as a parameter"""
     url = f"http://localhost:{webapp_port}/?port={aider_port}"
     print(f"Opening browser to {url}")

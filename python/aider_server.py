@@ -32,7 +32,7 @@ from aider.main import main
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
     parser.add_argument("--port", type=int, default=8999, help="Port for JSON-RPC server")
-    parser.add_argument("--webapp-port", type=int, default=8000, help="Port for webapp dev server")
+    parser.add_argument("--webapp-port", type=int, default=9876, help="Port for webapp dev server")
     parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
     
     args, unknown_args = parser.parse_known_args()

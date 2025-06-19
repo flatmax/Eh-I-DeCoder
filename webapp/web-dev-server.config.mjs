@@ -4,8 +4,11 @@
 import { hmrPlugin, presets } from '@open-wc/dev-server-hmr';
 
 export default {
-  // Use PORT environment variable or default to 8000
-  port: process.env.PORT ? parseInt(process.env.PORT) : 8000,
+  // Use PORT environment variable or default to 9876
+  port: process.env.PORT ? parseInt(process.env.PORT) : 9876,
+
+  // Only allow connections from localhost for security
+  hostname: '127.0.0.1',
 
   // Specifies the main HTML file for the application.
   // This is used for SPA routing and ensures the server knows where your app starts.
