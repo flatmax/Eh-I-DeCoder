@@ -321,6 +321,52 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     }
   }
   
+  async handleDirectoryCheckboxClick(event, node) {
+    event.stopPropagation();
+    event.preventDefault();
+    
+    try {
+      const allFiles = this.getAllFilesInDirectory(node);
+      const allAdded = allFiles.every(file => this.addedFiles.includes(file));
+      
+      if (allAdded) {
+        // Remove all files
+        for (const filePath of allFiles) {
+          await this.fileTreeManager.removeFile(filePath);
+        }
+      } else {
+        // Add all files
+        for (const filePath of allFiles) {
+          if (!this.addedFiles.includes(filePath)) {
+            await this.fileTreeManager.addFile(filePath);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error handling directory checkbox:', error);
+    }
+  }
+  
+  getAllFilesInDirectory(node) {
+    const files = [];
+    
+    const collectFiles = (currentNode) => {
+      if (currentNode.isFile) {
+        files.push(currentNode.path);
+      } else if (currentNode.children) {
+        currentNode.children.forEach(child => collectFiles(child));
+      }
+    };
+    
+    collectFiles(node);
+    return files;
+  }
+  
+  isDirectoryChecked(node) {
+    const allFiles = this.getAllFilesInDirectory(node);
+    return allFiles.length > 0 && allFiles.every(file => this.addedFiles.includes(file));
+  }
+  
   add_rel_fname_notification(filePath) {
     console.log(`File added notification: ${filePath}`);
     

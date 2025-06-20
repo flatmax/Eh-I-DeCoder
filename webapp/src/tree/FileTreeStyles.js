@@ -77,9 +77,14 @@ export const fileTreeStyles = css`
     color: #2196F3;  /* Blue color for files */
   }
   
-  .file-checkbox {
+  .file-checkbox,
+  .directory-checkbox {
     margin-right: 4px;
     cursor: pointer;
+  }
+  
+  .directory-checkbox {
+    margin-right: 8px;
   }
   
   .line-count {

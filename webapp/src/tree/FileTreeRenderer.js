@@ -73,6 +73,7 @@ export class FileTreeRenderer {
     
     if (hasChildren) {
       const isOpen = this.host.treeExpansion.isExpanded(nodePath);
+      const isDirectoryChecked = this.host.isDirectoryChecked(node);
       
       return html`
         <details class="directory-details" ?open=${isOpen} @toggle=${(e) => {
@@ -81,6 +82,11 @@ export class FileTreeRenderer {
           <summary class=${classMap(nodeClasses)}
                    title=${nodePath}
                    @contextmenu=${(event) => this.host.handleContextMenu(event, nodePath, node.isFile)}>
+            <input type="checkbox" 
+                   ?checked=${isDirectoryChecked} 
+                   class="directory-checkbox" 
+                   @click=${(e) => this.host.handleDirectoryCheckboxClick(e, node)}
+                   title="Select all files in this directory">
             <md-icon class="material-symbols-outlined">
               ${isOpen ? 'folder_open' : 'folder'}
             </md-icon>
