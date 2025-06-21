@@ -10,7 +10,7 @@ import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 import {ResizeMixin} from './mixins/ResizeMixin.js';
 import '../app-sidebar.js';
 import '../prompt-view.js';
-import '../merge-editor.js';
+import './DiffEditor.js';
 import './GitHistoryView.js';
 
 export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMixin(JRPCClient))) {
@@ -114,10 +114,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     // Add keyboard event listener
     document.addEventListener('keydown', this.handleKeyDown);
     
-    // Listen for request-find-in-files events from MergeEditor
+    // Listen for request-find-in-files events from DiffEditor
     this.addEventListener('request-find-in-files', this.handleRequestFindInFiles);
     
-    // Listen for LSP status changes from MergeEditor
+    // Listen for LSP status changes from DiffEditor
     this.addEventListener('lsp-status-change', this.handleLspStatusChange);
     
     // Connect on startup
@@ -220,7 +220,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
         <!-- Main Content Area -->
         <div class="main-content">
           ${this.showMergeEditor ? 
-            html`<merge-editor .serverURI=${this.serverURI}></merge-editor>` : ''}
+            html`<diff-editor .serverURI=${this.serverURI}></diff-editor>` : ''}
         </div>
       </div>
     `;
@@ -269,25 +269,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     Promise.all([
       updateChildComponents(this, 'prompt-view', 'serverURI', this.serverURI),
       updateChildComponents(this, 'app-sidebar', 'serverURI', this.serverURI),
-      updateChildComponents(this, 'merge-editor', 'serverURI', this.serverURI),
+      updateChildComponents(this, 'diff-editor', 'serverURI', this.serverURI),
       updateChildComponents(this, 'git-history-view', 'serverURI', this.serverURI)
     ]).then(() => {
       console.log('All child components updated with server URI');
-      
-      // // Now call serverChanged on all child components that have this method
-      // const childComponents = [
-      //   this.shadowRoot.querySelector('prompt-view'),
-      //   this.shadowRoot.querySelector('app-sidebar'),
-      //   this.shadowRoot.querySelector('merge-editor'),
-      //   this.shadowRoot.querySelector('git-history-view')
-      // ];
-      
-      // childComponents.forEach(component => {
-      //   if (component && typeof component.serverChanged === 'function') {
-      //     console.log(`Calling serverChanged on ${component.tagName}`);
-      //     component.serverChanged();
-      //   }
-      // });
     });
     
     super.serverChanged();
@@ -308,23 +293,15 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       this.gitHistoryMode = false;
     }
     
-    // Find merge editor component
-    const mergeEditor = this.shadowRoot.querySelector('merge-editor');
-    if (!mergeEditor) {
-      console.error('Merge editor not found');
+    // Find diff editor component
+    const diffEditor = this.shadowRoot.querySelector('diff-editor');
+    if (!diffEditor) {
+      console.error('Diff editor not found');
       return;
     }
     
     // Load the file in the editor
-    mergeEditor.loadFileContent(filePath);
-    
-    // If a line number was specified, scroll to it after loading
-    if (lineNumber && typeof lineNumber === 'number') {
-      // Give time for the editor to load
-      setTimeout(() => {
-        mergeEditor.scrollToLine(lineNumber);
-      }, 500);
-    }
+    diffEditor.loadFileContent(filePath, lineNumber);
     
     // Ensure the editor is visible
     this.showMergeEditor = true;

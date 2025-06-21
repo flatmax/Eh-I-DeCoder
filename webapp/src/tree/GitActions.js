@@ -107,9 +107,9 @@ export class GitActions {
   openFileInEditor(filePath) {
     const mainWindow = document.querySelector('main-window');
     if (mainWindow && mainWindow.shadowRoot) {
-      const mergeEditor = mainWindow.shadowRoot.querySelector('merge-editor');
-      if (mergeEditor) {
-        mergeEditor.loadFileContent(filePath);
+      const diffEditor = mainWindow.shadowRoot.querySelector('diff-editor');
+      if (diffEditor) {
+        diffEditor.loadFileContent(filePath);
       }
     }
   }
