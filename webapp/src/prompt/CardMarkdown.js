@@ -44,12 +44,12 @@ export class CardMarkdown extends LitElement {
   processContent() {
     if (!this.content) return '';
     
-    // For command role, don't process as markdown
-    if (this.role === 'command') {
+    // For command role and user role, don't process as markdown
+    if (this.role === 'command' || this.role === 'user') {
       return this.content;
     }
     
-    // Process as markdown
+    // Process as markdown only for assistant role
     try {
       return marked(this.content);
     } catch (e) {
@@ -60,22 +60,25 @@ export class CardMarkdown extends LitElement {
 
   updated() {
     // After the component updates, manually highlight any code blocks that might not have been highlighted
-    this.shadowRoot.querySelectorAll('pre code').forEach((block) => {
-      // Check if it's already highlighted
-      if (!block.classList.contains('language-')) {
-        // Try to detect language from class or use plaintext
-        const pre = block.parentElement;
-        const langClass = Array.from(pre.classList).find(c => c.startsWith('language-'));
-        if (langClass) {
-          block.classList.add(langClass);
+    // Only do this for assistant messages that use markdown
+    if (this.role === 'assistant') {
+      this.shadowRoot.querySelectorAll('pre code').forEach((block) => {
+        // Check if it's already highlighted
+        if (!block.classList.contains('language-')) {
+          // Try to detect language from class or use plaintext
+          const pre = block.parentElement;
+          const langClass = Array.from(pre.classList).find(c => c.startsWith('language-'));
+          if (langClass) {
+            block.classList.add(langClass);
+          }
         }
-      }
-      
-      // Re-highlight the block
-      if (window.Prism) {
-        Prism.highlightElement(block);
-      }
-    });
+        
+        // Re-highlight the block
+        if (window.Prism) {
+          Prism.highlightElement(block);
+        }
+      });
+    }
   }
 
   render() {
@@ -92,6 +95,8 @@ export class CardMarkdown extends LitElement {
         <div class="card-content">
           ${this.role === 'command' 
             ? html`<pre>${this.content}</pre>`
+            : this.role === 'user'
+            ? html`<div>${this.content}</div>`
             : unsafeHTML(processedContent)
           }
         </div>
