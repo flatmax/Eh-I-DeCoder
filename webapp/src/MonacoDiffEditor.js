@@ -60,6 +60,23 @@ class MonacoDiffEditor extends LitElement {
     .monaco-editor .selected-text {
       background-color: #264f78;
     }
+
+    /* Revert icon styling */
+    .monaco-diff-editor .editor-revert-button {
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .monaco-diff-editor .editor-revert-button:hover {
+      opacity: 1;
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Inline diff decorations */
+    .monaco-diff-editor .inline-deleted-margin-view-zone,
+    .monaco-diff-editor .inline-added-margin-view-zone {
+      margin-left: 3px;
+    }
   `;
 
   constructor() {
@@ -140,7 +157,7 @@ class MonacoDiffEditor extends LitElement {
       automaticLayout: true,
       renderSideBySide: true,
       renderWhitespace: 'selection',
-      scrollBeyondLastLine: false,
+      scrollBeyondLastLine: true,
       minimap: { enabled: true },
       fontSize: 14,
       fontFamily: 'Consolas, "Courier New", monospace',
@@ -151,7 +168,43 @@ class MonacoDiffEditor extends LitElement {
         horizontal: 'visible',
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10
-      }
+      },
+      // Enable inline diff decorations and revert icons
+      enableSplitViewResizing: true,
+      renderMarginRevertIcon: true,
+      renderIndicators: true,
+      renderOverviewRuler: true,
+      diffCodeLens: true,
+      ignoreTrimWhitespace: false,
+      renderLineHighlight: 'all',
+      renderValidationDecorations: 'on',
+      showFoldingControls: 'always',
+      glyphMargin: true,
+      contextmenu: true,
+      mouseWheelZoom: true,
+      suggestOnTriggerCharacters: true,
+      acceptSuggestionOnEnter: 'on',
+      accessibilitySupport: 'auto',
+      autoIndent: 'full',
+      formatOnPaste: false,
+      formatOnType: false,
+      renderControlCharacters: false,
+      renderIndentGuides: true,
+      renderLineHighlightOnlyWhenFocus: false,
+      revealHorizontalRightPadding: 30,
+      roundedSelection: true,
+      selectOnLineNumbers: true,
+      selectionHighlight: true,
+      showUnused: true,
+      smoothScrolling: false,
+      snippetSuggestions: 'inline',
+      tabCompletion: 'on',
+      useTabStops: true,
+      wordWrap: 'off',
+      wordWrapBreakAfterCharacters: '\t})]?|/&,;',
+      wordWrapBreakBeforeCharacters: '([{',
+      wrappingIndent: 'none',
+      wrappingStrategy: 'simple'
     });
 
     this._updateContent();
