@@ -108,9 +108,9 @@ export class PromptView extends MessageHandler {
     const { word } = event.detail;
     if (!word) return;
     
-    // Add the word to the current input value
+    // Add the word to the current input value with a space at the end
     const currentValue = this.inputValue || '';
-    const newValue = currentValue ? `${currentValue} ${word}` : word;
+    const newValue = currentValue ? `${currentValue} ${word} ` : `${word} `;
     
     this.inputValue = newValue;
     this.requestUpdate();
