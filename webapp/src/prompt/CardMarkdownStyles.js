@@ -70,6 +70,11 @@ export class CardMarkdownStyles {
         overflow-wrap: break-word;
       }
 
+      /* Preserve whitespace for user messages */
+      .card.user .card-content {
+        white-space: pre-wrap;
+      }
+
       /* Compact markdown styles for small messages */
       .card-content > *:first-child {
         margin-top: 0;

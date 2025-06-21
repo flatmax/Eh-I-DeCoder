@@ -44,9 +44,23 @@ export class CardMarkdown extends LitElement {
   processContent() {
     if (!this.content) return '';
     
-    // For command role and user role, don't process as markdown
-    if (this.role === 'command' || this.role === 'user') {
+    // For command role, return raw content
+    if (this.role === 'command') {
       return this.content;
+    }
+    
+    // For user role, escape HTML but preserve formatting
+    if (this.role === 'user') {
+      // Escape HTML to prevent XSS
+      const escaped = this.content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+      
+      // Convert newlines to <br> tags to preserve formatting
+      return escaped.replace(/\n/g, '<br>');
     }
     
     // Process as markdown only for assistant role
@@ -95,8 +109,6 @@ export class CardMarkdown extends LitElement {
         <div class="card-content">
           ${this.role === 'command' 
             ? html`<pre>${this.content}</pre>`
-            : this.role === 'user'
-            ? html`<div>${this.content}</div>`
             : unsafeHTML(processedContent)
           }
         </div>
