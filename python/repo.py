@@ -576,7 +576,7 @@ class Repo(BaseWrapper):
             self.log(f"Error in _notify_git_change: {e}")
 
     def _notify_file_saved(self, file_path):
-        """Notify MergeEditor about file save events"""
+        """Notify DiffEditor about file save events"""
         self.log(f"_notify_file_saved called for file: {file_path}")
 
         try:
@@ -590,11 +590,11 @@ class Repo(BaseWrapper):
                     file_path = relative_path.replace(os.sep, '/')
             
             try:
-                # Notify MergeEditor using _safe_create_task
-                self._safe_create_task(self.get_call()['MergeEditor.reloadIfCurrentFile']({'filePath': file_path}))
-                self.log(f"Successfully called MergeEditor.reloadIfCurrentFile for file: {file_path}")
+                # Notify DiffEditor using _safe_create_task
+                self._safe_create_task(self.get_call()['DiffEditor.reloadIfCurrentFile']({'filePath': file_path}))
+                self.log(f"Successfully called DiffEditor.reloadIfCurrentFile for file: {file_path}")
             except Exception as e:
-                self.log(f"Error calling MergeEditor.reloadIfCurrentFile: {e}")
+                self.log(f"Error calling DiffEditor.reloadIfCurrentFile: {e}")
             
         except Exception as e:
             self.log(f"Error in _notify_file_saved: {e}")

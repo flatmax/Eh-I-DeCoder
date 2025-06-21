@@ -240,6 +240,18 @@ export class DiffEditor extends JRPCClient {
     }
   }
 
+  async reloadIfCurrentFile(data) {
+    const filePath = data.filePath;
+    
+    // Only reload if this is the currently open file
+    if (filePath === this.currentFile) {
+      console.log(`Reloading current file ${filePath} due to external save`);
+      
+      // Reload the file content
+      await this.loadFileContent(filePath);
+    }
+  }
+
   getLanguageFromFile(filePath) {
     if (!filePath) return 'plaintext';
     
