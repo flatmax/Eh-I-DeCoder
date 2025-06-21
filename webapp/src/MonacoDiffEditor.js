@@ -155,6 +155,7 @@ class MonacoDiffEditor extends LitElement {
     });
 
     this._updateContent();
+    this._setupKeyBindings();
 
     // Emit event on content change
     this.diffEditor.getModifiedEditor().onDidChangeModelContent(() => {
@@ -163,6 +164,35 @@ class MonacoDiffEditor extends LitElement {
         bubbles: true,
         composed: true
       }));
+    });
+  }
+
+  _setupKeyBindings() {
+    if (!this.diffEditor) return;
+
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+
+    // Add save action (Ctrl+S / Cmd+S)
+    modifiedEditor.addAction({
+      id: 'save-file',
+      label: 'Save File',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: (editor) => {
+        // Emit save event with the modified content
+        this.dispatchEvent(new CustomEvent('save-file', {
+          detail: {
+            content: editor.getValue()
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
     });
   }
 

@@ -9,7 +9,8 @@ export class DiffEditor extends JRPCClient {
     currentFile: { type: String, state: true },
     isLoading: { type: Boolean, state: true },
     headContent: { type: String, state: true },
-    workingContent: { type: String, state: true }
+    workingContent: { type: String, state: true },
+    isSaving: { type: Boolean, state: true }
   };
 
   static styles = css`
@@ -66,6 +67,18 @@ export class DiffEditor extends JRPCClient {
       color: #ffd700;
     }
 
+    .save-indicator {
+      background: rgba(0, 255, 0, 0.2);
+      color: #00ff00;
+      animation: pulse 0.5s ease-in-out;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
     .diff-content {
       flex: 1;
       overflow: hidden;
@@ -96,6 +109,7 @@ export class DiffEditor extends JRPCClient {
     this.headContent = '';
     this.workingContent = '';
     this.fileLoader = null;
+    this.isSaving = false;
   }
 
   async connectedCallback() {
@@ -127,7 +141,12 @@ export class DiffEditor extends JRPCClient {
             `}
             <span class="label head-label">HEAD</span>
           </div>
-          <span class="label working-label">Working Copy</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${this.isSaving ? html`
+              <span class="label save-indicator">Saving...</span>
+            ` : ''}
+            <span class="label working-label">Working Copy</span>
+          </div>
         </div>
         
         <div class="diff-content">
@@ -139,6 +158,7 @@ export class DiffEditor extends JRPCClient {
               .modifiedContent=${this.workingContent}
               .language=${this.getLanguageFromFile(this.currentFile)}
               theme="vs-dark"
+              @save-file=${this.handleSaveFile}
             ></monaco-diff-editor>
           ` : html`
             <div class="no-file">Open a file to start editing</div>
@@ -153,6 +173,39 @@ export class DiffEditor extends JRPCClient {
     const lineNumber = event.detail.lineNumber || null;
     if (filePath) {
       this.loadFileContent(filePath, lineNumber);
+    }
+  }
+
+  async handleSaveFile(event) {
+    if (!this.currentFile) {
+      console.error('No file currently open to save');
+      return;
+    }
+
+    const content = event.detail.content;
+    this.isSaving = true;
+
+    try {
+      console.log(`Saving changes to file: ${this.currentFile}`);
+      const response = await this.call['Repo.save_file_content'](this.currentFile, content);
+      
+      if (response && response.error) {
+        console.error(`Error saving file: ${response.error}`);
+        alert(`Failed to save file: ${response.error}`);
+      } else {
+        console.log(`File ${this.currentFile} saved successfully`);
+        // Update the working content to reflect the saved state
+        this.workingContent = content;
+        
+        // Show save indicator briefly
+        setTimeout(() => {
+          this.isSaving = false;
+        }, 1000);
+      }
+    } catch (error) {
+      console.error(`Error saving file ${this.currentFile}:`, error);
+      alert(`Failed to save file: ${error.message}`);
+      this.isSaving = false;
     }
   }
 
