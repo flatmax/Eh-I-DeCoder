@@ -114,8 +114,11 @@ export class MergeEditor extends JRPCClient {
   async updated(changedProperties) {
     super.updated(changedProperties);
     
-    // If we have content and the editor container exists, initialize the merge view
-    if (this.currentFile && this.headContent !== undefined && this.workingContent !== undefined && !this.isLoading) {
+    // Ensure we have valid string content before initializing the merge view
+    if (this.currentFile && 
+        typeof this.headContent === 'string' && 
+        typeof this.workingContent === 'string' && 
+        !this.isLoading) {
       const container = this.shadowRoot.getElementById('editor');
       if (container && !this.mergeViewManager) {
         console.log('Creating MergeViewManager in updated()');
