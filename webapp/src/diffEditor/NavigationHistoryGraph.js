@@ -24,11 +24,14 @@ export class NavigationHistoryGraph extends LitElement {
     }
 
     .graph-container {
+      flex: 0 0 auto;
       position: relative;
       width: 100%;
       height: 100%;
       overflow-x: auto;
       overflow-y: hidden;
+      /* Reserve space for scrollbar to prevent content jumping */
+      scrollbar-gutter: stable;
     }
 
     .graph-container::-webkit-scrollbar {
@@ -51,7 +54,8 @@ export class NavigationHistoryGraph extends LitElement {
     svg {
       display: block;
       min-width: 100%;
-      height: 100%;
+      /* Account for scrollbar height */
+      height: calc(100% - 6px);
     }
 
     /* D3 element styles */
@@ -192,8 +196,10 @@ export class NavigationHistoryGraph extends LitElement {
     const labelOffset = 14;
     const margin = { top: 20, right: 15, bottom: 20, left: 15 };
     
-    // Use the container's height
-    const height = container.clientHeight || 60;
+    // Calculate available height accounting for scrollbar
+    const scrollbarHeight = 6;
+    const containerHeight = container.clientHeight || 60;
+    const height = containerHeight - scrollbarHeight;
 
     // Calculate required width
     const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
