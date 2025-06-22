@@ -1,0 +1,71 @@
+export class MonacoKeyBindings {
+  setupKeyBindings(diffEditor, component) {
+    if (!diffEditor) return;
+
+    const modifiedEditor = diffEditor.getModifiedEditor();
+    const originalEditor = diffEditor.getOriginalEditor();
+
+    // Add save action to modified editor
+    this._addSaveAction(modifiedEditor, component);
+    
+    // Add find in files action to both editors
+    this._addFindInFilesAction(modifiedEditor, component);
+    this._addFindInFilesAction(originalEditor, component);
+  }
+
+  _addSaveAction(editor, component) {
+    editor.addAction({
+      id: 'save-file',
+      label: 'Save File',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: (editor) => {
+        // Emit save event with the modified content
+        component.dispatchEvent(new CustomEvent('save-file', {
+          detail: {
+            content: editor.getValue()
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+  }
+
+  _addFindInFilesAction(editor, component) {
+    editor.addAction({
+      id: 'find-in-files',
+      label: 'Find in Files',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.6,
+      run: (editor) => {
+        // Get selected text from the editor
+        const selection = editor.getSelection();
+        let selectedText = '';
+        
+        if (selection && !selection.isEmpty()) {
+          selectedText = editor.getModel().getValueInRange(selection);
+        }
+        
+        // Emit find-in-files event with selected text
+        component.dispatchEvent(new CustomEvent('request-find-in-files', {
+          detail: {
+            selectedText: selectedText
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+  }
+}

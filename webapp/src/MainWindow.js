@@ -10,7 +10,7 @@ import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 import {ResizeMixin} from './mixins/ResizeMixin.js';
 import '../app-sidebar.js';
 import '../prompt-view.js';
-import './DiffEditor.js';
+import './diffEditor/DiffEditor.js';
 import './GitHistoryView.js';
 
 export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMixin(JRPCClient))) {

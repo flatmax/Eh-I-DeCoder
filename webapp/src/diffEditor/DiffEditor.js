@@ -1,6 +1,8 @@
-import {html, LitElement, css} from 'lit';
+import {html, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {FileContentLoader} from './editor/FileContentLoader.js';
+import {FileContentLoader} from '../editor/FileContentLoader.js';
+import {DiffEditorStyles} from './DiffEditorStyles.js';
+import {LanguageDetector} from './LanguageDetector.js';
 import './MonacoDiffEditor.js';
 
 export class DiffEditor extends JRPCClient {
@@ -13,94 +15,7 @@ export class DiffEditor extends JRPCClient {
     isSaving: { type: Boolean, state: true }
   };
 
-  static styles = css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .diff-editor-container {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      width: 100%;
-      background: #1e1e1e;
-      color: #d4d4d4;
-      overflow: hidden;
-    }
-
-    .diff-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 16px;
-      background: #2d2d30;
-      border-bottom: 1px solid #3e3e42;
-      flex-shrink: 0;
-    }
-
-    .diff-header h3 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #cccccc;
-      font-family: monospace;
-    }
-
-    .label {
-      padding: 4px 12px;
-      border-radius: 3px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .head-label { 
-      background: rgba(78, 201, 176, 0.2);
-      color: #4ec9b0;
-    }
-    
-    .working-label { 
-      background: rgba(255, 215, 0, 0.2);
-      color: #ffd700;
-    }
-
-    .save-indicator {
-      background: rgba(0, 255, 0, 0.2);
-      color: #00ff00;
-      animation: pulse 0.5s ease-in-out;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 0.5; }
-      50% { opacity: 1; }
-      100% { opacity: 0.5; }
-    }
-
-    .diff-content {
-      flex: 1;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .loading, .error, .no-file {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: #666;
-      font-style: italic;
-    }
-
-    .error { color: #f44336; }
-
-    monaco-diff-editor {
-      width: 100%;
-      height: 100%;
-    }
-  `;
+  static styles = DiffEditorStyles.styles;
 
   constructor() {
     super();
@@ -110,6 +25,7 @@ export class DiffEditor extends JRPCClient {
     this.workingContent = '';
     this.fileLoader = null;
     this.isSaving = false;
+    this.languageDetector = new LanguageDetector();
   }
 
   async connectedCallback() {
@@ -132,39 +48,50 @@ export class DiffEditor extends JRPCClient {
   render() {
     return html`
       <div class="diff-editor-container">
-        <div class="diff-header">
-          <div style="display: flex; align-items: center; gap: 16px;">
-            ${this.currentFile ? html`
-              <h3>${this.currentFile}</h3>
-            ` : html`
-              <h3>No file open</h3>
-            `}
-            <span class="label head-label">HEAD</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            ${this.isSaving ? html`
-              <span class="label save-indicator">Saving...</span>
-            ` : ''}
-            <span class="label working-label">Working Copy</span>
-          </div>
-        </div>
-        
-        <div class="diff-content">
-          ${this.isLoading ? html`
-            <div class="loading">Loading...</div>
-          ` : this.currentFile ? html`
-            <monaco-diff-editor
-              .originalContent=${this.headContent}
-              .modifiedContent=${this.workingContent}
-              .language=${this.getLanguageFromFile(this.currentFile)}
-              theme="vs-dark"
-              @save-file=${this.handleSaveFile}
-              @request-find-in-files=${this.handleRequestFindInFiles}
-            ></monaco-diff-editor>
+        ${this._renderHeader()}
+        ${this._renderContent()}
+      </div>
+    `;
+  }
+
+  _renderHeader() {
+    return html`
+      <div class="diff-header">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          ${this.currentFile ? html`
+            <h3>${this.currentFile}</h3>
           ` : html`
-            <div class="no-file">Open a file to start editing</div>
+            <h3>No file open</h3>
           `}
+          <span class="label head-label">HEAD</span>
         </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${this.isSaving ? html`
+            <span class="label save-indicator">Saving...</span>
+          ` : ''}
+          <span class="label working-label">Working Copy</span>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderContent() {
+    return html`
+      <div class="diff-content">
+        ${this.isLoading ? html`
+          <div class="loading">Loading...</div>
+        ` : this.currentFile ? html`
+          <monaco-diff-editor
+            .originalContent=${this.headContent}
+            .modifiedContent=${this.workingContent}
+            .language=${this.languageDetector.getLanguageFromFile(this.currentFile)}
+            theme="vs-dark"
+            @save-file=${this.handleSaveFile}
+            @request-find-in-files=${this.handleRequestFindInFiles}
+          ></monaco-diff-editor>
+        ` : html`
+          <div class="no-file">Open a file to start editing</div>
+        `}
       </div>
     `;
   }
@@ -263,37 +190,6 @@ export class DiffEditor extends JRPCClient {
       // Reload the file content
       await this.loadFileContent(filePath);
     }
-  }
-
-  getLanguageFromFile(filePath) {
-    if (!filePath) return 'plaintext';
-    
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    const languageMap = {
-      'js': 'javascript',
-      'jsx': 'javascript',
-      'ts': 'typescript',
-      'tsx': 'typescript',
-      'py': 'python',
-      'json': 'json',
-      'html': 'html',
-      'css': 'css',
-      'scss': 'scss',
-      'less': 'less',
-      'xml': 'xml',
-      'md': 'markdown',
-      'c': 'c',
-      'cpp': 'cpp',
-      'h': 'c',
-      'hpp': 'cpp',
-      'java': 'java',
-      'sh': 'shell',
-      'bash': 'shell',
-      'yml': 'yaml',
-      'yaml': 'yaml'
-    };
-    
-    return languageMap[ext] || 'plaintext';
   }
 
   disconnectedCallback() {
