@@ -247,6 +247,69 @@ class MonacoDiffEditor extends LitElement {
         }));
       }
     });
+
+    // Add find in files action (Shift+Ctrl+F)
+    modifiedEditor.addAction({
+      id: 'find-in-files',
+      label: 'Find in Files',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.6,
+      run: (editor) => {
+        // Get selected text from the modified editor
+        const selection = editor.getSelection();
+        let selectedText = '';
+        
+        if (selection && !selection.isEmpty()) {
+          selectedText = editor.getModel().getValueInRange(selection);
+        }
+        
+        // Emit find-in-files event with selected text
+        this.dispatchEvent(new CustomEvent('request-find-in-files', {
+          detail: {
+            selectedText: selectedText
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+
+    // Also add the same action to the original editor
+    const originalEditor = this.diffEditor.getOriginalEditor();
+    originalEditor.addAction({
+      id: 'find-in-files',
+      label: 'Find in Files',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.6,
+      run: (editor) => {
+        // Get selected text from the original editor
+        const selection = editor.getSelection();
+        let selectedText = '';
+        
+        if (selection && !selection.isEmpty()) {
+          selectedText = editor.getModel().getValueInRange(selection);
+        }
+        
+        // Emit find-in-files event with selected text
+        this.dispatchEvent(new CustomEvent('request-find-in-files', {
+          detail: {
+            selectedText: selectedText
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
   }
 
   _updateContent() {
@@ -279,6 +342,28 @@ class MonacoDiffEditor extends LitElement {
 
   getOriginalContent() {
     return this.diffEditor?.getOriginalEditor().getValue() || null;
+  }
+
+  getSelectedText() {
+    if (!this.diffEditor) return '';
+    
+    // Try to get selected text from the modified editor first
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    const modifiedSelection = modifiedEditor.getSelection();
+    
+    if (modifiedSelection && !modifiedSelection.isEmpty()) {
+      return modifiedEditor.getModel().getValueInRange(modifiedSelection);
+    }
+    
+    // If no selection in modified editor, try the original editor
+    const originalEditor = this.diffEditor.getOriginalEditor();
+    const originalSelection = originalEditor.getSelection();
+    
+    if (originalSelection && !originalSelection.isEmpty()) {
+      return originalEditor.getModel().getValueInRange(originalSelection);
+    }
+    
+    return '';
   }
 }
 

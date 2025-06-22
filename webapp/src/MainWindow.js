@@ -154,8 +154,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
   handleRequestFindInFiles(event) {
     const selectedText = event.detail.selectedText || '';
     
-    // Switch to find-in-files tab (assuming it's tab index 2)
-    this.activeTabIndex = 2;
+    // Switch to find-in-files tab (tab index 1)
+    this.activeTabIndex = 1;
     
     // Focus the find in files search input with selected text
     this.updateComplete.then(() => {
@@ -257,7 +257,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
   }
 
   /**
-   * Overloading JRPCClient::serverChanged to update child components
+   * Overloading JRPC::serverChanged to update child components
    */
   serverChanged() {
     this.connectionStatus = 'connecting';

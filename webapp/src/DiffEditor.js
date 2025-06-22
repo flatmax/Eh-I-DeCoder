@@ -159,6 +159,7 @@ export class DiffEditor extends JRPCClient {
               .language=${this.getLanguageFromFile(this.currentFile)}
               theme="vs-dark"
               @save-file=${this.handleSaveFile}
+              @request-find-in-files=${this.handleRequestFindInFiles}
             ></monaco-diff-editor>
           ` : html`
             <div class="no-file">Open a file to start editing</div>
@@ -207,6 +208,18 @@ export class DiffEditor extends JRPCClient {
       alert(`Failed to save file: ${error.message}`);
       this.isSaving = false;
     }
+  }
+
+  handleRequestFindInFiles(event) {
+    // Get the selected text from the event
+    const selectedText = event.detail.selectedText || '';
+    
+    // Re-dispatch the event so it bubbles up to MainWindow
+    this.dispatchEvent(new CustomEvent('request-find-in-files', {
+      detail: { selectedText },
+      bubbles: true,
+      composed: true
+    }));
   }
 
   async loadFileContent(filePath, lineNumber = null) {
