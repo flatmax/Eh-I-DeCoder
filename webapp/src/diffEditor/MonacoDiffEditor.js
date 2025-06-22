@@ -68,6 +68,7 @@ class MonacoDiffEditor extends LitElement {
     this._updateContent();
     this._setupEventHandlers();
     this.keyBindings.setupKeyBindings(this.diffEditor, this);
+    this._setupNavigationKeyBindings();
   }
 
   _getEditorOptions() {
@@ -136,6 +137,62 @@ class MonacoDiffEditor extends LitElement {
         composed: true
       }));
     });
+
+    // Track cursor position changes
+    this.diffEditor.getModifiedEditor().onDidChangeCursorPosition((e) => {
+      this.dispatchEvent(new CustomEvent('cursor-position-changed', {
+        detail: {
+          line: e.position.lineNumber,
+          character: e.position.column
+        },
+        bubbles: true,
+        composed: true
+      }));
+    });
+  }
+
+  _setupNavigationKeyBindings() {
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    
+    // Add navigation back action (Alt+Left)
+    modifiedEditor.addAction({
+      id: 'navigation-back',
+      label: 'Navigate Back',
+      keybindings: [
+        monaco.KeyMod.Alt | monaco.KeyCode.LeftArrow
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.7,
+      run: () => {
+        this.dispatchEvent(new CustomEvent('navigation-back', {
+          bubbles: true,
+          composed: true
+        }));
+      }
+    });
+
+    // Add navigation forward action (Alt+Right)
+    modifiedEditor.addAction({
+      id: 'navigation-forward',
+      label: 'Navigate Forward',
+      keybindings: [
+        monaco.KeyMod.Alt | monaco.KeyCode.RightArrow
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.8,
+      run: () => {
+        this.dispatchEvent(new CustomEvent('navigation-forward', {
+          bub
+
+: true,
+          composed: true
+        }));
+      }
+    });
   }
 
   _updateContent() {
@@ -190,6 +247,27 @@ class MonacoDiffEditor extends LitElement {
     }
     
     return '';
+  }
+
+  scrollToPosition(line, character) {
+    if (!this.diffEditor) return;
+    
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    
+    // Set cursor position
+    modifiedEditor.setPosition({
+      lineNumber: line,
+      column: character
+    });
+    
+    // Reveal the position in the center of the viewport
+    modifiedEditor.revealPositionInCenter({
+      lineNumber: line,
+      column: character
+    });
+    
+    // Focus the editor
+    modifiedEditor.focus();
   }
 }
 

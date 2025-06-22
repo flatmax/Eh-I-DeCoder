@@ -3,7 +3,9 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {FileContentLoader} from '../editor/FileContentLoader.js';
 import {DiffEditorStyles} from './DiffEditorStyles.js';
 import {LanguageDetector} from './LanguageDetector.js';
+import {navigationHistory} from './NavigationHistory.js';
 import './MonacoDiffEditor.js';
+import './NavigationHistoryGraph.js';
 
 export class DiffEditor extends JRPCClient {
   static properties = {
@@ -26,6 +28,7 @@ export class DiffEditor extends JRPCClient {
     this.fileLoader = null;
     this.isSaving = false;
     this.languageDetector = new LanguageDetector();
+    this.lastCursorPosition = { line: 1, character: 1 };
   }
 
   async connectedCallback() {
@@ -34,6 +37,7 @@ export class DiffEditor extends JRPCClient {
     
     // Set up event listeners
     this.addEventListener('open-file', this.handleOpenFile.bind(this));
+    this.addEventListener('navigate-to-history', this.handleNavigateToHistory.bind(this));
   }
 
   async remoteIsUp() {
@@ -49,6 +53,7 @@ export class DiffEditor extends JRPCClient {
     return html`
       <div class="diff-editor-container">
         ${this._renderHeader()}
+        <navigation-history-graph></navigation-history-graph>
         ${this._renderContent()}
       </div>
     `;
@@ -88,6 +93,9 @@ export class DiffEditor extends JRPCClient {
             theme="vs-dark"
             @save-file=${this.handleSaveFile}
             @request-find-in-files=${this.handleRequestFindInFiles}
+            @cursor-position-changed=${this.handleCursorPositionChanged}
+            @navigation-back=${this.handleNavigationBack}
+            @navigation-forward=${this.handleNavigationForward}
           ></monaco-diff-editor>
         ` : html`
           <div class="no-file">Open a file to start editing</div>
@@ -101,6 +109,39 @@ export class DiffEditor extends JRPCClient {
     const lineNumber = event.detail.lineNumber || null;
     if (filePath) {
       this.loadFileContent(filePath, lineNumber);
+    }
+  }
+
+  handleNavigateToHistory(event) {
+    const { filePath, line, character } = event.detail;
+    
+    // Navigate to the position in history
+    const position = navigationHistory.navigateToPosition(filePath, line, character);
+    if (position) {
+      // Load the file at the specified position
+      this.loadFileContent(position.filePath, position.line, position.character);
+    }
+  }
+
+  handleCursorPositionChanged(event) {
+    const { line, character } = event.detail;
+    this.lastCursorPosition = { line, character };
+    
+    // Update current position in navigation history
+    navigationHistory.updateCurrentPosition(line, character);
+  }
+
+  handleNavigationBack(event) {
+    const position = navigationHistory.goBack();
+    if (position) {
+      this.loadFileContent(position.filePath, position.line, position.character);
+    }
+  }
+
+  handleNavigationForward(event) {
+    const position = navigationHistory.goForward();
+    if (position) {
+      this.loadFileContent(position.filePath, position.line, position.character);
     }
   }
 
@@ -149,11 +190,18 @@ export class DiffEditor extends JRPCClient {
     }));
   }
 
-  async loadFileContent(filePath, lineNumber = null) {
+  async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
     if (!this.fileLoader) {
       console.error('File loader not initialized');
       return;
     }
+
+    // Record the file switch in navigation history
+    const fromFile = this.currentFile;
+    const fromLine = this.lastCursorPosition.line;
+    const fromChar = this.lastCursorPosition.character;
+    const toLine = lineNumber || 1;
+    const toChar = characterNumber || 1;
 
     this.isLoading = true;
     this.currentFile = filePath;
@@ -170,10 +218,20 @@ export class DiffEditor extends JRPCClient {
         workingLength: workingContent.length
       });
 
-      // TODO: Handle lineNumber scrolling in future update
-      if (lineNumber) {
-        console.log(`Line number ${lineNumber} specified, but scrolling not yet implemented`);
+      // Record in navigation history
+      navigationHistory.recordFileSwitch(fromFile, fromLine, fromChar, filePath, toLine, toChar);
+
+      // Wait for the editor to be ready, then scroll to position
+      await this.updateComplete;
+      const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
+      if (monacoEditor && (lineNumber || characterNumber)) {
+        monacoEditor.scrollToPosition(lineNumber || 1, characterNumber || 1);
       }
+
+      // Clear navigation flag after navigation is complete
+      setTimeout(() => {
+        navigationHistory.clearNavigationFlag();
+      }, 100);
     } catch (error) {
       console.error('Failed to load file:', error);
       this.isLoading = false;

@@ -68,6 +68,11 @@ export class DiffEditorStyles {
         100% { opacity: 0.5; }
       }
 
+      navigation-history-graph {
+        flex-shrink: 0;
+        border-bottom: 1px solid #3e3e42;
+      }
+
       .diff-content {
         flex: 1;
         overflow: hidden;
