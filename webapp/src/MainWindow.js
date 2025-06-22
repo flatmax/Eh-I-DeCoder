@@ -8,6 +8,7 @@ import {updateChildComponents} from './Utils.js';
 import {ConnectionMixin} from './mixins/ConnectionMixin.js';
 import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 import {ResizeMixin} from './mixins/ResizeMixin.js';
+import {navigationHistory} from './diffEditor/NavigationHistory.js';
 import '../app-sidebar.js';
 import '../prompt-view.js';
 import './diffEditor/DiffEditor.js';
@@ -139,6 +140,54 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     if ((event.ctrlKey || event.metaKey) && (event.key === 'g' || event.key === 'h')) {
       event.preventDefault();
       this.toggleGitHistoryMode();
+    }
+    
+    // Alt+Left Arrow for navigation back
+    if (event.altKey && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      this.navigateBack();
+    }
+    
+    // Alt+Right Arrow for navigation forward
+    if (event.altKey && event.key === 'ArrowRight') {
+      event.preventDefault();
+      this.navigateForward();
+    }
+  }
+
+  navigateBack() {
+    const position = navigationHistory.goBack();
+    if (position) {
+      // Switch to file explorer mode if we're in git history mode
+      if (this.gitHistoryMode) {
+        this.gitHistoryMode = false;
+      }
+      
+      // Find diff editor and navigate to the position
+      this.updateComplete.then(() => {
+        const diffEditor = this.shadowRoot.querySelector('diff-editor');
+        if (diffEditor) {
+          diffEditor.loadFileContent(position.filePath, position.line, position.character);
+        }
+      });
+    }
+  }
+
+  navigateForward() {
+    const position = navigationHistory.goForward();
+    if (position) {
+      // Switch to file explorer mode if we're in git history mode
+      if (this.gitHistoryMode) {
+        this.gitHistoryMode = false;
+      }
+      
+      // Find diff editor and navigate to the position
+      this.updateComplete.then(() => {
+        const diffEditor = this.shadowRoot.querySelector('diff-editor');
+        if (diffEditor) {
+          diffEditor.loadFileContent(position.filePath, position.line, position.character);
+        }
+      });
     }
   }
 
