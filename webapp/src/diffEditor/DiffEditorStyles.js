@@ -100,8 +100,14 @@ export class DiffEditorStyles {
       }
 
       .head-label { 
-        background: rgba(78, 201, 176, 0.2);
+        background: none;
+        border: none;
         color: #4ec9b0;
+        padding: 0;
+        margin-top: 4px;
+        font-size: 11px;
+        font-weight: normal;
+        opacity: 0.8;
       }
       
       .working-label { 

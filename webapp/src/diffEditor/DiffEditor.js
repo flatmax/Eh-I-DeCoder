@@ -62,12 +62,12 @@ export class DiffEditor extends JRPCClient {
             ` : html`
               <h3>No file open</h3>
             `}
+            <span class="label head-label">HEAD</span>
           </div>
           <div class="diff-header-center">
             <navigation-history-graph></navigation-history-graph>
           </div>
           <div class="diff-header-right">
-            <span class="label head-label">HEAD</span>
             ${this.isSaving ? html`
               <span class="label save-indicator">Saving...</span>
             ` : ''}
