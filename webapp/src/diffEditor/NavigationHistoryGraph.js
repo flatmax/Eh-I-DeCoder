@@ -18,16 +18,17 @@ export class NavigationHistoryGraph extends LitElement {
   static styles = css`
     :host {
       display: block;
-      background: #252526;
+      background: transparent;
       overflow: hidden;
+      height: 100%;
     }
 
     .graph-container {
       position: relative;
       width: 100%;
+      height: 100%;
       overflow-x: auto;
       overflow-y: hidden;
-      height: 60px;
     }
 
     .graph-container::-webkit-scrollbar {
@@ -50,6 +51,7 @@ export class NavigationHistoryGraph extends LitElement {
     svg {
       display: block;
       min-width: 100%;
+      height: 100%;
     }
 
     /* D3 element styles */
@@ -90,7 +92,7 @@ export class NavigationHistoryGraph extends LitElement {
       font-size: 10px;
       fill: #cccccc;
       pointer-events: none;
-      text-anchor: start;
+      text-anchor: middle;
     }
 
     .tooltip {
@@ -173,12 +175,9 @@ export class NavigationHistoryGraph extends LitElement {
 
     const historyArray = navigationHistory.toArray();
     if (historyArray.length === 0) {
-      // Hide the component when there's no history
-      this.style.display = 'none';
+      // Clear the graph when there's no history
+      this.svg.selectAll('*').remove();
       return;
-    } else {
-      // Show the component when there is history
-      this.style.display = 'block';
     }
 
     // Check if history has actually changed
@@ -188,12 +187,13 @@ export class NavigationHistoryGraph extends LitElement {
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const nodeRadius = 6;
-    const nodeSpacing = 60;
-    const margin = { top: 10, right: 15, bottom: 10, left: 15 };
+    const nodeRadius = 5;
+    const nodeSpacing = 50;
+    const labelOffset = 14;
+    const margin = { top: 20, right: 15, bottom: 20, left: 15 };
     
-    // Fixed height for header integration
-    const height = 60;
+    // Use the container's height
+    const height = container.clientHeight || 60;
 
     // Calculate required width
     const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
@@ -216,7 +216,8 @@ export class NavigationHistoryGraph extends LitElement {
       x: i * nodeSpacing,
       y: 0,
       directory: this.getDirectory(entry.filePath),
-      filename: this.getFilename(entry.filePath)
+      filename: this.getFilename(entry.filePath),
+      labelAbove: i % 2 === 0  // Alternate label position
     }));
 
     // Create links between consecutive nodes
@@ -232,14 +233,12 @@ export class NavigationHistoryGraph extends LitElement {
     // Draw links
     g.selectAll('.link')
       .data(links)
-      .enter().append('path')
+      .enter().append('line')
       .attr('class', d => `link ${d.active ? 'active' : ''}`)
-      .attr('d', d => {
-        const dx = d.target.x - d.source.x;
-        const dy = d.target.y - d.source.y;
-        const dr = Math.sqrt(dx * dx + dy * dy);
-        return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
-      });
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
 
     // Draw nodes
     const nodeGroups = g.selectAll('.node-group')
@@ -256,10 +255,11 @@ export class NavigationHistoryGraph extends LitElement {
       .on('mouseenter', (event, d) => this.showTooltip(event, d))
       .on('mouseleave', () => this.hideTooltip());
 
-    // Add labels with alternating positions (above/below)
+    // Add labels alternating above and below nodes
     nodeGroups.append('text')
       .attr('class', 'node-label')
-      .attr('y', (d, i) => i % 2 === 0 ? nodeRadius + 12 : -(nodeRadius + 5))
+      .attr('y', d => d.labelAbove ? -labelOffset : labelOffset + nodeRadius)
+      .attr('dy', d => d.labelAbove ? '0' : '0.35em')
       .text(d => d.filename);
 
     // Scroll to current node if needed

@@ -52,32 +52,43 @@ export class DiffEditor extends JRPCClient {
   render() {
     return html`
       <div class="diff-editor-container">
-        ${this._renderHeader()}
-        <navigation-history-graph></navigation-history-graph>
+        <div class="diff-header-container">
+          <div class="diff-header-left">
+            ${this.currentFile ? html`
+              <div class="file-path-container">
+                <div class="file-directory">${this.getDirectory(this.currentFile)}</div>
+                <div class="file-name">${this.getFilename(this.currentFile)}</div>
+              </div>
+            ` : html`
+              <h3>No file open</h3>
+            `}
+          </div>
+          <div class="diff-header-center">
+            <navigation-history-graph></navigation-history-graph>
+          </div>
+          <div class="diff-header-right">
+            <span class="label head-label">HEAD</span>
+            ${this.isSaving ? html`
+              <span class="label save-indicator">Saving...</span>
+            ` : ''}
+            <span class="label working-label">Working Copy</span>
+          </div>
+        </div>
         ${this._renderContent()}
       </div>
     `;
   }
 
-  _renderHeader() {
-    return html`
-      <div class="diff-header">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          ${this.currentFile ? html`
-            <h3>${this.currentFile}</h3>
-          ` : html`
-            <h3>No file open</h3>
-          `}
-          <span class="label head-label">HEAD</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          ${this.isSaving ? html`
-            <span class="label save-indicator">Saving...</span>
-          ` : ''}
-          <span class="label working-label">Working Copy</span>
-        </div>
-      </div>
-    `;
+  getDirectory(filePath) {
+    const parts = filePath.split('/');
+    if (parts.length > 1) {
+      return parts.slice(0, -1).join('/') + '/';
+    }
+    return '';
+  }
+
+  getFilename(filePath) {
+    return filePath.split('/').pop() || filePath;
   }
 
   _renderContent() {
