@@ -60,6 +60,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       display: flex;
       height: 100vh;
       overflow: hidden;
+      position: relative;
     }
     
     .resize-handle {
@@ -68,6 +69,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       cursor: col-resize;
       transition: background-color 0.2s;
       z-index: 10;
+      flex-shrink: 0;
     }
     
     .resize-handle:hover,
@@ -81,12 +83,21 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      position: relative;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .editor-wrapper {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
       padding: 10px;
       margin: 10px;
-      gap: 10px;
       border: 1px solid #f0f0f0;
       border-radius: 4px;
       min-height: 0;
+      min-width: 0;
     }
 
     .git-history-container {
@@ -100,6 +111,11 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       position: fixed;
       z-index: 2000;
       pointer-events: auto;
+    }
+
+    /* Ensure app-sidebar doesn't cause layout shifts */
+    app-sidebar {
+      flex-shrink: 0;
     }
   `;
 
@@ -268,8 +284,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
         
         <!-- Main Content Area -->
         <div class="main-content">
-          ${this.showMergeEditor ? 
-            html`<diff-editor .serverURI=${this.serverURI}></diff-editor>` : ''}
+          <div class="editor-wrapper">
+            ${this.showMergeEditor ? 
+              html`<diff-editor .serverURI=${this.serverURI}></diff-editor>` : ''}
+          </div>
         </div>
       </div>
     `;
