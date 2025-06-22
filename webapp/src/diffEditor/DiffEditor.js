@@ -218,6 +218,13 @@ export class DiffEditor extends JRPCClient {
         workingLength: workingContent.length
       });
 
+      // Emit event to notify FileTree/RepoTree that a file has been loaded
+      document.dispatchEvent(new CustomEvent('file-loaded-in-editor', {
+        detail: { filePath },
+        bubbles: true,
+        composed: true
+      }));
+
       // Record in navigation history
       navigationHistory.recordFileSwitch(fromFile, fromLine, fromChar, filePath, toLine, toChar);
 
