@@ -1,6 +1,6 @@
 import {html, LitElement} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {FileContentLoader} from '../editor/FileContentLoader.js';
+import {FileContentLoader} from './FileContentLoader.js';
 import {DiffEditorStyles} from './DiffEditorStyles.js';
 import {LanguageDetector} from './LanguageDetector.js';
 import {navigationHistory} from './NavigationHistory.js';
