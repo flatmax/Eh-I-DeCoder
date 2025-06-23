@@ -8,6 +8,7 @@ import signal
 import sys
 import os
 import threading
+import socket
 from asyncio import Event
 from jrpc_oo import JRPCServer
 
@@ -28,6 +29,17 @@ except ImportError:
 CoderWrapper.apply_coder_create_patch()
 
 from aider.main import main
+
+def find_available_port(start_port=8999, max_attempts=1000):
+    """Find an available port starting from start_port"""
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('', port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
@@ -57,10 +69,14 @@ async def main_starter_async():
     
     args, aider_args = parse_args()
     
+    # Check if port was explicitly specified
+    port_specified = '--port' in sys.argv
+    server_port = find_available_port(start_port=args.port)
+    
     # Start npm dev server
     dev_server_started = start_npm_dev_server(args.webapp_port)
     
-    jrpc_server = JRPCServer(port=args.port)
+    jrpc_server = JRPCServer(port=server_port)
     
     # Start aider in a separate thread
     aider_thread = threading.Thread(target=main, args=(aider_args,), daemon=True)
@@ -92,13 +108,13 @@ async def main_starter_async():
         repo = Repo()
         jrpc_server.add_class(repo, 'Repo')
         
-        io_wrapper = IOWrapper(coder.io, port=args.port)
+        io_wrapper = IOWrapper(coder.io, port=server_port)
         jrpc_server.add_class(io_wrapper, 'IOWrapper')
         
         chat_history = ChatHistory()
         jrpc_server.add_class(chat_history, 'ChatHistory')
         
-        print(f"JSON-RPC server running on port {args.port}")
+        print(f"JSON-RPC server running on port {server_port}")
         
     except Exception as e:
         print(f"Error initializing components: {e}")
@@ -112,7 +128,7 @@ async def main_starter_async():
         if dev_server_started and not args.no_browser:
             # Wait a bit more for the dev server to be fully ready
             await asyncio.sleep(2)
-            open_browser(args.webapp_port, args.port)
+            open_browser(args.webapp_port, server_port)
         
         await shutdown_event.wait()
         print("Stopping server...")
@@ -121,7 +137,7 @@ async def main_starter_async():
         
     except OSError as e:
         if e.errno == 98:
-            print(f"ERROR: Port {args.port} is already in use. Try a different port.")
+            print(f"ERROR: Port {server_port} is already in use. Try a different port.")
             return 1
         else:
             print(f"ERROR: Failed to start server: {e}")
