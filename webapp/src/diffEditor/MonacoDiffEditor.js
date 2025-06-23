@@ -186,9 +186,7 @@ class MonacoDiffEditor extends LitElement {
       contextMenuOrder: 1.8,
       run: () => {
         this.dispatchEvent(new CustomEvent('navigation-forward', {
-          bub
-
-: true,
+          bubbles: true,
           composed: true
         }));
       }
@@ -196,11 +194,38 @@ class MonacoDiffEditor extends LitElement {
   }
 
   _updateContent() {
-    if (this.diffEditor && this.originalContent && this.modifiedContent) {
-      this.diffEditor.setModel({
-        original: monaco.editor.createModel(this.originalContent, this.language),
-        modified: monaco.editor.createModel(this.modifiedContent, this.language)
-      });
+    if (!this.diffEditor) return;
+    
+    // Ensure we have content to display
+    const original = this.originalContent || '';
+    const modified = this.modifiedContent || '';
+    
+    // If both are empty, don't update
+    if (!original && !modified) {
+      return;
+    }
+    
+    // Create models with the content
+    const originalModel = monaco.editor.createModel(original, this.language);
+    const modifiedModel = monaco.editor.createModel(modified, this.language);
+    
+    // Set the diff model
+    this.diffEditor.setModel({
+      original: originalModel,
+      modified: modifiedModel
+    });
+    
+    // If original is empty but modified has content, ensure the editor is properly sized
+    if (!original && modified) {
+      // Force a layout update to ensure proper rendering
+      setTimeout(() => {
+        this.diffEditor.layout();
+        
+        // Also ensure the modified editor is focused and visible
+        const modifiedEditor = this.diffEditor.getModifiedEditor();
+        modifiedEditor.focus();
+        modifiedEditor.revealLine(1);
+      }, 100);
     }
   }
 
