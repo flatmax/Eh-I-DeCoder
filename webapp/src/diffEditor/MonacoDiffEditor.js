@@ -22,6 +22,8 @@ class MonacoDiffEditor extends LitElement {
     this.diffEditor = null;
     this.monacoLoader = new MonacoLoader();
     this.keyBindings = new MonacoKeyBindings();
+    this._lastOriginalContent = '';
+    this._lastModifiedContent = '';
   }
 
   render() {
@@ -45,9 +47,18 @@ class MonacoDiffEditor extends LitElement {
   updated(changedProperties) {
     if (!this.diffEditor) return;
     
+    // Only update content if it has actually changed
     if (changedProperties.has('originalContent') || changedProperties.has('modifiedContent')) {
-      this._updateContent();
+      const contentChanged = this.originalContent !== this._lastOriginalContent || 
+                           this.modifiedContent !== this._lastModifiedContent;
+      
+      if (contentChanged) {
+        this._updateContent();
+        this._lastOriginalContent = this.originalContent;
+        this._lastModifiedContent = this.modifiedContent;
+      }
     }
+    
     if (changedProperties.has('theme')) {
       monaco.editor.setTheme(this.theme);
     }
@@ -205,6 +216,12 @@ class MonacoDiffEditor extends LitElement {
       return;
     }
     
+    // Store current scroll position and cursor position before updating
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    const scrollTop = modifiedEditor.getScrollTop();
+    const scrollLeft = modifiedEditor.getScrollLeft();
+    const position = modifiedEditor.getPosition();
+    
     // Create models with the content
     const originalModel = monaco.editor.createModel(original, this.language);
     const modifiedModel = monaco.editor.createModel(modified, this.language);
@@ -215,18 +232,22 @@ class MonacoDiffEditor extends LitElement {
       modified: modifiedModel
     });
     
-    // If original is empty but modified has content, ensure the editor is properly sized
-    if (!original && modified) {
-      // Force a layout update to ensure proper rendering
-      setTimeout(() => {
+    // Restore scroll position and cursor position after a short delay
+    setTimeout(() => {
+      if (position) {
+        modifiedEditor.setPosition(position);
+      }
+      modifiedEditor.setScrollTop(scrollTop);
+      modifiedEditor.setScrollLeft(scrollLeft);
+      
+      // If original is empty but modified has content, ensure the editor is properly sized
+      if (!original && modified && scrollTop === 0) {
+        // Force a layout update to ensure proper rendering
         this.diffEditor.layout();
-        
-        // Also ensure the modified editor is focused and visible
-        const modifiedEditor = this.diffEditor.getModifiedEditor();
         modifiedEditor.focus();
         modifiedEditor.revealLine(1);
-      }, 100);
-    }
+      }
+    }, 0);
   }
 
   // Public API

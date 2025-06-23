@@ -261,10 +261,38 @@ export class DiffEditor extends JRPCClient {
     
     // Only reload if this is the currently open file
     if (filePath === this.currentFile) {
-      console.log(`Reloading current file ${filePath} due to external save`);
+      console.log(`Checking if reload needed for ${filePath} due to external save`);
       
-      // Reload the file content
-      await this.loadFileContent(filePath);
+      // Get the current content from the editor
+      const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
+      const currentContent = monacoEditor?.getModifiedContent();
+      
+      // Load the new content from disk
+      try {
+        const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
+        
+        // Only reload if the content has actually changed
+        if (currentContent !== workingContent) {
+          console.log(`Content changed, reloading file ${filePath}`);
+          
+          // Store current cursor position
+          const cursorPosition = this.lastCursorPosition;
+          
+          // Update the content
+          this.headContent = headContent;
+          this.workingContent = workingContent;
+          
+          // Wait for the editor to update, then restore cursor position
+          await this.updateComplete;
+          if (monacoEditor) {
+            monacoEditor.scrollToPosition(cursorPosition.line, cursorPosition.character);
+          }
+        } else {
+          console.log(`Content unchanged, skipping reload for ${filePath}`);
+        }
+      } catch (error) {
+        console.error('Failed to check file content:', error);
+      }
     }
   }
 
