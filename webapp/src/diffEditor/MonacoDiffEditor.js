@@ -2,6 +2,9 @@ import { LitElement, html } from 'lit';
 import { MonacoDiffEditorStyles } from './MonacoDiffEditorStyles.js';
 import { MonacoLoader } from './MonacoLoader.js';
 import { MonacoKeyBindings } from './MonacoKeyBindings.js';
+import { EditorConfig } from './EditorConfig.js';
+import { EditorEventHandlers } from './EditorEventHandlers.js';
+import { EditorContentManager } from './EditorContentManager.js';
 
 class MonacoDiffEditor extends LitElement {
   static properties = {
@@ -24,8 +27,8 @@ class MonacoDiffEditor extends LitElement {
     this.diffEditor = null;
     this.monacoLoader = new MonacoLoader();
     this.keyBindings = new MonacoKeyBindings();
-    this._lastOriginalContent = '';
-    this._lastModifiedContent = '';
+    this.eventHandlers = new EditorEventHandlers(this);
+    this.contentManager = new EditorContentManager(this);
   }
 
   render() {
@@ -49,16 +52,8 @@ class MonacoDiffEditor extends LitElement {
   updated(changedProperties) {
     if (!this.diffEditor) return;
     
-    // Only update content if it has actually changed
     if (changedProperties.has('originalContent') || changedProperties.has('modifiedContent')) {
-      const contentChanged = this.originalContent !== this._lastOriginalContent || 
-                           this.modifiedContent !== this._lastModifiedContent;
-      
-      if (contentChanged) {
-        this._updateContent();
-        this._lastOriginalContent = this.originalContent;
-        this._lastModifiedContent = this.modifiedContent;
-      }
+      this.contentManager.updateContentIfChanged();
     }
     
     if (changedProperties.has('theme')) {
@@ -80,186 +75,17 @@ class MonacoDiffEditor extends LitElement {
     `;
     this.shadowRoot.appendChild(styleElement);
     
-    this.diffEditor = monaco.editor.createDiffEditor(container, this._getEditorOptions());
+    this.diffEditor = monaco.editor.createDiffEditor(container, EditorConfig.getEditorOptions(this.theme));
 
-    this._updateContent();
-    this._setupEventHandlers();
+    this.contentManager.updateContent();
+    this.eventHandlers.setupEventHandlers();
     this.keyBindings.setupKeyBindings(this.diffEditor, this);
-    this._setupNavigationKeyBindings();
+    this.eventHandlers.setupNavigationKeyBindings();
     
     // Apply initial readOnly state to modified editor
     if (this.readOnly) {
       this._updateReadOnly();
     }
-  }
-
-  _getEditorOptions() {
-    return {
-      theme: this.theme,
-      automaticLayout: true,
-      renderSideBySide: true,
-      renderWhitespace: 'selection',
-      scrollBeyondLastLine: true,
-      minimap: { enabled: true },
-      fontSize: 14,
-      fontFamily: 'Consolas, "Courier New", monospace',
-      lineNumbers: 'on',
-      folding: true,
-      scrollbar: {
-        vertical: 'visible',
-        horizontal: 'visible',
-        verticalScrollbarSize: 10,
-        horizontalScrollbarSize: 10
-      },
-      // Enable inline diff decorations and revert icons
-      enableSplitViewResizing: true,
-      renderMarginRevertIcon: true,
-      renderIndicators: true,
-      renderOverviewRuler: true,
-      diffCodeLens: true,
-      ignoreTrimWhitespace: false,
-      renderLineHighlight: 'all',
-      renderValidationDecorations: 'on',
-      showFoldingControls: 'always',
-      glyphMargin: true,
-      contextmenu: true,
-      mouseWheelZoom: true,
-      suggestOnTriggerCharacters: true,
-      acceptSuggestionOnEnter: 'on',
-      accessibilitySupport: 'auto',
-      autoIndent: 'full',
-      formatOnPaste: false,
-      formatOnType: false,
-      renderControlCharacters: false,
-      renderIndentGuides: true,
-      renderLineHighlightOnlyWhenFocus: false,
-      revealHorizontalRightPadding: 30,
-      roundedSelection: true,
-      selectOnLineNumbers: true,
-      selectionHighlight: true,
-      showUnused: true,
-      smoothScrolling: false,
-      snippetSuggestions: 'inline',
-      tabCompletion: 'on',
-      useTabStops: true,
-      wordWrap: 'off',
-      wordWrapBreakAfterCharacters: '\t})]?|/&,;',
-      wordWrapBreakBeforeCharacters: '([{',
-      wrappingIndent: 'none',
-      wrappingStrategy: 'simple',
-      originalEditable: false  // Original side is always read-only
-    };
-  }
-
-  _setupEventHandlers() {
-    // Emit event on content change
-    this.diffEditor.getModifiedEditor().onDidChangeModelContent(() => {
-      this.dispatchEvent(new CustomEvent('content-changed', {
-        detail: this.getContent(),
-        bubbles: true,
-        composed: true
-      }));
-    });
-
-    // Track cursor position changes
-    this.diffEditor.getModifiedEditor().onDidChangeCursorPosition((e) => {
-      this.dispatchEvent(new CustomEvent('cursor-position-changed', {
-        detail: {
-          line: e.position.lineNumber,
-          character: e.position.column
-        },
-        bubbles: true,
-        composed: true
-      }));
-    });
-  }
-
-  _setupNavigationKeyBindings() {
-    const modifiedEditor = this.diffEditor.getModifiedEditor();
-    
-    // Add navigation back action (Alt+Left)
-    modifiedEditor.addAction({
-      id: 'navigation-back',
-      label: 'Navigate Back',
-      keybindings: [
-        monaco.KeyMod.Alt | monaco.KeyCode.LeftArrow
-      ],
-      precondition: null,
-      keybindingContext: null,
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.7,
-      run: () => {
-        this.dispatchEvent(new CustomEvent('navigation-back', {
-          bubbles: true,
-          composed: true
-        }));
-      }
-    });
-
-    // Add navigation forward action (Alt+Right)
-    modifiedEditor.addAction({
-      id: 'navigation-forward',
-      label: 'Navigate Forward',
-      keybindings: [
-        monaco.KeyMod.Alt | monaco.KeyCode.RightArrow
-      ],
-      precondition: null,
-      keybindingContext: null,
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.8,
-      run: () => {
-        this.dispatchEvent(new CustomEvent('navigation-forward', {
-          bubbles: true,
-          composed: true
-        }));
-      }
-    });
-  }
-
-  _updateContent() {
-    if (!this.diffEditor) return;
-    
-    // Ensure we have content to display
-    const original = this.originalContent || '';
-    const modified = this.modifiedContent || '';
-    
-    // If both are empty, don't update
-    if (!original && !modified) {
-      return;
-    }
-    
-    // Store current scroll position and cursor position before updating
-    const modifiedEditor = this.diffEditor.getModifiedEditor();
-    const scrollTop = modifiedEditor.getScrollTop();
-    const scrollLeft = modifiedEditor.getScrollLeft();
-    const position = modifiedEditor.getPosition();
-    
-    // Create models with the content
-    const originalModel = monaco.editor.createModel(original, this.language);
-    const modifiedModel = monaco.editor.createModel(modified, this.language);
-    
-    // Set the diff model
-    this.diffEditor.setModel({
-      original: originalModel,
-      modified: modifiedModel
-    });
-    
-    // Restore scroll position and cursor position after a short delay
-    setTimeout(() => {
-      if (position) {
-        modifiedEditor.setPosition(position);
-      }
-      modifiedEditor.setScrollTop(scrollTop);
-      modifiedEditor.setScrollLeft(scrollLeft);
-      
-      // If original is empty but modified has content, ensure the editor is properly sized
-      if (!original && modified && scrollTop === 0) {
-        // Force a layout update to ensure proper rendering
-        this.diffEditor.layout();
-        modifiedEditor.focus();
-        modifiedEditor.revealLine(1);
-      }
-    }, 0);
   }
 
   _updateReadOnly() {
