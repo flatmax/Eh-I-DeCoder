@@ -11,7 +11,7 @@ In python (uses asyncio) :
 Usage :
 Both client and server allow you to add an instance of a class and the methods are parsed out enabling it to be called.
 py: def add_class(self, cls_instance, obj_name=None):
-js: addClass(c, objName) - Typically called in remoteIsUp
+js: addClass(c, objName) - Typically called in connectedCallback
 Once a class is added the class has :
 this.getRemotes to get the remotes in js
 self.get_remotes in py
