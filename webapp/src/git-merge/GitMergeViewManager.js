@@ -1,13 +1,6 @@
-import {LineHighlight} from '../editor/LineHighlight.js';
-
 export class GitMergeViewManager {
   constructor(gitMergeView) {
     this.view = gitMergeView;
-    this.lineHighlight = null;
-  }
-
-  initialize() {
-    this.lineHighlight = new LineHighlight(this.view.shadowRoot);
   }
 
   cleanup() {
