@@ -8,7 +8,8 @@ class MonacoDiffEditor extends LitElement {
     originalContent: { type: String },
     modifiedContent: { type: String },
     language: { type: String },
-    theme: { type: String }
+    theme: { type: String },
+    readOnly: { type: Boolean }
   };
 
   static styles = MonacoDiffEditorStyles.styles;
@@ -19,6 +20,7 @@ class MonacoDiffEditor extends LitElement {
     this.modifiedContent = '';
     this.language = 'javascript';
     this.theme = 'vs-dark';
+    this.readOnly = false;
     this.diffEditor = null;
     this.monacoLoader = new MonacoLoader();
     this.keyBindings = new MonacoKeyBindings();
@@ -62,6 +64,10 @@ class MonacoDiffEditor extends LitElement {
     if (changedProperties.has('theme')) {
       monaco.editor.setTheme(this.theme);
     }
+    
+    if (changedProperties.has('readOnly')) {
+      this._updateReadOnly();
+    }
   }
 
   _initializeEditor() {
@@ -80,6 +86,11 @@ class MonacoDiffEditor extends LitElement {
     this._setupEventHandlers();
     this.keyBindings.setupKeyBindings(this.diffEditor, this);
     this._setupNavigationKeyBindings();
+    
+    // Apply initial readOnly state to modified editor
+    if (this.readOnly) {
+      this._updateReadOnly();
+    }
   }
 
   _getEditorOptions() {
@@ -135,7 +146,8 @@ class MonacoDiffEditor extends LitElement {
       wordWrapBreakAfterCharacters: '\t})]?|/&,;',
       wordWrapBreakBeforeCharacters: '([{',
       wrappingIndent: 'none',
-      wrappingStrategy: 'simple'
+      wrappingStrategy: 'simple',
+      originalEditable: false  // Original side is always read-only
     };
   }
 
@@ -248,6 +260,13 @@ class MonacoDiffEditor extends LitElement {
         modifiedEditor.revealLine(1);
       }
     }, 0);
+  }
+
+  _updateReadOnly() {
+    if (!this.diffEditor) return;
+    
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    modifiedEditor.updateOptions({ readOnly: this.readOnly });
   }
 
   // Public API
