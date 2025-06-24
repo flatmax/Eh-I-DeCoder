@@ -4,7 +4,7 @@ import {GitHistoryStyles} from './git-history/GitHistoryStyles.js';
 import {CommitDataManager} from './git-history/CommitDataManager.js';
 import {ResizeHandler} from './git-history/ResizeHandler.js';
 import './CommitList.js';
-import './GitMergeView.js';
+import './GitDiffView.js';
 
 export class GitHistoryView extends JRPCClient {
   static properties = {
@@ -337,12 +337,12 @@ export class GitHistoryView extends JRPCClient {
         <div class="center-panel">
           ${this.renderSingleCommitWarning()}
           ${this.renderSelectedCommits()}
-          <git-merge-view
+          <git-diff-view
             .serverURI=${this.serverURI}
             .fromCommit=${this.fromCommit}
             .toCommit=${this.toCommit}
             .gitHistoryMode=${true}
-          ></git-merge-view>
+          ></git-diff-view>
         </div>
 
         <!-- Right Resize Handle -->

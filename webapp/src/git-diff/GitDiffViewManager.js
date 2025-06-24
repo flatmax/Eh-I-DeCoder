@@ -1,13 +1,13 @@
-export class GitMergeViewManager {
-  constructor(gitMergeView) {
-    this.view = gitMergeView;
+export class GitDiffViewManager {
+  constructor(GitDiffView) {
+    this.view = GitDiffView;
   }
 
   cleanup() {
     // Monaco handles its own cleanup
   }
 
-  updateMergeView() {
+  updateDiffView() {
     // Monaco updates automatically through property binding
     // No need to recreate the view
     const monacoEditor = this.view.shadowRoot.querySelector('monaco-diff-editor');

@@ -1,6 +1,6 @@
 import { css } from 'lit';
 
-export class GitMergeStyles {
+export class GitDiffStyles {
   static get styles() {
     return css`
       :host {
@@ -10,7 +10,7 @@ export class GitMergeStyles {
         overflow: hidden;
       }
 
-      .git-merge-header {
+      .git-diff-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -295,7 +295,7 @@ export class GitMergeStyles {
         font-weight: bold;
       }
 
-      .merge-content {
+      .diff-content {
         flex: 1;
         display: flex;
         flex-direction: column;
@@ -330,7 +330,7 @@ export class GitMergeStyles {
         padding: 20px;
       }
 
-      .merge-container {
+      .diff-container {
         flex: 1;
         overflow: auto;
         min-height: 0;

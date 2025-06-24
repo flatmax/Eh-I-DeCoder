@@ -167,30 +167,30 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
   }
 
   /**
-   * Get selected text from GitMergeView if available
+   * Get selected text from GitDiffView if available
    */
-  _getSelectedTextFromGitMergeView() {
+  _getSelectedTextFromGitDiffView() {
     try {
       // Look for git-merge-view in git-history-view
       const gitHistoryView = this.renderRoot.querySelector('git-history-view');
       if (gitHistoryView?.shadowRoot) {
-        const gitMergeView = gitHistoryView.shadowRoot.querySelector('git-merge-view');
-        if (gitMergeView && typeof gitMergeView.getSelectedText === 'function') {
-          return gitMergeView.getSelectedText();
+        const GitDiffView = gitHistoryView.shadowRoot.querySelector('git-merge-view');
+        if (GitDiffView && typeof GitDiffView.getSelectedText === 'function') {
+          return GitDiffView.getSelectedText();
         }
       }
       
       // Fallback: direct search
-      const gitMergeView = this.renderRoot.querySelector('git-merge-view') || 
+      const GitDiffView = this.renderRoot.querySelector('git-merge-view') || 
                           deepQuerySelector(this.renderRoot, 'git-merge-view');
       
-      if (gitMergeView && typeof gitMergeView.getSelectedText === 'function') {
-        return gitMergeView.getSelectedText();
+      if (GitDiffView && typeof GitDiffView.getSelectedText === 'function') {
+        return GitDiffView.getSelectedText();
       }
       
       return '';
     } catch (error) {
-      console.error('Error getting selected text from GitMergeView:', error);
+      console.error('Error getting selected text from GitDiffView:', error);
       return '';
     }
   }
@@ -199,7 +199,7 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
    * Get selected text from any available editor component
    */
   _getSelectedText() {
-    return this._getSelectedTextFromMergeEditor() || this._getSelectedTextFromGitMergeView();
+    return this._getSelectedTextFromMergeEditor() || this._getSelectedTextFromGitDiffView();
   }
 
   /**

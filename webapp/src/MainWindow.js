@@ -17,7 +17,7 @@ import './GitHistoryView.js';
 export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMixin(JRPCClient))) {
   static properties = {
     showFileTree: { type: Boolean, state: true },
-    showMergeEditor: { type: Boolean, state: true },
+    showDiffEditor: { type: Boolean, state: true },
     showConnectionDetails: { type: Boolean, state: true },
     headerExpanded: { type: Boolean, state: true },
     sidebarExpanded: { type: Boolean, state: true },
@@ -31,7 +31,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.remoteTimeout = 300;
     this.debug = false;
     this.showFileTree = true;
-    this.showMergeEditor = true;
+    this.showDiffEditor = true;
     this.showConnectionDetails = false;
     this.headerExpanded = false;
     this.sidebarExpanded = true;
@@ -285,7 +285,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
         <!-- Main Content Area -->
         <div class="main-content">
           <div class="editor-wrapper">
-            ${this.showMergeEditor ? 
+            ${this.showDiffEditor ? 
               html`<diff-editor .serverURI=${this.serverURI}></diff-editor>` : ''}
           </div>
         </div>
@@ -370,7 +370,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     // Load the file in the editor
     diffEditor.loadFileContent(filePath, lineNumber);
     
-    // Ensure the editor is visible
-    this.showMergeEditor = true;
+    // Ensure the diff editor is visible
+    this.showDiffEditor = true;
   }
 }

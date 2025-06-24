@@ -1,15 +1,15 @@
 import {extractResponseData} from '../Utils.js';
 
-export class GitMergeDataManager {
-  constructor(gitMergeView) {
-    this.view = gitMergeView;
+export class GitDiffDataManager {
+  constructor(GitDiffView) {
+    this.view = GitDiffView;
   }
 
   async loadChangedFiles() {
     if (!this.view.fromCommit || !this.view.toCommit) return;
     
     if (!this.view.call || !this.view.call['Repo.get_changed_files']) {
-      console.log('GitMergeView: JRPC not ready yet for loadChangedFiles');
+      console.log('GitDiffView: JRPC not ready yet for loadChangedFiles');
       return;
     }
     
@@ -17,9 +17,9 @@ export class GitMergeDataManager {
     this.view.error = null;
     
     try {
-      console.log('GitMergeView: Loading changed files between', this.view.fromCommit, 'and', this.view.toCommit);
+      console.log('GitDiffView: Loading changed files between', this.view.fromCommit, 'and', this.view.toCommit);
       const response = await this.view.call['Repo.get_changed_files'](this.view.fromCommit, this.view.toCommit);
-      console.log('GitMergeView: Changed files response:', response);
+      console.log('GitDiffView: Changed files response:', response);
       
       this.view.changedFiles = extractResponseData(response, [], true);
       
@@ -45,12 +45,12 @@ export class GitMergeDataManager {
     if (!this.view.selectedFile || !this.view.fromCommit || !this.view.toCommit) return;
     
     if (!this.view.call || !this.view.call['Repo.get_file_content']) {
-      console.log('GitMergeView: JRPC not ready yet for loadFileContents');
+      console.log('GitDiffView: JRPC not ready yet for loadFileContents');
       return;
     }
     
     try {
-      console.log('GitMergeView: Loading file contents for', this.view.selectedFile);
+      console.log('GitDiffView: Loading file contents for', this.view.selectedFile);
       const [fromResponse, toResponse] = await Promise.all([
         this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.fromCommit),
         this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.toCommit)
@@ -58,7 +58,7 @@ export class GitMergeDataManager {
       
       this.view.fromContent = extractResponseData(fromResponse, '');
       this.view.toContent = extractResponseData(toResponse, '');
-      console.log('GitMergeView: Loaded file contents, from length:', this.view.fromContent.length, 'to length:', this.view.toContent.length);
+      console.log('GitDiffView: Loaded file contents, from length:', this.view.fromContent.length, 'to length:', this.view.toContent.length);
       
     } catch (error) {
       console.error('Error loading file contents:', error);
@@ -71,12 +71,12 @@ export class GitMergeDataManager {
     if (!this.view.selectedFile) return;
     
     if (!this.view.call || !this.view.call['Repo.get_conflict_content']) {
-      console.log('GitMergeView: JRPC not ready yet for loadConflictContent');
+      console.log('GitDiffView: JRPC not ready yet for loadConflictContent');
       return;
     }
     
     try {
-      console.log('GitMergeView: Loading conflict content for', this.view.selectedFile);
+      console.log('GitDiffView: Loading conflict content for', this.view.selectedFile);
       const response = await this.view.call['Repo.get_conflict_content'](this.view.selectedFile);
       
       if (response.success) {
@@ -88,7 +88,7 @@ export class GitMergeDataManager {
           this.view.toContent = response.merged;
         }
         
-        console.log('GitMergeView: Loaded conflict content');
+        console.log('GitDiffView: Loaded conflict content');
       } else {
         this.view.error = response.error || 'Failed to load conflict content';
       }

@@ -1,10 +1,10 @@
 import {LitElement, html} from 'lit';
 import {JRPCClient} from '@flatmax/jrpc-oo';
-import {GitDiffStyles} from './git-merge/GitDiffStyles.js';
-import {GitDiffDataManager} from './git-merge/GitDiffDataManager.js';
-import {GitDiffViewManager} from './git-merge/GitDiffViewManager.js';
-import {GitDiffRebaseManager} from './git-merge/GitDiffRebaseManager.js';
-import {GitDiffRenderer} from './git-merge/GitDiffRenderer.js';
+import {GitDiffStyles} from './git-diff/GitDiffStyles.js';
+import {GitDiffDataManager} from './git-diff/GitDiffDataManager.js';
+import {GitDiffViewManager} from './git-diff/GitDiffViewManager.js';
+import {GitDiffRebaseManager} from './git-diff/GitDiffRebaseManager.js';
+import {GitDiffRenderer} from './git-diff/GitDiffRenderer.js';
 import {extractResponseData} from './Utils.js';
 import './diffEditor/MonacoDiffEditor.js';
 import {LanguageDetector} from './diffEditor/LanguageDetector.js';
@@ -83,7 +83,6 @@ export class GitDiffView extends JRPCClient {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
-    this.viewManager.initialize();
   }
 
   disconnectedCallback() {
@@ -201,4 +200,4 @@ export class GitDiffView extends JRPCClient {
   }
 }
 
-customElements.define('git-merge-view', GitDiffView);
+customElements.define('git-diff-view', GitDiffView);

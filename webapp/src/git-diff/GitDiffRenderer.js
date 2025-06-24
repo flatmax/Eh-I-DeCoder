@@ -1,8 +1,8 @@
 import {html} from 'lit';
 
-export class GitMergeRenderer {
-  constructor(gitMergeView) {
-    this.view = gitMergeView;
+export class GitDiffRenderer {
+  constructor(GitDiffView) {
+    this.view = GitDiffView;
   }
 
   render() {
@@ -15,7 +15,7 @@ export class GitMergeRenderer {
 
   renderHeader() {
     return html`
-      <div class="git-merge-header">
+      <div class="git-diff-header">
         <div class="commit-info">
           ${this.view.gitEditorMode ? html`
             <span class="git-editor-indicator">📝 ${this.view.gitEditorFile?.description || 'Git Editor'}</span>
@@ -327,7 +327,7 @@ export class GitMergeRenderer {
     
     if (this.view.gitEditorMode) {
       return html`
-        <div class="merge-content">
+        <div class="diff-content">
           ${this.renderGitEditorHelp()}
           ${this.renderGitStatus()}
           ${this.renderFileTabs()}
@@ -375,7 +375,7 @@ export class GitMergeRenderer {
     }
     
     return html`
-      <div class="merge-content">
+      <div class="diff-content">
         ${this.renderConflictControls()}
         ${this.renderGitStatus()}
         ${this.renderFileTabs()}

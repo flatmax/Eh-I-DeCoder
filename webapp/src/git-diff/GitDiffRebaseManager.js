@@ -1,8 +1,8 @@
 import {extractResponseData} from '../Utils.js';
 
-export class GitMergeRebaseManager {
-  constructor(gitMergeView) {
-    this.view = gitMergeView;
+export class GitDiffRebaseManager {
+  constructor(GitDiffView) {
+    this.view = GitDiffView;
   }
 
   async checkRebaseStatus() {
@@ -14,11 +14,11 @@ export class GitMergeRebaseManager {
       const response = await this.view.call['Repo.get_rebase_status']();
       const data = extractResponseData(response);
       
-      console.log('GitMergeView: Rebase status check result:', data);
+      console.log('GitDiffView: Rebase status check result:', data);
       
       if (data && data.in_rebase) {
         if (!this.view.rebaseStatus || !this.view.rebaseStatus.in_rebase) {
-          console.log('GitMergeView: Detected new rebase in progress');
+          console.log('GitDiffView: Detected new rebase in progress');
         }
         
         this.view.rebaseStatus = data;
@@ -43,7 +43,7 @@ export class GitMergeRebaseManager {
             // No todo content - check for conflicts or completion
             await this.checkForRebaseConflicts();
             if (!this.view.hasConflicts) {
-              console.log('GitMergeView: Rebase waiting for user action');
+              console.log('GitDiffView: Rebase waiting for user action');
               this.view.rebaseCompleting = true;
               this.view.rebaseInProgress = true;
               this.view.rebaseMessage = "Rebase is paused and waiting for user action. Use the controls below to continue.";
@@ -55,7 +55,7 @@ export class GitMergeRebaseManager {
         }
       } else {
         if (this.view.rebaseStatus && this.view.rebaseStatus.in_rebase) {
-          console.log('GitMergeView: Rebase completed or aborted');
+          console.log('GitDiffView: Rebase completed or aborted');
           this.resetRebaseState();
         }
         this.view.rebaseStatus = data;
@@ -70,7 +70,7 @@ export class GitMergeRebaseManager {
       }
       
     } catch (error) {
-      console.error('GitMergeView: Error checking rebase status:', error);
+      console.error('GitDiffView: Error checking rebase status:', error);
     }
   }
 
@@ -80,19 +80,19 @@ export class GitMergeRebaseManager {
     }
 
     try {
-      console.log('GitMergeView: Loading git status');
+      console.log('GitDiffView: Loading git status');
       const response = await this.view.call['Repo.get_status']();
       const statusData = extractResponseData(response);
       
       if (statusData && !statusData.error) {
         this.view.gitStatus = statusData;
-        console.log('GitMergeView: Git status loaded:', statusData);
+        console.log('GitDiffView: Git status loaded:', statusData);
       } else {
-        console.error('GitMergeView: Error loading git status:', statusData?.error);
+        console.error('GitDiffView: Error loading git status:', statusData?.error);
         this.view.gitStatus = null;
       }
     } catch (error) {
-      console.error('GitMergeView: Error loading git status:', error);
+      console.error('GitDiffView: Error loading git status:', error);
       this.view.gitStatus = null;
     }
 
@@ -106,19 +106,19 @@ export class GitMergeRebaseManager {
     }
 
     try {
-      console.log('GitMergeView: Loading raw git status');
+      console.log('GitDiffView: Loading raw git status');
       const response = await this.view.call['Repo.get_raw_git_status']();
       const statusData = extractResponseData(response);
       
       if (statusData && statusData.success && statusData.raw_status) {
         this.view.rawGitStatus = statusData.raw_status;
-        console.log('GitMergeView: Raw git status loaded:', statusData.raw_status);
+        console.log('GitDiffView: Raw git status loaded:', statusData.raw_status);
       } else {
-        console.error('GitMergeView: Error loading raw git status:', statusData?.error);
+        console.error('GitDiffView: Error loading raw git status:', statusData?.error);
         this.view.rawGitStatus = null;
       }
     } catch (error) {
-      console.error('GitMergeView: Error loading raw git status:', error);
+      console.error('GitDiffView: Error loading raw git status:', error);
       this.view.rawGitStatus = null;
     }
   }
@@ -128,7 +128,7 @@ export class GitMergeRebaseManager {
     
     if (!primaryFile) return;
     
-    console.log('GitMergeView: Git is waiting for editor file:', primaryFile);
+    console.log('GitDiffView: Git is waiting for editor file:', primaryFile);
     
     // Switch to git editor mode
     if (!this.view.gitEditorMode || this.view.gitEditorFile?.type !== primaryFile.type) {
@@ -149,14 +149,14 @@ export class GitMergeRebaseManager {
       // Show raw git status by default in git editor mode
       this.view.showRawGitStatus = true;
       
-      console.log(`GitMergeView: Switched to Git editor mode for ${primaryFile.type}: ${primaryFile.file}`);
+      console.log(`GitDiffView: Switched to Git editor mode for ${primaryFile.type}: ${primaryFile.file}`);
       this.view.requestUpdate();
     }
   }
 
   exitGitEditorMode() {
     if (this.view.gitEditorMode) {
-      console.log('GitMergeView: Exiting Git editor mode');
+      console.log('GitDiffView: Exiting Git editor mode');
       this.view.gitEditorMode = false;
       this.view.gitEditorFile = null;
       
@@ -185,13 +185,13 @@ export class GitMergeRebaseManager {
       const content = this.view.viewManager.getCurrentContent();
       const fileType = this.view.gitEditorFile.type;
       
-      console.log('GitMergeView: Saving Git editor file:', fileType, 'content length:', content.length);
+      console.log('GitDiffView: Saving Git editor file:', fileType, 'content length:', content.length);
       
       const response = await this.view.call['Repo.save_git_editor_file'](fileType, content);
       const data = extractResponseData(response);
       
       if (data && (data.success === true || (data.success === undefined && !data.error))) {
-        console.log('GitMergeView: Git editor file saved successfully');
+        console.log('GitDiffView: Git editor file saved successfully');
         
         // Exit git editor mode
         this.exitGitEditorMode();
@@ -203,7 +203,7 @@ export class GitMergeRebaseManager {
         this.view.error = data?.error || 'Failed to save Git editor file';
       }
     } catch (error) {
-      console.error('GitMergeView: Error saving Git editor file:', error);
+      console.error('GitDiffView: Error saving Git editor file:', error);
       this.view.error = `Failed to save Git editor file: ${error.message}`;
     } finally {
       this.view.loading = false;
@@ -229,7 +229,7 @@ export class GitMergeRebaseManager {
         }
       }
     } catch (error) {
-      console.error('GitMergeView: Error checking for conflicts:', error);
+      console.error('GitDiffView: Error checking for conflicts:', error);
     }
   }
 
@@ -248,28 +248,28 @@ export class GitMergeRebaseManager {
       this.view.loading = true;
       this.view.error = null;
       
-      console.log('GitMergeView: Starting interactive rebase from', this.view.fromCommit, 'to', this.view.toCommit);
+      console.log('GitDiffView: Starting interactive rebase from', this.view.fromCommit, 'to', this.view.toCommit);
       const response = await this.view.call['Repo.start_interactive_rebase'](this.view.fromCommit, this.view.toCommit);
-      console.log('GitMergeView: Interactive rebase response:', response);
+      console.log('GitDiffView: Interactive rebase response:', response);
       
       const data = extractResponseData(response);
-      console.log('GitMergeView: Extracted data:', data);
+      console.log('GitDiffView: Extracted data:', data);
       
       if (data && (data.success === true || (data.success === undefined && data.commits))) {
         this.view.rebaseMode = true;
         this.view.rebasePlan = data.commits || [];
         this.view.rebaseInProgress = false;
         this.view.currentRebaseStep = 0;
-        console.log('GitMergeView: Rebase plan loaded with', this.view.rebasePlan.length, 'commits');
+        console.log('GitDiffView: Rebase plan loaded with', this.view.rebasePlan.length, 'commits');
       } else if (data && data.success === false) {
         this.view.error = data.error || 'Failed to start interactive rebase';
-        console.error('GitMergeView: Rebase failed with error:', data.error);
+        console.error('GitDiffView: Rebase failed with error:', data.error);
       } else {
         this.view.error = 'Unexpected response format from interactive rebase';
-        console.error('GitMergeView: Unexpected response format:', data);
+        console.error('GitDiffView: Unexpected response format:', data);
       }
     } catch (error) {
-      console.error('GitMergeView: Error starting interactive rebase:', error);
+      console.error('GitDiffView: Error starting interactive rebase:', error);
       this.view.error = `Failed to start rebase: ${error.message}`;
     } finally {
       this.view.loading = false;
@@ -313,9 +313,9 @@ export class GitMergeRebaseManager {
       this.view.rebaseInProgress = true;
       this.view.error = null;
       
-      console.log('GitMergeView: Executing rebase with plan:', this.view.rebasePlan);
+      console.log('GitDiffView: Executing rebase with plan:', this.view.rebasePlan);
       const response = await this.view.call['Repo.execute_rebase'](this.view.rebasePlan);
-      console.log('GitMergeView: Execute rebase response:', response);
+      console.log('GitDiffView: Execute rebase response:', response);
       
       const data = extractResponseData(response);
       
@@ -337,7 +337,7 @@ export class GitMergeRebaseManager {
         this.view.rebaseInProgress = false;
       }
     } catch (error) {
-      console.error('GitMergeView: Error executing rebase:', error);
+      console.error('GitDiffView: Error executing rebase:', error);
       this.view.error = `Rebase execution failed: ${error.message}`;
       this.view.rebaseInProgress = false;
     } finally {
@@ -382,7 +382,7 @@ export class GitMergeRebaseManager {
         this.view.error = data?.error || 'Failed to resolve conflict';
       }
     } catch (error) {
-      console.error('GitMergeView: Error resolving conflict:', error);
+      console.error('GitDiffView: Error resolving conflict:', error);
       this.view.error = `Failed to resolve conflict: ${error.message}`;
     } finally {
       this.view.loading = false;
@@ -400,11 +400,11 @@ export class GitMergeRebaseManager {
       this.view.loading = true;
       this.view.error = null;
       
-      console.log('GitMergeView: User manually continuing rebase');
+      console.log('GitDiffView: User manually continuing rebase');
       const response = await this.view.call['Repo.continue_rebase']();
       const data = extractResponseData(response);
       
-      console.log('GitMergeView: Continue rebase response:', data);
+      console.log('GitDiffView: Continue rebase response:', data);
       
       if (data && (data.success === true || (data.success === undefined && !data.error))) {
         if (data.conflicts && data.conflicts.length > 0) {
@@ -428,12 +428,12 @@ export class GitMergeRebaseManager {
         const statusData = extractResponseData(statusCheck);
         
         if (!statusData || !statusData.in_rebase) {
-          console.log('GitMergeView: Rebase appears to be complete');
+          console.log('GitDiffView: Rebase appears to be complete');
           this.completeRebase();
         }
       }
     } catch (error) {
-      console.error('GitMergeView: Error continuing rebase:', error);
+      console.error('GitDiffView: Error continuing rebase:', error);
       this.view.error = `Failed to continue rebase: ${error.message}`;
       this.view.rebaseMessage = `Failed to continue rebase: ${error.message}`;
     } finally {
@@ -461,7 +461,7 @@ export class GitMergeRebaseManager {
         this.view.error = data?.error || 'Failed to commit changes';
       }
     } catch (error) {
-      console.error('GitMergeView: Error committing changes:', error);
+      console.error('GitDiffView: Error committing changes:', error);
       this.view.error = `Failed to commit changes: ${error.message}`;
     } finally {
       this.view.loading = false;
@@ -488,7 +488,7 @@ export class GitMergeRebaseManager {
         this.view.error = data?.error || 'Failed to amend commit';
       }
     } catch (error) {
-      console.error('GitMergeView: Error amending commit:', error);
+      console.error('GitDiffView: Error amending commit:', error);
       this.view.error = `Failed to amend commit: ${error.message}`;
     } finally {
       this.view.loading = false;
@@ -510,12 +510,12 @@ export class GitMergeRebaseManager {
       
       if (data && (data.success === true || (data.success === undefined && !data.error))) {
         this.resetRebaseState();
-        console.log('GitMergeView: Rebase aborted successfully');
+        console.log('GitDiffView: Rebase aborted successfully');
       } else {
         this.view.error = data?.error || 'Failed to abort rebase';
       }
     } catch (error) {
-      console.error('GitMergeView: Error aborting rebase:', error);
+      console.error('GitDiffView: Error aborting rebase:', error);
       this.view.error = `Failed to abort rebase: ${error.message}`;
     } finally {
       this.view.loading = false;
