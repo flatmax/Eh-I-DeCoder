@@ -337,6 +337,14 @@ export class GitMergeStyles {
         position: relative;
       }
 
+      monaco-diff-editor {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        display: block;
+      }
+
       /* Git status panel styles */
       .git-status-panel {
         background: #f8f9fa;
@@ -645,27 +653,6 @@ export class GitMergeStyles {
         font-size: 12px;
         color: #721c24;
         white-space: pre-wrap;
-      }
-
-      /* Ensure CodeMirror editors can scroll properly */
-      .merge-container :global(.cm-editor) {
-        height: 100%;
-        overflow: auto;
-      }
-
-      .merge-container :global(.cm-scroller) {
-        overflow: auto;
-      }
-
-      /* For merge view specifically */
-      .merge-container :global(.cm-merge-view) {
-        height: 100%;
-        overflow: auto;
-      }
-
-      .merge-container :global(.cm-merge-view .cm-editor) {
-        height: 100%;
-        overflow: auto;
       }
 
       .loading, .error {

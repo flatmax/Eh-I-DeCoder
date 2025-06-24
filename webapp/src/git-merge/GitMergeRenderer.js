@@ -164,7 +164,7 @@ export class GitMergeRenderer {
   }
 
   renderGitEditorHelp() {
-    if (!this.view.gitEditorMode || !this.view.gitEditorFile) return '';
+    if (!this.view.gitEditorMode || !this.view.gitEditorFile)return '';
 
     return html`
       <div class="git-editor-help">
@@ -331,7 +331,16 @@ export class GitMergeRenderer {
           ${this.renderGitEditorHelp()}
           ${this.renderGitStatus()}
           ${this.renderFileTabs()}
-          <div class="merge-container"></div>
+          <monaco-diff-editor
+            .originalContent=${this.view.fromContent}
+            .modifiedContent=${this.view.toContent}
+            .language=${this.view.getLanguageFromFile(this.view.selectedFile)}
+            theme="vs-dark"
+            ?readOnly=${false}
+            @content-changed=${(e) => this.view.handleContentChanged(e)}
+            @save-file=${(e) => this.view.handleSaveFile(e)}
+            @request-find-in-files=${(e) => this.view.handleFindInFiles(e)}
+          ></monaco-diff-editor>
         </div>
       `;
     }
@@ -370,7 +379,16 @@ export class GitMergeRenderer {
         ${this.renderConflictControls()}
         ${this.renderGitStatus()}
         ${this.renderFileTabs()}
-        <div class="merge-container"></div>
+        <monaco-diff-editor
+          .originalContent=${this.view.fromContent}
+          .modifiedContent=${this.view.toContent}
+          .language=${this.view.getLanguageFromFile(this.view.selectedFile)}
+          theme="vs-dark"
+          ?readOnly=${this.view.gitHistoryMode && !this.view.hasConflicts && !this.view.gitEditorMode}
+          @content-changed=${(e) => this.view.handleContentChanged(e)}
+          @save-file=${(e) => this.view.handleSaveFile(e)}
+          @request-find-in-files=${(e) => this.view.handleFindInFiles(e)}
+        ></monaco-diff-editor>
       </div>
     `;
   }

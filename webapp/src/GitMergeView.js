@@ -6,6 +6,8 @@ import {GitMergeViewManager} from './git-merge/GitMergeViewManager.js';
 import {GitMergeRebaseManager} from './git-merge/GitMergeRebaseManager.js';
 import {GitMergeRenderer} from './git-merge/GitMergeRenderer.js';
 import {extractResponseData} from './Utils.js';
+import './diffEditor/MonacoDiffEditor.js';
+import {LanguageDetector} from './diffEditor/LanguageDetector.js';
 
 export class GitMergeView extends JRPCClient {
   static properties = {
@@ -73,6 +75,7 @@ export class GitMergeView extends JRPCClient {
     this.viewManager = new GitMergeViewManager(this);
     this.rebaseManager = new GitMergeRebaseManager(this);
     this.renderer = new GitMergeRenderer(this);
+    this.languageDetector = new LanguageDetector();
   }
 
   static styles = GitMergeStyles.styles;
@@ -159,40 +162,38 @@ export class GitMergeView extends JRPCClient {
     await this.rebaseManager.checkRebaseStatus();
   }
 
+  handleContentChanged(event) {
+    if (this.onContentChange) {
+      this.onContentChange();
+    }
+  }
+
+  handleSaveFile(event) {
+    // For git editor mode, save the file
+    if (this.gitEditorMode) {
+      this.rebaseManager.saveGitEditorFile();
+    }
+  }
+
+  handleFindInFiles(event) {
+    this.dispatchEvent(new CustomEvent('request-find-in-files', {
+      detail: event.detail,
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  getLanguageFromFile(filePath) {
+    return this.languageDetector.getLanguageFromFile(filePath || '');
+  }
+
   getSelectedText() {
-    if (!this.viewManager?.mergeViewManager?.mergeView) {
+    const monacoEditor = this.shadowRoot?.querySelector('monaco-diff-editor');
+    if (!monacoEditor) {
       return '';
     }
     
-    try {
-      if (this.unifiedView || this.gitEditorMode) {
-        const view = this.viewManager.mergeViewManager.mergeView;
-        const selection = view.state.selection.main;
-        if (selection.empty) return '';
-        return view.state.doc.sliceString(selection.from, selection.to);
-      } else {
-        const mergeView = this.viewManager.mergeViewManager.mergeView;
-        
-        if (mergeView.a) {
-          const selectionA = mergeView.a.state.selection.main;
-          if (!selectionA.empty) {
-            return mergeView.a.state.doc.sliceString(selectionA.from, selectionA.to);
-          }
-        }
-        
-        if (mergeView.b) {
-          const selectionB = mergeView.b.state.selection.main;
-          if (!selectionB.empty) {
-            return mergeView.b.state.doc.sliceString(selectionB.from, selectionB.to);
-          }
-        }
-      }
-      
-      return '';
-    } catch (error) {
-      console.error('GitMergeView: Error getting selected text:', error);
-      return '';
-    }
+    return monacoEditor.getSelectedText() || '';
   }
 
   render() {
