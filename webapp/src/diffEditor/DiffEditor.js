@@ -47,6 +47,93 @@ export class DiffEditor extends JRPCClient {
 
   async setupDone() {
     console.log('DiffEditor: Setup done');
+    
+    // Wait for Monaco editor to be ready
+    await this.updateComplete;
+    const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
+    
+    if (monacoEditor) {
+      // Initialize LSP through Monaco editor
+      try {
+        const rootUri = 'file://' + (await this.call['Repo.get_repo_root']() || process.cwd());
+        await monacoEditor.initializeLSP(this, rootUri);
+        
+        // Emit LSP status
+        this.dispatchEvent(new CustomEvent('lsp-status-change', {
+          detail: { connected: true },
+          bubbles: true,
+          composed: true
+        }));
+      } catch (error) {
+        console.error('Failed to initialize LSP:', error);
+        this.dispatchEvent(new CustomEvent('lsp-status-change', {
+          detail: { connected: false },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    }
+  }
+
+  getClientCapabilities() {
+    // Return Monaco editor capabilities
+    return {
+      textDocument: {
+        synchronization: {
+          dynamicRegistration: true,
+          willSave: true,
+          willSaveWaitUntil: true,
+          didSave: true
+        },
+        completion: {
+          dynamicRegistration: true,
+          completionItem: {
+            snippetSupport: true,
+            commitCharactersSupport: true,
+            documentationFormat: ['markdown', 'plaintext'],
+            deprecatedSupport: true,
+            preselectSupport: true
+          },
+          completionItemKind: {
+            valueSet: Array.from({ length: 25 }, (_, i) => i + 1)
+          },
+          contextSupport: true
+        },
+        hover: {
+          dynamicRegistration: true,
+          contentFormat: ['markdown', 'plaintext']
+        },
+        definition: {
+          dynamicRegistration: true
+        },
+        references: {
+          dynamicRegistration: true
+        },
+        documentSymbol: {
+          dynamicRegistration: true,
+          symbolKind: {
+            valueSet: Array.from({ length: 26 }, (_, i) => i + 1)
+          }
+        },
+        codeAction: {
+          dynamicRegistration: true
+        },
+        formatting: {
+          dynamicRegistration: true
+        },
+        rename: {
+          dynamicRegistration: true
+        }
+      },
+      workspace: {
+        applyEdit: true,
+        workspaceEdit: {
+          documentChanges: true
+        },
+        configuration: true,
+        workspaceFolders: true
+      }
+    };
   }
 
   render() {

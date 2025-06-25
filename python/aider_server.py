@@ -17,12 +17,14 @@ try:
     from .coder_wrapper import CoderWrapper
     from .repo import Repo
     from .chat_history import ChatHistory
+    from .lsp_wrapper import LSPWrapper
     from .webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
     from repo import Repo
     from chat_history import ChatHistory
+    from lsp_wrapper import LSPWrapper
     from webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
 
 # Apply the monkey patch before importing aider modules
@@ -51,9 +53,10 @@ def parse_args():
     return args, unknown_args
 
 shutdown_event = None
+lsp_wrapper = None
 
 async def main_starter_async():
-    global shutdown_event
+    global shutdown_event, lsp_wrapper
     shutdown_event = Event()
     
     def sigint_handler(sig, frame):
@@ -114,6 +117,10 @@ async def main_starter_async():
         chat_history = ChatHistory()
         jrpc_server.add_class(chat_history, 'ChatHistory')
         
+        # Initialize LSP wrapper
+        lsp_wrapper = LSPWrapper()
+        jrpc_server.add_class(lsp_wrapper, 'LSPWrapper')
+        
         print(f"JSON-RPC server running on port {server_port}")
         
     except Exception as e:
@@ -132,6 +139,10 @@ async def main_starter_async():
         
         await shutdown_event.wait()
         print("Stopping server...")
+        
+        # Shutdown LSP servers
+        if lsp_wrapper:
+            await lsp_wrapper.shutdown()
         
         await asyncio.wait_for(jrpc_server.stop(), timeout=5.0)
         

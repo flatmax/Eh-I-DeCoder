@@ -5,7 +5,7 @@ import { hmrPlugin, presets } from '@open-wc/dev-server-hmr';
 
 export default {
   // Use PORT environment variable or default to 9876
-  port: process.env.PORT ? parseInt(process.env.PORT) : 9876,
+  port: process.env.PORT ? parseInt(process.env.PORT) : 6789,
 
   // Only allow connections from localhost for security
   hostname: '127.0.0.1',
