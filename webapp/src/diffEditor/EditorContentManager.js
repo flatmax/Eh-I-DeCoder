@@ -29,12 +29,6 @@ export class EditorContentManager {
       return;
     }
     
-    // Store current scroll position and cursor position before updating
-    const modifiedEditor = diffEditor.getModifiedEditor();
-    const scrollTop = modifiedEditor.getScrollTop();
-    const scrollLeft = modifiedEditor.getScrollLeft();
-    const position = modifiedEditor.getPosition();
-    
     // Create models with the content
     const originalModel = monaco.editor.createModel(original, this.editorComponent.language);
     const modifiedModel = monaco.editor.createModel(modified, this.editorComponent.language);
@@ -45,21 +39,17 @@ export class EditorContentManager {
       modified: modifiedModel
     });
     
-    // Restore scroll position and cursor position after a short delay
+    // Apply target position after model is set
     setTimeout(() => {
-      if (position) {
-        modifiedEditor.setPosition(position);
-      }
-      modifiedEditor.setScrollTop(scrollTop);
-      modifiedEditor.setScrollLeft(scrollLeft);
+      this.editorComponent.applyTargetPositionIfSet();
       
-      // If original is empty but modified has content, ensure the editor is properly sized
-      if (!original && modified && scrollTop === 0) {
-        // Force a layout update to ensure proper rendering
+      // If no target position and original is empty but modified has content, focus editor
+      if (!this.editorComponent._targetPosition && !original && modified) {
         diffEditor.layout();
+        const modifiedEditor = diffEditor.getModifiedEditor();
         modifiedEditor.focus();
         modifiedEditor.revealLine(1);
       }
-    }, 0);
+    }, 50);
   }
 }

@@ -29,6 +29,7 @@ class MonacoDiffEditor extends LitElement {
     this.keyBindings = new MonacoKeyBindings();
     this.eventHandlers = new EditorEventHandlers(this);
     this.contentManager = new EditorContentManager(this);
+    this._targetPosition = null;
   }
 
   render() {
@@ -118,6 +119,22 @@ class MonacoDiffEditor extends LitElement {
     return this.diffEditor?.getOriginalEditor().getValue() || null;
   }
 
+  getCurrentPosition() {
+    if (!this.diffEditor) return null;
+    
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    const position = modifiedEditor.getPosition();
+    
+    if (position) {
+      return {
+        lineNumber: position.lineNumber,
+        column: position.column
+      };
+    }
+    
+    return null;
+  }
+
   getSelectedText() {
     if (!this.diffEditor) return '';
     
@@ -141,24 +158,46 @@ class MonacoDiffEditor extends LitElement {
   }
 
   scrollToPosition(line, character) {
-    if (!this.diffEditor) return;
+    if (!this.diffEditor) {
+      // Store position to apply when editor is ready
+      this._targetPosition = { lineNumber: line, column: character };
+      return;
+    }
     
     const modifiedEditor = this.diffEditor.getModifiedEditor();
+    const model = modifiedEditor.getModel();
     
-    // Set cursor position
-    modifiedEditor.setPosition({
-      lineNumber: line,
-      column: character
-    });
+    if (!model) {
+      // Store position to apply when model is ready
+      this._targetPosition = { lineNumber: line, column: character };
+      return;
+    }
     
-    // Reveal the position in the center of the viewport
-    modifiedEditor.revealPositionInCenter({
-      lineNumber: line,
-      column: character
-    });
+    // Validate position bounds
+    const lineCount = model.getLineCount();
+    const validLine = Math.min(Math.max(1, line), lineCount);
+    const lineLength = model.getLineLength(validLine);
+    const validColumn = Math.min(Math.max(1, character), lineLength + 1);
     
-    // Focus the editor
+    const position = {
+      lineNumber: validLine,
+      column: validColumn
+    };
+    
+    // Set cursor position using Monaco's built-in methods
+    modifiedEditor.setPosition(position);
+    modifiedEditor.revealPositionInCenter(position);
     modifiedEditor.focus();
+    
+    // Clear target position
+    this._targetPosition = null;
+  }
+
+  applyTargetPositionIfSet() {
+    if (this._targetPosition && this.diffEditor) {
+      const { lineNumber, column } = this._targetPosition;
+      this.scrollToPosition(lineNumber, column);
+    }
   }
 }
 

@@ -28,7 +28,6 @@ export class DiffEditor extends JRPCClient {
     this.fileLoader = null;
     this.isSaving = false;
     this.languageDetector = new LanguageDetector();
-    this.lastCursorPosition = { line: 1, character: 1 };
   }
 
   async connectedCallback() {
@@ -136,7 +135,6 @@ export class DiffEditor extends JRPCClient {
 
   handleCursorPositionChanged(event) {
     const { line, character } = event.detail;
-    this.lastCursorPosition = { line, character };
     
     // Update current position in navigation history
     navigationHistory.updateCurrentPosition(line, character);
@@ -201,16 +199,25 @@ export class DiffEditor extends JRPCClient {
     }));
   }
 
+  getCurrentCursorPosition() {
+    const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
+    if (monacoEditor) {
+      return monacoEditor.getCurrentPosition();
+    }
+    return { lineNumber: 1, column: 1 };
+  }
+
   async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
     if (!this.fileLoader) {
       console.error('File loader not initialized');
       return;
     }
 
-    // Record the file switch in navigation history
+    // Get current cursor position before switching files
+    const currentPosition = this.getCurrentCursorPosition();
     const fromFile = this.currentFile;
-    const fromLine = this.lastCursorPosition.line;
-    const fromChar = this.lastCursorPosition.character;
+    const fromLine = currentPosition ? currentPosition.lineNumber : 1;
+    const fromChar = currentPosition ? currentPosition.column : 1;
     const toLine = lineNumber || 1;
     const toChar = characterNumber || 1;
 
@@ -226,7 +233,8 @@ export class DiffEditor extends JRPCClient {
       console.log('File content loaded:', {
         filePath,
         headLength: headContent.length,
-        workingLength: workingContent.length
+        workingLength: workingContent.length,
+        targetPosition: { line: toLine, character: toChar }
       });
 
       // Emit event to notify FileTree/RepoTree that a file has been loaded
@@ -243,13 +251,16 @@ export class DiffEditor extends JRPCClient {
       await this.updateComplete;
       const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
       if (monacoEditor && (lineNumber || characterNumber)) {
-        monacoEditor.scrollToPosition(lineNumber || 1, characterNumber || 1);
+        // Use setTimeout to ensure the content is fully loaded
+        setTimeout(() => {
+          monacoEditor.scrollToPosition(toLine, toChar);
+        }, 100);
       }
 
       // Clear navigation flag after navigation is complete
       setTimeout(() => {
         navigationHistory.clearNavigationFlag();
-      }, 100);
+      }, 200);
     } catch (error) {
       console.error('Failed to load file:', error);
       this.isLoading = false;
@@ -276,7 +287,7 @@ export class DiffEditor extends JRPCClient {
           console.log(`Content changed, reloading file ${filePath}`);
           
           // Store current cursor position
-          const cursorPosition = this.lastCursorPosition;
+          const cursorPosition = this.getCurrentCursorPosition();
           
           // Update the content
           this.headContent = headContent;
@@ -284,8 +295,10 @@ export class DiffEditor extends JRPCClient {
           
           // Wait for the editor to update, then restore cursor position
           await this.updateComplete;
-          if (monacoEditor) {
-            monacoEditor.scrollToPosition(cursorPosition.line, cursorPosition.character);
+          if (monacoEditor && cursorPosition) {
+            setTimeout(() => {
+              monacoEditor.scrollToPosition(cursorPosition.lineNumber, cursorPosition.column);
+            }, 100);
           }
         } else {
           console.log(`Content unchanged, skipping reload for ${filePath}`);
