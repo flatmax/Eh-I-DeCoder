@@ -20,7 +20,8 @@ self.get_call() (assume get_call exists) in py
 
 JRPC-OO usage :
 js promise : this.call['Class.method'](args)
-py async : self.get_call()['Class.method'](args)
+py : self.get_call()['Class.method'](args)
+Python can't use async functions with jrpc-oo
 
 JRPC-OO response :
 The return value is an object of {remote UUID : return data, ... }. utils.js function extractResponseData returns the data from the first UUID, as well as data for other forms.

@@ -9,8 +9,7 @@
   },
   "scripts": {
     "start": "web-dev-server --config web-dev-server.config.mjs",
-    "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch",
-    "language-server": "node language-server/server.js"
+    "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch"
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.2",
@@ -32,11 +31,7 @@
     "lit": "^2.7.0",
     "marked": "^15.0.12",
     "prismjs": "^1.29.0",
-    "@babel/parser": "^7.23.0",
-    "@babel/traverse": "^7.23.0",
-    "@babel/types": "^7.23.0",
-    "monaco-editor": "^0.44.0",
-    "ws": "^8.16.0"
+    "monaco-editor": "^0.44.0"
   },
   "devDependencies": {
     "@open-wc/dev-server-hmr": "^0.2.0",
