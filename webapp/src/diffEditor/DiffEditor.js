@@ -3,7 +3,8 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {FileContentLoader} from './FileContentLoader.js';
 import {DiffEditorStyles} from './DiffEditorStyles.js';
 import {LanguageDetector} from './LanguageDetector.js';
-import {navigationHistory} from './NavigationHistory.js';
+import {NavigationManager} from './NavigationManager.js';
+import {FileManager} from './FileManager.js';
 import './MonacoDiffEditor.js';
 import './NavigationHistoryGraph.js';
 
@@ -28,7 +29,8 @@ export class DiffEditor extends JRPCClient {
     this.fileLoader = null;
     this.isSaving = false;
     this.languageDetector = new LanguageDetector();
-    this.lastCursorPosition = { line: 1, character: 1 };
+    this.navigationManager = new NavigationManager(this);
+    this.fileManager = new FileManager(this);
   }
 
   async connectedCallback() {
@@ -37,12 +39,13 @@ export class DiffEditor extends JRPCClient {
     
     // Set up event listeners
     this.addEventListener('open-file', this.handleOpenFile.bind(this));
-    this.addEventListener('navigate-to-history', this.handleNavigateToHistory.bind(this));
+    this.addEventListener('navigate-to-history', this.navigationManager.handleNavigateToHistory.bind(this.navigationManager));
   }
 
   async remoteIsUp() {
     console.log('DiffEditor: Remote is up');
     this.fileLoader = new FileContentLoader(this);
+    this.fileManager.setFileLoader(this.fileLoader);
   }
 
   async setupDone() {
@@ -104,9 +107,9 @@ export class DiffEditor extends JRPCClient {
             theme="vs-dark"
             @save-file=${this.handleSaveFile}
             @request-find-in-files=${this.handleRequestFindInFiles}
-            @cursor-position-changed=${this.handleCursorPositionChanged}
-            @navigation-back=${this.handleNavigationBack}
-            @navigation-forward=${this.handleNavigationForward}
+            @cursor-position-changed=${this.navigationManager.handleCursorPositionChanged.bind(this.navigationManager)}
+            @navigation-back=${this.navigationManager.handleNavigationBack.bind(this.navigationManager)}
+            @navigation-forward=${this.navigationManager.handleNavigationForward.bind(this.navigationManager)}
           ></monaco-diff-editor>
         ` : html`
           <div class="no-file">Open a file to start editing</div>
@@ -119,40 +122,7 @@ export class DiffEditor extends JRPCClient {
     const filePath = event.detail.filePath;
     const lineNumber = event.detail.lineNumber || null;
     if (filePath) {
-      this.loadFileContent(filePath, lineNumber);
-    }
-  }
-
-  handleNavigateToHistory(event) {
-    const { filePath, line, character } = event.detail;
-    
-    // Navigate to the position in history
-    const position = navigationHistory.navigateToPosition(filePath, line, character);
-    if (position) {
-      // Load the file at the specified position
-      this.loadFileContent(position.filePath, position.line, position.character);
-    }
-  }
-
-  handleCursorPositionChanged(event) {
-    const { line, character } = event.detail;
-    this.lastCursorPosition = { line, character };
-    
-    // Update current position in navigation history
-    navigationHistory.updateCurrentPosition(line, character);
-  }
-
-  handleNavigationBack(event) {
-    const position = navigationHistory.goBack();
-    if (position) {
-      this.loadFileContent(position.filePath, position.line, position.character);
-    }
-  }
-
-  handleNavigationForward(event) {
-    const position = navigationHistory.goForward();
-    if (position) {
-      this.loadFileContent(position.filePath, position.line, position.character);
+      this.fileManager.loadFileContent(filePath, lineNumber);
     }
   }
 
@@ -201,99 +171,13 @@ export class DiffEditor extends JRPCClient {
     }));
   }
 
+  // Public API method - delegates to fileManager
   async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
-    if (!this.fileLoader) {
-      console.error('File loader not initialized');
-      return;
-    }
-
-    // Record the file switch in navigation history
-    const fromFile = this.currentFile;
-    const fromLine = this.lastCursorPosition.line;
-    const fromChar = this.lastCursorPosition.character;
-    const toLine = lineNumber || 1;
-    const toChar = characterNumber || 1;
-
-    this.isLoading = true;
-    this.currentFile = filePath;
-
-    try {
-      const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
-      this.headContent = headContent;
-      this.workingContent = workingContent;
-      this.isLoading = false;
-      
-      console.log('File content loaded:', {
-        filePath,
-        headLength: headContent.length,
-        workingLength: workingContent.length
-      });
-
-      // Emit event to notify FileTree/RepoTree that a file has been loaded
-      document.dispatchEvent(new CustomEvent('file-loaded-in-editor', {
-        detail: { filePath },
-        bubbles: true,
-        composed: true
-      }));
-
-      // Record in navigation history
-      navigationHistory.recordFileSwitch(fromFile, fromLine, fromChar, filePath, toLine, toChar);
-
-      // Wait for the editor to be ready, then scroll to position
-      await this.updateComplete;
-      const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
-      if (monacoEditor && (lineNumber || characterNumber)) {
-        monacoEditor.scrollToPosition(lineNumber || 1, characterNumber || 1);
-      }
-
-      // Clear navigation flag after navigation is complete
-      setTimeout(() => {
-        navigationHistory.clearNavigationFlag();
-      }, 100);
-    } catch (error) {
-      console.error('Failed to load file:', error);
-      this.isLoading = false;
-    }
+    return this.fileManager.loadFileContent(filePath, lineNumber, characterNumber);
   }
 
   async reloadIfCurrentFile(data) {
-    const filePath = data.filePath;
-    
-    // Only reload if this is the currently open file
-    if (filePath === this.currentFile) {
-      console.log(`Checking if reload needed for ${filePath} due to external save`);
-      
-      // Get the current content from the editor
-      const monacoEditor = this.shadowRoot.querySelector('monaco-diff-editor');
-      const currentContent = monacoEditor?.getModifiedContent();
-      
-      // Load the new content from disk
-      try {
-        const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
-        
-        // Only reload if the content has actually changed
-        if (currentContent !== workingContent) {
-          console.log(`Content changed, reloading file ${filePath}`);
-          
-          // Store current cursor position
-          const cursorPosition = this.lastCursorPosition;
-          
-          // Update the content
-          this.headContent = headContent;
-          this.workingContent = workingContent;
-          
-          // Wait for the editor to update, then restore cursor position
-          await this.updateComplete;
-          if (monacoEditor) {
-            monacoEditor.scrollToPosition(cursorPosition.line, cursorPosition.character);
-          }
-        } else {
-          console.log(`Content unchanged, skipping reload for ${filePath}`);
-        }
-      } catch (error) {
-        console.error('Failed to check file content:', error);
-      }
-    }
+    await this.fileManager.reloadIfCurrentFile(data);
   }
 
   disconnectedCallback() {
