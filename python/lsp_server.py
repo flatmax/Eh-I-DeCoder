@@ -6,8 +6,20 @@ import os
 import subprocess
 import time
 import socket
+import threading
 
 lsp_process = None
+
+def log_stream(stream, log_prefix):
+    """Reads from a stream and logs its output."""
+    try:
+        for line in iter(stream.readline, ''):
+            print(f"[{log_prefix}] {line.strip()}", flush=True)
+    except ValueError:
+        # This can happen if the stream is closed while reading
+        pass
+    finally:
+        stream.close()
 
 def is_port_in_use(port):
     """Check if a port is already in use"""
@@ -73,18 +85,26 @@ def start_lsp_server(lsp_port=None):
             text=True
         )
         
-        # Give the server a moment to start
+        # Start threads to log stdout and stderr from the LSP server process
+        stdout_thread = threading.Thread(target=log_stream, args=(lsp_process.stdout, "LSP-STDOUT"))
+        stderr_thread = threading.Thread(target=log_stream, args=(lsp_process.stderr, "LSP-STDERR"))
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
+        stdout_thread.start()
+        stderr_thread.start()
+        
+        # Give the server a moment to start.
         time.sleep(3)
         
         # Check if process is still running
         if lsp_process.poll() is None:
-            print(f"LSP server started successfully on port {lsp_port}")
+            print(f"LSP server process started successfully on port {lsp_port}")
             return lsp_port
         else:
-            stdout, stderr = lsp_process.communicate()
-            print(f"npm run lsp failed:")
-            print(f"stdout: {stdout}")
-            print(f"stderr: {stderr}")
+            print(f"LSP server process failed to start or exited prematurely.")
+            # Wait briefly for logging threads to catch any final output
+            stdout_thread.join(timeout=1)
+            stderr_thread.join(timeout=1)
             return None
             
     except FileNotFoundError:

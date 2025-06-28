@@ -214,9 +214,15 @@ export class DiffEditor extends JRPCClient {
 
   // Public API method - delegates to fileManager
   async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
+    // If a file is currently open in the LSP, notify the server that it's being closed.
+    if (this.lspManager.isConnected && this.currentFile) {
+      const oldUri = `file://${this.currentFile}`;
+      this.lspManager.closeDocument(oldUri);
+    }
+
     const result = await this.fileManager.loadFileContent(filePath, lineNumber, characterNumber);
     
-    // Open document in LSP when file is loaded
+    // Open the new document in the LSP server.
     if (this.lspManager.isConnected && this.currentFile) {
       const uri = `file://${this.currentFile}`;
       const languageId = this.lspManager.getLanguageIdFromFile(this.currentFile);
