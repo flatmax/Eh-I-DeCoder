@@ -12,6 +12,7 @@ export class LSPManager {
         this.requestId = 1;
         this.isInitialized = false;
         this.initializationInProgress = false;
+        this.registeredLanguages = new Set();
         
         this.handleConnectionOpen = this.handleConnectionOpen.bind(this);
         this.handleConnectionClose = this.handleConnectionClose.bind(this);
@@ -104,6 +105,9 @@ export class LSPManager {
             bubbles: true,
             composed: true
         }));
+
+        // Unregister Monaco providers when disconnected
+        this.unregisterMonacoProviders();
 
         // Only attempt reconnection for unexpected disconnections
         if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -205,11 +209,191 @@ export class LSPManager {
             this.isInitialized = true;
             this.initializationInProgress = false;
             
+            // Step 3: Register Monaco language providers
+            await this.registerMonacoProviders();
+            
         } catch (error) {
             console.error('LSP: Initialization failed:', error);
             this.initializationInProgress = false;
             throw error;
         }
+    }
+
+    async registerMonacoProviders() {
+        if (!window.monaco) {
+            console.log('LSP: Monaco not available, waiting for it to load...');
+            await new Promise(resolve => {
+                const interval = setInterval(() => {
+                    if (window.monaco) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 100); // Check every 100ms
+            });
+            console.log('LSP: Monaco loaded, proceeding with provider registration.');
+        }
+
+        console.log('LSP: Registering Monaco language providers');
+
+        // Languages to register LSP providers for
+        const languages = ['javascript', 'typescript', 'python', 'cpp', 'c'];
+
+        languages.forEach(language => {
+            if (this.registeredLanguages.has(language)) {
+                return; // Already registered
+            }
+
+            // Register completion provider
+            monaco.languages.registerCompletionItemProvider(language, {
+                provideCompletionItems: async (model, position) => {
+                    try {
+                        const uri = model.uri.toString();
+                        const result = await this.getCompletion(uri, {
+                            line: position.lineNumber - 1,
+                            character: position.column - 1
+                        });
+
+                        if (!result || !result.items) {
+                            return { suggestions: [] };
+                        }
+
+                        const suggestions = result.items.map(item => ({
+                            label: item.label,
+                            kind: this.convertCompletionItemKind(item.kind),
+                            documentation: item.documentation,
+                            detail: item.detail,
+                            insertText: item.insertText || item.label,
+                            range: position
+                        }));
+
+                        return { suggestions };
+                    } catch (error) {
+                        console.error('LSP: Error in completion provider:', error);
+                        return { suggestions: [] };
+                    }
+                },
+                triggerCharacters: ['.', ':', '>', '<']
+            });
+
+            // Register hover provider
+            monaco.languages.registerHoverProvider(language, {
+                provideHover: async (model, position) => {
+                    try {
+                        const uri = model.uri.toString();
+                        const result = await this.getHover(uri, {
+                            line: position.lineNumber - 1,
+                            character: position.column - 1
+                        });
+
+                        if (!result || !result.contents) {
+                            return null;
+                        }
+
+                        let contents = [];
+                        if (Array.isArray(result.contents)) {
+                            contents = result.contents.map(content => {
+                                if (typeof content === 'string') {
+                                    return { value: content };
+                                }
+                                return content;
+                            });
+                        } else if (typeof result.contents === 'string') {
+                            contents = [{ value: result.contents }];
+                        } else {
+                            contents = [result.contents];
+                        }
+
+                        return {
+                            contents: contents,
+                            range: result.range ? this.convertRange(result.range) : undefined
+                        };
+                    } catch (error) {
+                        console.error('LSP: Error in hover provider:', error);
+                        return null;
+                    }
+                }
+            });
+
+            // Register definition provider
+            monaco.languages.registerDefinitionProvider(language, {
+                provideDefinition: async (model, position) => {
+                    try {
+                        const uri = model.uri.toString();
+                        const result = await this.getDefinition(uri, {
+                            line: position.lineNumber - 1,
+                            character: position.column - 1
+                        });
+
+                        if (!result || !Array.isArray(result) || result.length === 0) {
+                            return [];
+                        }
+
+                        return result.map(location => ({
+                            uri: monaco.Uri.parse(location.uri),
+                            range: this.convertRange(location.range)
+                        }));
+                    } catch (error) {
+                        console.error('LSP: Error in definition provider:', error);
+                        return [];
+                    }
+                }
+            });
+
+            this.registeredLanguages.add(language);
+            console.log(`LSP: Registered providers for ${language}`);
+        });
+    }
+
+    unregisterMonacoProviders() {
+        // Monaco doesn't provide a direct way to unregister providers
+        // They will be garbage collected when the LSPManager is destroyed
+        this.registeredLanguages.clear();
+    }
+
+    convertCompletionItemKind(kind) {
+        if (!window.monaco) return 0;
+        
+        const CompletionItemKind = monaco.languages.CompletionItemKind;
+        
+        switch (kind) {
+            case 1: return CompletionItemKind.Text;
+            case 2: return CompletionItemKind.Method;
+            case 3: return CompletionItemKind.Function;
+            case 4: return CompletionItemKind.Constructor;
+            case 5: return CompletionItemKind.Field;
+            case 6: return CompletionItemKind.Variable;
+            case 7: return CompletionItemKind.Class;
+            case 8: return CompletionItemKind.Interface;
+            case 9: return CompletionItemKind.Module;
+            case 10: return CompletionItemKind.Property;
+            case 11: return CompletionItemKind.Unit;
+            case 12: return CompletionItemKind.Value;
+            case 13: return CompletionItemKind.Enum;
+            case 14: return CompletionItemKind.Keyword;
+            case 15: return CompletionItemKind.Snippet;
+            case 16: return CompletionItemKind.Color;
+            case 17: return CompletionItemKind.File;
+            case 18: return CompletionItemKind.Reference;
+            case 19: return CompletionItemKind.Folder;
+            case 20: return CompletionItemKind.EnumMember;
+            case 21: return CompletionItemKind.Constant;
+            case 22: return CompletionItemKind.Struct;
+            case 23: return CompletionItemKind.Event;
+            case 24: return CompletionItemKind.Operator;
+            case 25: return CompletionItemKind.TypeParameter;
+            default: return CompletionItemKind.Text;
+        }
+    }
+
+    convertRange(lspRange) {
+        if (!window.monaco) return null;
+        
+        return new monaco.Range(
+            lspRange.start.line + 1,
+            lspRange.start.character + 1,
+            lspRange.end.line + 1,
+            lspRange.end.character + 1
+        );
     }
 
     getNextRequestId() {
@@ -457,6 +641,7 @@ export class LSPManager {
         this.initializationInProgress = false;
         this.openDocuments.clear();
         this.pendingRequests.clear();
+        this.unregisterMonacoProviders();
     }
 
     destroy() {

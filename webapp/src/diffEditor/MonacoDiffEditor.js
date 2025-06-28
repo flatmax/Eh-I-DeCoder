@@ -4,12 +4,13 @@ import { MonacoLoader } from './MonacoLoader.js';
 import { MonacoKeyBindings } from './MonacoKeyBindings.js';
 import { EditorConfig } from './EditorConfig.js';
 import { EditorEventHandlers } from './EditorEventHandlers.js';
-import { EditorContentManager } from './EditorContentManager.js';
+// import { EditorContentManager } from './EditorContentManager.js'; // Bypassed for LSP URI fix
 
 class MonacoDiffEditor extends LitElement {
   static properties = {
     originalContent: { type: String },
     modifiedContent: { type: String },
+    filePath: { type: String },
     language: { type: String },
     theme: { type: String },
     readOnly: { type: Boolean }
@@ -21,6 +22,7 @@ class MonacoDiffEditor extends LitElement {
     super();
     this.originalContent = '';
     this.modifiedContent = '';
+    this.filePath = null;
     this.language = 'javascript';
     this.theme = 'vs-dark';
     this.readOnly = false;
@@ -28,9 +30,14 @@ class MonacoDiffEditor extends LitElement {
     this.monacoLoader = new MonacoLoader();
     this.keyBindings = new MonacoKeyBindings();
     this.eventHandlers = new EditorEventHandlers(this);
-    this.contentManager = new EditorContentManager(this);
+    // this.contentManager = new EditorContentManager(this); // Bypassed
     this._targetPosition = null;
     this._contentVersion = 1;
+
+    // Cache content to avoid unnecessary model recreation
+    this._lastOriginalContent = null;
+    this._lastModifiedContent = null;
+    this._lastFilePath = null;
   }
 
   render() {
@@ -54,8 +61,10 @@ class MonacoDiffEditor extends LitElement {
   updated(changedProperties) {
     if (!this.diffEditor) return;
     
-    if (changedProperties.has('originalContent') || changedProperties.has('modifiedContent')) {
-      this.contentManager.updateContentIfChanged();
+    if (changedProperties.has('originalContent') || 
+        changedProperties.has('modifiedContent') ||
+        changedProperties.has('filePath')) {
+      this._updateEditorModels();
     }
     
     if (changedProperties.has('theme')) {
@@ -79,7 +88,7 @@ class MonacoDiffEditor extends LitElement {
     
     this.diffEditor = monaco.editor.createDiffEditor(container, EditorConfig.getEditorOptions(this.theme));
 
-    this.contentManager.updateContent();
+    this._updateEditorModels();
     this.eventHandlers.setupEventHandlers();
     this.keyBindings.setupKeyBindings(this.diffEditor, this);
     this.eventHandlers.setupNavigationKeyBindings();
@@ -91,6 +100,51 @@ class MonacoDiffEditor extends LitElement {
     if (this.readOnly) {
       this._updateReadOnly();
     }
+  }
+
+  /**
+   * This method replaces the logic from EditorContentManager to ensure that
+   * Monaco editor models are created with a file URI. This is essential for
+   * LSP services like hover and go-to-definition to work correctly.
+   */
+  _updateEditorModels() {
+    if (!this.diffEditor) return;
+
+    const contentChanged = this.originalContent !== this._lastOriginalContent || 
+                           this.modifiedContent !== this._lastModifiedContent ||
+                           this.filePath !== this._lastFilePath;
+    
+    if (!contentChanged) {
+      return;
+    }
+
+    const original = this.originalContent || '';
+    const modified = this.modifiedContent || '';
+    const language = this.language || 'plaintext';
+    
+    // Create a file URI for the model. This is the key fix.
+    const uri = this.filePath ? monaco.Uri.file(this.filePath) : null;
+
+    // Dispose of old models before setting new ones to prevent memory leaks
+    const oldModel = this.diffEditor.getModel();
+    if (oldModel) {
+        if (oldModel.original) oldModel.original.dispose();
+        if (oldModel.modified) oldModel.modified.dispose();
+    }
+
+    // Create new models with the correct URI and language
+    const originalModel = monaco.editor.createModel(original, language, uri);
+    const modifiedModel = monaco.editor.createModel(modified, language, uri);
+
+    this.diffEditor.setModel({
+        original: originalModel,
+        modified: modifiedModel
+    });
+
+    // Update our content cache
+    this._lastOriginalContent = this.originalContent;
+    this._lastModifiedContent = this.modifiedContent;
+    this._lastFilePath = this.filePath;
   }
 
   _setupContentChangeListener() {
@@ -124,10 +178,11 @@ class MonacoDiffEditor extends LitElement {
   }
 
   // Public API
-  updateContent(originalContent, modifiedContent, language = 'javascript') {
+  updateContent(originalContent, modifiedContent, language = 'javascript', filePath = null) {
     this.originalContent = originalContent;
     this.modifiedContent = modifiedContent;
     this.language = language;
+    this.filePath = filePath;
   }
 
   getContent() {
