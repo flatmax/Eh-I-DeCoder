@@ -39,7 +39,6 @@ export class LSPManager {
 
     async connect() {
         if (this.websocket) {
-            console.log('LSP: Closing existing connection before reconnecting');
             this.disconnect();
         }
 
@@ -66,11 +65,6 @@ export class LSPManager {
 
                 this.websocket.onmessage = this.handleMessage;
 
-                // Add pong handler for ping/pong keepalive
-                this.websocket.onpong = () => {
-                    console.log('LSP: Received pong from server');
-                };
-
             } catch (error) {
                 console.error('LSP: Error creating WebSocket:', error);
                 reject(error);
@@ -79,7 +73,7 @@ export class LSPManager {
     }
 
     async handleConnectionOpen() {
-        console.log('LSP: WebSocket connected successfully');
+        console.log('LSP: Connected');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.isInitialized = false;
@@ -94,13 +88,13 @@ export class LSPManager {
         try {
             await this.initializeLSP();
         } catch (error) {
-            console.error('LSP: Initialization handshake failed:', error);
+            console.error('LSP: Initialization failed:', error);
             this.disconnect();
         }
     }
 
     handleConnectionClose(event) {
-        console.log(`LSP: WebSocket disconnected - Code: ${event.code}, Reason: "${event.reason}", WasClean: ${event.wasClean}`);
+        console.log(`LSP: Disconnected (code: ${event.code})`);
         this.isConnected = false;
         this.isInitialized = false;
         this.initializationInProgress = false;
@@ -114,49 +108,40 @@ export class LSPManager {
         // Only attempt reconnection for unexpected disconnections
         if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            console.log(`LSP: Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay}ms`);
+            console.log(`LSP: Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
             setTimeout(() => {
                 this.connect().catch(error => {
                     console.error('LSP: Reconnection failed:', error);
                 });
             }, this.reconnectDelay);
-        } else if (event.code === 1000) {
-            console.log('LSP: Connection closed normally, not attempting to reconnect');
-        } else {
-            console.log('LSP: Max reconnection attempts reached, giving up');
+        } else if (event.code !== 1000) {
+            console.log('LSP: Max reconnection attempts reached');
         }
     }
 
     handleConnectionError(error) {
-        console.error('LSP: WebSocket error:', error);
+        console.error('LSP: Connection error:', error);
         this.isConnected = false;
         this.isInitialized = false;
         this.initializationInProgress = false;
     }
 
     handleMessage(event) {
-        console.log('LSP: Received raw message:', event.data);
         try {
             const message = JSON.parse(event.data);
             
             if (message.method === 'textDocument/publishDiagnostics') {
-                console.log('LSP: Received diagnostics:', message.params);
                 this.handleDiagnostics(message.params);
             } else if (message.id && this.pendingRequests.has(message.id)) {
                 // Handle response to our request
-                console.log(`LSP: Received response for request ${message.id}`);
                 const { resolve, reject } = this.pendingRequests.get(message.id);
                 this.pendingRequests.delete(message.id);
                 
                 if (message.error) {
-                    console.error(`LSP: Request ${message.id} failed:`, message.error);
                     reject(new Error(message.error.message));
                 } else {
-                    console.log(`LSP: Request ${message.id} succeeded:`, message.result);
                     resolve(message.result);
                 }
-            } else {
-                console.log('LSP: Received unhandled message:', message);
             }
         } catch (error) {
             console.error('LSP: Error handling message:', error);
@@ -165,12 +150,10 @@ export class LSPManager {
 
     async initializeLSP() {
         if (this.initializationInProgress) {
-            console.log('LSP: Initialization already in progress, skipping');
             return;
         }
 
         this.initializationInProgress = true;
-        console.log('LSP: Starting initialization handshake...');
 
         const params = {
             processId: null,
@@ -208,9 +191,7 @@ export class LSPManager {
 
         try {
             // Step 1: Send initialize request and wait for the response
-            console.log('LSP: Sending initialize request...');
             const result = await this.sendRequest('initialize', params);
-            console.log('LSP: Received initialize response:', result);
 
             // Step 2: Send initialized notification
             const initializedNotification = {
@@ -219,7 +200,7 @@ export class LSPManager {
                 params: {}
             };
             this.sendMessage(initializedNotification);
-            console.log('LSP: Sent initialized notification. Handshake complete.');
+            console.log('LSP: Initialized');
             
             this.isInitialized = true;
             this.initializationInProgress = false;
@@ -237,17 +218,14 @@ export class LSPManager {
 
     sendMessage(message) {
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            const messageStr = JSON.stringify(message);
-            console.log('LSP: Sending message:', messageStr);
             try {
-                this.websocket.send(messageStr);
+                this.websocket.send(JSON.stringify(message));
                 return true;
             } catch (error) {
                 console.error('LSP: Error sending message:', error);
                 return false;
             }
         } else {
-            console.warn('LSP: Cannot send message - WebSocket not open. ReadyState:', this.websocket?.readyState);
             return false;
         }
     }
@@ -288,11 +266,8 @@ export class LSPManager {
 
     openDocument(uri, languageId, content) {
         if (!this.isConnected || !this.isInitialized) {
-            console.warn('LSP: Cannot open document - not connected or initialized');
             return;
         }
-
-        console.log(`LSP: Opening document: ${uri} (${languageId})`);
 
         const message = {
             jsonrpc: '2.0',
@@ -313,11 +288,8 @@ export class LSPManager {
 
     updateDocument(uri, content, version) {
         if (!this.isConnected || !this.isInitialized || !this.openDocuments.has(uri)) {
-            console.warn('LSP: Cannot update document - not connected, initialized, or document not open');
             return;
         }
-
-        console.log(`LSP: Updating document: ${uri} (version ${version})`);
 
         const message = {
             jsonrpc: '2.0',
@@ -340,11 +312,8 @@ export class LSPManager {
 
     closeDocument(uri) {
         if (!this.isConnected || !this.isInitialized || !this.openDocuments.has(uri)) {
-            console.warn('LSP: Cannot close document - not connected, initialized, or document not open');
             return;
         }
-
-        console.log(`LSP: Closing document: ${uri}`);
 
         const message = {
             jsonrpc: '2.0',
@@ -362,17 +331,14 @@ export class LSPManager {
 
     async getCompletion(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
-            console.warn('LSP: Cannot get completion - not connected or initialized');
             return null;
         }
 
         try {
-            console.log(`LSP: Requesting completion for ${uri} at position`, position);
             const result = await this.sendRequest('textDocument/completion', {
                 textDocument: { uri: uri },
                 position: position
             });
-            console.log('LSP: Completion result:', result);
             return result;
         } catch (error) {
             console.error('LSP: Error getting completion:', error);
@@ -382,17 +348,14 @@ export class LSPManager {
 
     async getHover(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
-            console.warn('LSP: Cannot get hover - not connected or initialized');
             return null;
         }
 
         try {
-            console.log(`LSP: Requesting hover for ${uri} at position`, position);
             const result = await this.sendRequest('textDocument/hover', {
                 textDocument: { uri: uri },
                 position: position
             });
-            console.log('LSP: Hover result:', result);
             return result;
         } catch (error) {
             console.error('LSP: Error getting hover:', error);
@@ -402,17 +365,14 @@ export class LSPManager {
 
     async getDefinition(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
-            console.warn('LSP: Cannot get definition - not connected or initialized');
             return null;
         }
 
         try {
-            console.log(`LSP: Requesting definition for ${uri} at position`, position);
             const result = await this.sendRequest('textDocument/definition', {
                 textDocument: { uri: uri },
                 position: position
             });
-            console.log('LSP: Definition result:', result);
             return result;
         } catch (error) {
             console.error('LSP: Error getting definition:', error);
@@ -422,13 +382,10 @@ export class LSPManager {
 
     handleDiagnostics(params) {
         const { uri, diagnostics } = params;
-        console.log(`LSP: Applying ${diagnostics.length} diagnostics for ${uri}`);
         
         const monacoEditor = this.diffEditor.shadowRoot?.querySelector('monaco-diff-editor');
         if (monacoEditor && monacoEditor.diffEditor) {
             this.applyDiagnosticsToMonaco(monacoEditor.diffEditor, uri, diagnostics);
-        } else {
-            console.warn('LSP: Monaco editor not found, cannot apply diagnostics');
         }
     }
 
@@ -438,7 +395,6 @@ export class LSPManager {
             const model = modifiedEditor.getModel();
             
             if (!model) {
-                console.warn('LSP: No model available, cannot apply diagnostics');
                 return;
             }
 
@@ -452,7 +408,6 @@ export class LSPManager {
                 source: diagnostic.source || 'LSP'
             }));
 
-            console.log(`LSP: Setting ${markers.length} markers on Monaco model`);
             monaco.editor.setModelMarkers(model, 'lsp', markers);
         } catch (error) {
             console.error('LSP: Error applying diagnostics:', error);

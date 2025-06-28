@@ -66,7 +66,6 @@ class LSPServer {
                 this.port = parseInt(process.env.LSP_PORT, 10);
                 console.log(`Using LSP_PORT from environment: ${this.port}`);
             } else {
-                console.log('LSP_PORT not set, finding an available port...');
                 this.port = await this.findAvailablePort(9000);
             }
             
@@ -88,12 +87,11 @@ class LSPServer {
 
             this.server.on('connection', (ws, req) => {
                 const clientId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                console.log(`LSP Client connected: ${clientId} from ${req.socket.remoteAddress}`);
+                console.log(`LSP Client connected: ${clientId}`);
                 this.clients.add(ws);
                 ws.clientId = clientId;
 
                 ws.on('message', async (data) => {
-                    console.log(`LSP Server [${clientId}]: Received raw message:`, data.toString());
                     try {
                         const message = JSON.parse(data.toString());
                         await this.handleMessage(ws, message);
@@ -104,7 +102,7 @@ class LSPServer {
                 });
 
                 ws.on('close', (code, reason) => {
-                    console.log(`LSP Client disconnected: ${clientId}, code: ${code}, reason: ${reason ? reason.toString() : 'none'}`);
+                    console.log(`LSP Client disconnected: ${clientId}, code: ${code}`);
                     this.clients.delete(ws);
                 });
 
@@ -145,8 +143,6 @@ class LSPServer {
         
         for (const [langKey, config] of Object.entries(this.languageConfigs)) {
             try {
-                console.log(`Testing ${langKey} language server: ${config.command}`);
-                
                 // Test if the command exists
                 const testProcess = spawn(config.command, ['--help'], {
                     stdio: ['ignore', 'ignore', 'ignore'],
@@ -170,10 +166,10 @@ class LSPServer {
                     });
                 });
                 
-                console.log(`✓ ${langKey} language server (${config.command}) is available`);
+                console.log(`✓ ${langKey} language server available`);
                 
             } catch (error) {
-                console.log(`✗ ${langKey} language server (${config.command}) is NOT available: ${error.message}`);
+                console.log(`✗ ${langKey} language server NOT available`);
             }
         }
     }
@@ -201,7 +197,6 @@ class LSPServer {
         }
 
         const { method, params, id } = message;
-        console.log(`LSP Server [${clientId}]: Handling method: ${method}${id ? ` (id: ${id})` : ''}`);
 
         switch (method) {
             case 'initialize':
@@ -229,7 +224,6 @@ class LSPServer {
                 await this.handleDefinition(ws, params, id);
                 break;
             default:
-                console.log(`LSP Server [${clientId}]: Unhandled method: ${method}`);
                 if (id) {
                     this.sendMethodNotFound(ws, id);
                 }
@@ -238,7 +232,6 @@ class LSPServer {
 
     async handleInitialize(ws, params, id) {
         const clientId = ws.clientId || 'unknown';
-        console.log(`LSP Server [${clientId}]: Processing initialize request`);
         
         const response = {
             jsonrpc: '2.0',
@@ -258,12 +251,8 @@ class LSPServer {
             }
         };
 
-        const responseStr = JSON.stringify(response);
-        console.log(`LSP Server [${clientId}]: Sending initialize response:`, responseStr);
-        
         try {
-            ws.send(responseStr);
-            console.log(`LSP Server [${clientId}]: Initialize response sent successfully`);
+            ws.send(JSON.stringify(response));
         } catch (error) {
             console.error(`LSP Server [${clientId}]: Error sending initialize response:`, error);
         }
@@ -271,14 +260,10 @@ class LSPServer {
 
     async handleInitialized(ws, params) {
         const clientId = ws.clientId || 'unknown';
-        console.log(`LSP Server [${clientId}]: Received initialized notification from client. Handshake complete.`);
-        console.log(`LSP Server [${clientId}]: Connection state: readyState=${ws.readyState}, bufferedAmount=${ws.bufferedAmount}`);
+        console.log(`LSP Server [${clientId}]: Client initialized`);
         
         // Mark this connection as fully initialized
         ws.isInitialized = true;
-        
-        // Don't close the connection here - let it stay open for future requests
-        console.log(`LSP Server [${clientId}]: Client is now ready for LSP requests`);
     }
 
     async handleDidOpenTextDocument(ws, params) {
@@ -286,24 +271,19 @@ class LSPServer {
         const { textDocument } = params;
         const { uri, languageId, text } = textDocument;
 
-        console.log(`LSP Server [${clientId}]: Opening document: ${uri} (${languageId})`);
+        console.log(`LSP Server [${clientId}]: Opening document: ${path.basename(uri)} (${languageId})`);
         this.documents.set(uri, { uri, languageId, text, version: 1 });
 
         const languageServer = await this.getLanguageServerForDocument(textDocument);
         if (languageServer) {
-            console.log(`LSP Server [${clientId}]: Forwarding didOpen to language server`);
             this.forwardToLanguageServer(languageServer, 'textDocument/didOpen', params);
-        } else {
-            console.log(`LSP Server [${clientId}]: No language server available for ${languageId}`);
         }
     }
 
     async handleDidChangeTextDocument(ws, params) {
-        const clientId = ws.clientId || 'unknown';
         const { textDocument, contentChanges } = params;
         const { uri } = textDocument;
 
-        console.log(`LSP Server [${clientId}]: Document changed: ${uri}`);
         const document = this.documents.get(uri);
         if (document) {
             document.version = textDocument.version;
@@ -319,11 +299,9 @@ class LSPServer {
     }
 
     async handleDidCloseTextDocument(ws, params) {
-        const clientId = ws.clientId || 'unknown';
         const { textDocument } = params;
         const { uri } = textDocument;
 
-        console.log(`LSP Server [${clientId}]: Closing document: ${uri}`);
         this.documents.delete(uri);
 
         const languageServer = await this.getLanguageServerForUri(uri);
@@ -333,46 +311,37 @@ class LSPServer {
     }
 
     async handleCompletion(ws, params, id) {
-        const clientId = ws.clientId || 'unknown';
         const { textDocument } = params;
-        console.log(`LSP Server [${clientId}]: Completion request for: ${textDocument.uri}`);
         
         const languageServer = await this.getLanguageServerForUri(textDocument.uri);
         
         if (languageServer) {
             this.forwardRequestToLanguageServer(languageServer, 'textDocument/completion', params, id, ws);
         } else {
-            console.log(`LSP Server [${clientId}]: No language server for completion, returning empty results`);
             this.sendResponse(ws, id, { items: [] });
         }
     }
 
     async handleHover(ws, params, id) {
-        const clientId = ws.clientId || 'unknown';
         const { textDocument } = params;
-        console.log(`LSP Server [${clientId}]: Hover request for: ${textDocument.uri}`);
         
         const languageServer = await this.getLanguageServerForUri(textDocument.uri);
         
         if (languageServer) {
             this.forwardRequestToLanguageServer(languageServer, 'textDocument/hover', params, id, ws);
         } else {
-            console.log(`LSP Server [${clientId}]: No language server for hover, returning null`);
             this.sendResponse(ws, id, null);
         }
     }
 
     async handleDefinition(ws, params, id) {
-        const clientId = ws.clientId || 'unknown';
         const { textDocument } = params;
-        console.log(`LSP Server [${clientId}]: Definition request for: ${textDocument.uri}`);
         
         const languageServer = await this.getLanguageServerForUri(textDocument.uri);
         
         if (languageServer) {
             this.forwardRequestToLanguageServer(languageServer, 'textDocument/definition', params, id, ws);
         } else {
-            console.log(`LSP Server [${clientId}]: No language server for definition, returning empty array`);
             this.sendResponse(ws, id, []);
         }
     }
@@ -398,12 +367,11 @@ class LSPServer {
         }
 
         if (!langConfig) {
-            console.log(`No language server configuration found for file: ${filePath} (ext: ${ext}, languageId: ${languageId})`);
             return null;
         }
 
         if (!this.languageServerPromises.has(langKey)) {
-            console.log(`Starting new language server for ${langKey}`);
+            console.log(`Starting ${langKey} language server`);
             const serverPromise = this.startLanguageServer(langKey, langConfig);
             this.languageServerPromises.set(langKey, serverPromise);
         }
@@ -411,7 +379,6 @@ class LSPServer {
         // Wait for the server to be fully initialized
         try {
             const server = await this.languageServerPromises.get(langKey);
-            console.log(`Language server for ${langKey} is ready`);
             return server;
         } catch (error) {
             console.error(`Failed to get language server for ${langKey}:`, error);
@@ -423,8 +390,6 @@ class LSPServer {
     async startLanguageServer(langKey, config) {
         return new Promise((resolve, reject) => {
             try {
-                console.log(`Starting ${langKey} language server: ${config.command} ${config.args.join(' ')}`);
-
                 const server = spawn(config.command, config.args, {
                     cwd: this.workspaceRoot,
                     stdio: ['pipe', 'pipe', 'pipe']
@@ -433,20 +398,30 @@ class LSPServer {
                 // Store promise handlers on the server process object
                 server.initResolve = resolve;
                 server.initReject = reject;
+                server.isInitializing = true;
 
                 server.stderr.on('data', (data) => {
-                    console.error(`${langKey} LSP stderr:`, data.toString());
+                    // Only log errors, not all stderr output
+                    const output = data.toString();
+                    if (output.toLowerCase().includes('error')) {
+                        console.error(`${langKey} LSP error:`, output.trim());
+                    }
                 });
 
                 server.on('error', (error) => {
                     console.error(`Failed to start ${langKey} language server:`, error.message);
                     this.languageServerPromises.delete(langKey);
-                    reject(error);
+                    if (server.isInitializing && server.initReject) {
+                        server.initReject(error);
+                    }
                 });
 
                 server.on('exit', (code, signal) => {
-                    console.log(`${langKey} language server exited with code ${code}, signal: ${signal}`);
+                    console.log(`${langKey} language server exited with code ${code}`);
                     this.languageServerPromises.delete(langKey);
+                    if (server.isInitializing && server.initReject) {
+                        server.initReject(new Error(`Language server exited with code ${code}`));
+                    }
                 });
 
                 // Initialize the language server
@@ -496,7 +471,6 @@ class LSPServer {
                 // Store the init request ID to identify the response
                 server.initRequestId = initMessage.id;
 
-                console.log(`Sending initialize message to ${langKey} language server:`, JSON.stringify(initMessage));
                 server.stdin.write(this.createLSPMessage(JSON.stringify(initMessage)));
 
                 // Set up response handling
@@ -545,7 +519,6 @@ class LSPServer {
 
             try {
                 const message = JSON.parse(messageContent);
-                console.log(`Received message from ${langKey} language server:`, JSON.stringify(message));
                 this.handleLanguageServerMessage(langKey, server, message);
             } catch (error) {
                 console.error(`Error parsing LSP message from ${langKey}:`, error);
@@ -555,12 +528,14 @@ class LSPServer {
 
     handleLanguageServerMessage(langKey, server, message) {
         // Check if this is the response to our initialization request
-        if (message.id === server.initRequestId) {
+        if (message.id === server.initRequestId && server.isInitializing) {
             if (message.error) {
                 console.error(`${langKey} language server initialization failed:`, message.error);
-                server.initReject(new Error(message.error.message));
+                if (server.initReject) {
+                    server.initReject(new Error(message.error.message));
+                }
             } else {
-                console.log(`${langKey} language server initialized successfully.`);
+                console.log(`${langKey} language server initialized`);
                 
                 // Send initialized notification
                 const initializedMessage = {
@@ -569,13 +544,16 @@ class LSPServer {
                     params: {}
                 };
                 
-                console.log(`Sending initialized notification to ${langKey} language server`);
                 server.stdin.write(this.createLSPMessage(JSON.stringify(initializedMessage)));
                 
                 // Initialization is successful, resolve the promise with the server process.
-                server.initResolve(server);
+                if (server.initResolve) {
+                    server.initResolve(server);
+                }
             }
-            // Clean up
+            
+            // Clean up initialization state
+            server.isInitializing = false;
             delete server.initRequestId;
             delete server.initResolve;
             delete server.initReject;
@@ -583,7 +561,6 @@ class LSPServer {
         }
 
         if (message.method === 'textDocument/publishDiagnostics') {
-            console.log(`Broadcasting diagnostics from ${langKey} language server`);
             this.broadcastToClients(message);
         } else if (message.id && server.pendingRequests && server.pendingRequests.has(message.id)) {
             // Handle response to a request
@@ -598,9 +575,7 @@ class LSPServer {
             };
             
             if (ws.readyState === WebSocket.OPEN) {
-                const responseStr = JSON.stringify(response);
-                console.log(`Forwarding response to client [${ws.clientId}]:`, responseStr);
-                ws.send(responseStr);
+                ws.send(JSON.stringify(response));
             }
         }
     }
@@ -614,7 +589,6 @@ class LSPServer {
             };
 
             try {
-                console.log(`Forwarding ${method} to language server:`, JSON.stringify(message));
                 server.stdin.write(this.createLSPMessage(JSON.stringify(message)));
             } catch (error) {
                 console.error('Error forwarding to language server:', error);
@@ -639,7 +613,6 @@ class LSPServer {
             server.pendingRequests.set(requestId, { ws, originalId });
 
             try {
-                console.log(`Forwarding request ${method} to language server:`, JSON.stringify(message));
                 server.stdin.write(this.createLSPMessage(JSON.stringify(message)));
             } catch (error) {
                 console.error('Error forwarding request to language server:', error);
@@ -650,7 +623,6 @@ class LSPServer {
 
     broadcastToClients(message) {
         const messageStr = JSON.stringify(message);
-        console.log('LSP Server: Broadcasting message to', this.clients.size, 'clients:', messageStr);
         
         for (const client of this.clients) {
             if (client.readyState === WebSocket.OPEN) {
@@ -670,11 +642,9 @@ class LSPServer {
             id: id,
             result: result
         };
-        const responseStr = JSON.stringify(response);
-        console.log(`LSP Server [${ws.clientId}]: Sending response:`, responseStr);
         
         try {
-            ws.send(responseStr);
+            ws.send(JSON.stringify(response));
         } catch (error) {
             console.error(`LSP Server [${ws.clientId}]: Error sending response:`, error);
         }
@@ -690,11 +660,8 @@ class LSPServer {
             }
         };
 
-        const errorStr = JSON.stringify(error);
-        console.log(`LSP Server [${ws.clientId}]: Sending error:`, errorStr);
-        
         try {
-            ws.send(errorStr);
+            ws.send(JSON.stringify(error));
         } catch (error) {
             console.error(`LSP Server [${ws.clientId}]: Error sending error message:`, error);
         }
@@ -710,11 +677,8 @@ class LSPServer {
             }
         };
 
-        const errorStr = JSON.stringify(error);
-        console.log(`LSP Server [${ws.clientId}]: Sending method not found:`, errorStr);
-        
         try {
-            ws.send(errorStr);
+            ws.send(JSON.stringify(error));
         } catch (error) {
             console.error(`LSP Server [${ws.clientId}]: Error sending method not found:`, error);
         }
