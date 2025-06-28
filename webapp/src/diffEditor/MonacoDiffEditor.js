@@ -30,6 +30,7 @@ class MonacoDiffEditor extends LitElement {
     this.eventHandlers = new EditorEventHandlers(this);
     this.contentManager = new EditorContentManager(this);
     this._targetPosition = null;
+    this._contentVersion = 1;
   }
 
   render() {
@@ -83,10 +84,36 @@ class MonacoDiffEditor extends LitElement {
     this.keyBindings.setupKeyBindings(this.diffEditor, this);
     this.eventHandlers.setupNavigationKeyBindings();
     
+    // Set up content change listener for LSP
+    this._setupContentChangeListener();
+    
     // Apply initial readOnly state to modified editor
     if (this.readOnly) {
       this._updateReadOnly();
     }
+  }
+
+  _setupContentChangeListener() {
+    if (!this.diffEditor) return;
+    
+    const modifiedEditor = this.diffEditor.getModifiedEditor();
+    
+    // Listen for content changes
+    modifiedEditor.onDidChangeModelContent((event) => {
+      const content = modifiedEditor.getValue();
+      this._contentVersion++;
+      
+      // Dispatch content change event for LSP
+      this.dispatchEvent(new CustomEvent('content-changed', {
+        detail: {
+          content: content,
+          version: this._contentVersion,
+          changes: event.changes
+        },
+        bubbles: true,
+        composed: true
+      }));
+    });
   }
 
   _updateReadOnly() {

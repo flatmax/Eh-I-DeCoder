@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "web-dev-server --config web-dev-server.config.mjs",
+    "lsp": "node lsp-server/server.js",
     "test-merge": "web-dev-server --app-index test/merge-editor-test.html --node-resolve --open --watch"
   },
   "dependencies": {
@@ -31,7 +32,10 @@
     "lit": "^2.7.0",
     "marked": "^15.0.12",
     "prismjs": "^1.29.0",
-    "monaco-editor": "^0.44.0"
+    "monaco-editor": "^0.44.0",
+    "monaco-languageclient": "^8.1.1",
+    "vscode-languageserver-protocol": "^3.17.5",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "@open-wc/dev-server-hmr": "^0.2.0",

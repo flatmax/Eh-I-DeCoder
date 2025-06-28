@@ -18,12 +18,14 @@ try:
     from .repo import Repo
     from .chat_history import ChatHistory
     from .webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
+    from .lsp_server import start_lsp_server, cleanup_lsp_process
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
     from repo import Repo
     from chat_history import ChatHistory
     from webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
+    from lsp_server import start_lsp_server, cleanup_lsp_process
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
@@ -45,7 +47,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
     parser.add_argument("--port", type=int, default=8999, help="Port for JSON-RPC server")
     parser.add_argument("--webapp-port", type=int, default=9876, help="Port for webapp dev server")
+    parser.add_argument("--lsp-port", type=int, help="Port for LSP server (auto-detected if not specified)")
     parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
+    parser.add_argument("--no-lsp", action="store_true", help="Don't start LSP server")
     
     args, unknown_args = parser.parse_known_args()
     return args, unknown_args
@@ -59,6 +63,7 @@ async def main_starter_async():
     def sigint_handler(sig, frame):
         print("\nShutting down...")
         cleanup_npm_process()
+        cleanup_lsp_process()
         try:
             loop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(shutdown_event.set)
@@ -72,6 +77,15 @@ async def main_starter_async():
     # Check if port was explicitly specified
     port_specified = '--port' in sys.argv
     server_port = find_available_port(start_port=args.port)
+    
+    # Start LSP server if not disabled
+    lsp_port = None
+    if not args.no_lsp:
+        lsp_port = start_lsp_server(args.lsp_port)
+        if lsp_port:
+            print(f"LSP server running on port {lsp_port}")
+        else:
+            print("LSP server failed to start, continuing without LSP features")
     
     # Start npm dev server
     dev_server_started = start_npm_dev_server(args.webapp_port)
@@ -128,7 +142,8 @@ async def main_starter_async():
         if dev_server_started and not args.no_browser:
             # Wait a bit more for the dev server to be fully ready
             await asyncio.sleep(2)
-            open_browser(args.webapp_port, server_port)
+            # Include LSP port in the URL if available
+            open_browser(args.webapp_port, server_port, lsp_port)
         
         await shutdown_event.wait()
         print("Stopping server...")
@@ -146,8 +161,9 @@ async def main_starter_async():
         print(f"Server error: {e}")
         return 3
     finally:
-        # Clean up npm process
+        # Clean up processes
         cleanup_npm_process()
+        cleanup_lsp_process()
 
 def main_starter():
     try:
@@ -165,10 +181,12 @@ def main_starter():
     except KeyboardInterrupt:
         print("\nForced exit")
         cleanup_npm_process()
+        cleanup_lsp_process()
         os._exit(1)
     except Exception as e:
         print(f"Unhandled exception: {e}")
         cleanup_npm_process()
+        cleanup_lsp_process()
         os._exit(3)
 
 if __name__ == "__main__":

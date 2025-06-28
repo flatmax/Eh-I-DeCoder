@@ -23,7 +23,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     sidebarExpanded: { type: Boolean, state: true },
     activeTabIndex: { type: Number, state: true },
     gitHistoryMode: { type: Boolean, state: true },
-    lspConnectionStatus: { type: String, state: true }
+    lspConnectionStatus: { type: String, state: true },
+    lspPort: { type: Number, state: true }
   };
   
   constructor() {
@@ -38,6 +39,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.activeTabIndex = 0;
     this.gitHistoryMode = false;
     this.lspConnectionStatus = 'disconnected';
+    this.lspPort = null;
+    
+    // Parse URL parameters for LSP port
+    this.parseURLParameters();
     
     // Bind methods
     this.handleOpenFile = this.handleOpenFile.bind(this);
@@ -46,6 +51,20 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.handleModeToggle = this.handleModeToggle.bind(this);
     this.handleRequestFindInFiles = this.handleRequestFindInFiles.bind(this);
     this.handleLspStatusChange = this.handleLspStatusChange.bind(this);
+  }
+  
+  parseURLParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // Parse LSP port
+    const lspParam = urlParams.get('lsp');
+    if (lspParam) {
+      const lspPort = parseInt(lspParam);
+      if (!isNaN(lspPort)) {
+        this.lspPort = lspPort;
+        console.log(`LSP port from URL: ${this.lspPort}`);
+      }
+    }
   }
   
   static styles = css`
@@ -286,7 +305,10 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
         <div class="main-content">
           <div class="editor-wrapper">
             ${this.showDiffEditor ? 
-              html`<diff-editor .serverURI=${this.serverURI}></diff-editor>` : ''}
+              html`<diff-editor 
+                .serverURI=${this.serverURI}
+                .lspPort=${this.lspPort}
+              ></diff-editor>` : ''}
           </div>
         </div>
       </div>

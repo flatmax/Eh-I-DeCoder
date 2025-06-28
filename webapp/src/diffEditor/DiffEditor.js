@@ -5,12 +5,14 @@ import {DiffEditorStyles} from './DiffEditorStyles.js';
 import {LanguageDetector} from './LanguageDetector.js';
 import {NavigationManager} from './NavigationManager.js';
 import {FileManager} from './FileManager.js';
+import {LSPManager} from '../lsp/LSPManager.js';
 import './MonacoDiffEditor.js';
 import './NavigationHistoryGraph.js';
 
 export class DiffEditor extends JRPCClient {
   static properties = {
     serverURI: { type: String },
+    lspPort: { type: Number },
     currentFile: { type: String, state: true },
     isLoading: { type: Boolean, state: true },
     headContent: { type: String, state: true },
@@ -23,6 +25,7 @@ export class DiffEditor extends JRPCClient {
   constructor() {
     super();
     this.currentFile = null;
+    this.lspPort = null;
     this.isLoading = false;
     this.headContent = '';
     this.workingContent = '';
@@ -31,6 +34,7 @@ export class DiffEditor extends JRPCClient {
     this.languageDetector = new LanguageDetector();
     this.navigationManager = new NavigationManager(this);
     this.fileManager = new FileManager(this);
+    this.lspManager = new LSPManager(this);
   }
 
   async connectedCallback() {
@@ -40,6 +44,22 @@ export class DiffEditor extends JRPCClient {
     // Set up event listeners
     this.addEventListener('open-file', this.handleOpenFile.bind(this));
     this.addEventListener('navigate-to-history', this.navigationManager.handleNavigateToHistory.bind(this.navigationManager));
+    
+    // Initialize LSP if port is available
+    if (this.lspPort) {
+      console.log(`DiffEditor: Initializing LSP with port ${this.lspPort}`);
+      this.lspManager.initialize(this.lspPort);
+    }
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    
+    // Initialize LSP when lspPort becomes available
+    if (changedProperties.has('lspPort') && this.lspPort && !this.lspManager.isConnected) {
+      console.log(`DiffEditor: LSP port updated to ${this.lspPort}, initializing LSP`);
+      this.lspManager.initialize(this.lspPort);
+    }
   }
 
   async remoteIsUp() {
@@ -110,6 +130,7 @@ export class DiffEditor extends JRPCClient {
             @cursor-position-changed=${this.navigationManager.handleCursorPositionChanged.bind(this.navigationManager)}
             @navigation-back=${this.navigationManager.handleNavigationBack.bind(this.navigationManager)}
             @navigation-forward=${this.navigationManager.handleNavigationForward.bind(this.navigationManager)}
+            @content-changed=${this.handleContentChanged}
           ></monaco-diff-editor>
         ` : html`
           <div class="no-file">Open a file to start editing</div>
@@ -123,6 +144,18 @@ export class DiffEditor extends JRPCClient {
     const lineNumber = event.detail.lineNumber || null;
     if (filePath) {
       this.fileManager.loadFileContent(filePath, lineNumber);
+    }
+  }
+
+  handleContentChanged(event) {
+    // Handle content changes for LSP
+    if (this.lspManager.isConnected && this.currentFile) {
+      const uri = `file://${this.currentFile}`;
+      const content = event.detail.content;
+      const version = event.detail.version || 1;
+      
+      // Update LSP with the new content
+      this.lspManager.updateDocument(uri, content, version);
     }
   }
 
@@ -181,7 +214,16 @@ export class DiffEditor extends JRPCClient {
 
   // Public API method - delegates to fileManager
   async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
-    return this.fileManager.loadFileContent(filePath, lineNumber, characterNumber);
+    const result = await this.fileManager.loadFileContent(filePath, lineNumber, characterNumber);
+    
+    // Open document in LSP when file is loaded
+    if (this.lspManager.isConnected && this.currentFile) {
+      const uri = `file://${this.currentFile}`;
+      const languageId = this.lspManager.getLanguageIdFromFile(this.currentFile);
+      this.lspManager.openDocument(uri, languageId, this.workingContent);
+    }
+    
+    return result;
   }
 
   async reloadIfCurrentFile(data) {
@@ -190,6 +232,11 @@ export class DiffEditor extends JRPCClient {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    
+    // Clean up LSP connection
+    if (this.lspManager) {
+      this.lspManager.destroy();
+    }
   }
 }
 

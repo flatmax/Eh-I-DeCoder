@@ -74,9 +74,12 @@ def start_npm_dev_server(webapp_port=9876):
         print(f"Error starting npm dev server: {e}")
         return False
 
-def open_browser(webapp_port=9876, aider_port=8999):
-    """Open the webapp in the default browser with the aider port as a parameter"""
+def open_browser(webapp_port=9876, aider_port=8999, lsp_port=None):
+    """Open the webapp in the default browser with the aider port and optional LSP port as parameters"""
     url = f"http://localhost:{webapp_port}/?port={aider_port}"
+    if lsp_port:
+        url += f"&lsp={lsp_port}"
+    
     print(f"Opening browser to {url}")
     try:
         webbrowser.open(url)
