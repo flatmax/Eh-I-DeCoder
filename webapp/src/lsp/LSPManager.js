@@ -133,6 +133,7 @@ export class LSPManager {
     handleMessage(event) {
         try {
             const message = JSON.parse(event.data);
+            console.log('LSP: Received message:', message.method || `response-${message.id}`, message);
             
             if (message.method === 'textDocument/publishDiagnostics') {
                 this.handleDiagnostics(message.params);
@@ -142,8 +143,10 @@ export class LSPManager {
                 this.pendingRequests.delete(message.id);
                 
                 if (message.error) {
+                    console.error('LSP: Request error:', message.error);
                     reject(new Error(message.error.message));
                 } else {
+                    console.log('LSP: Request success:', message.result);
                     resolve(message.result);
                 }
             }
@@ -247,6 +250,7 @@ export class LSPManager {
             monaco.languages.registerCompletionItemProvider(language, {
                 provideCompletionItems: async (model, position) => {
                     try {
+                        console.log(`LSP: Completion requested for ${language} at`, position);
                         const uri = model.uri.toString();
                         const result = await this.getCompletion(uri, {
                             line: position.lineNumber - 1,
@@ -254,6 +258,7 @@ export class LSPManager {
                         });
 
                         if (!result || !result.items) {
+                            console.log('LSP: No completion items returned');
                             return { suggestions: [] };
                         }
 
@@ -266,6 +271,7 @@ export class LSPManager {
                             range: position
                         }));
 
+                        console.log(`LSP: Returning ${suggestions.length} completion suggestions`);
                         return { suggestions };
                     } catch (error) {
                         console.error('LSP: Error in completion provider:', error);
@@ -279,13 +285,19 @@ export class LSPManager {
             monaco.languages.registerHoverProvider(language, {
                 provideHover: async (model, position) => {
                     try {
+                        console.log(`LSP: Hover requested for ${language} at line ${position.lineNumber}, col ${position.column}`);
                         const uri = model.uri.toString();
+                        console.log(`LSP: Model URI: ${uri}`);
+                        
                         const result = await this.getHover(uri, {
                             line: position.lineNumber - 1,
                             character: position.column - 1
                         });
 
+                        console.log('LSP: Hover result:', result);
+
                         if (!result || !result.contents) {
+                            console.log('LSP: No hover contents returned');
                             return null;
                         }
 
@@ -303,6 +315,7 @@ export class LSPManager {
                             contents = [result.contents];
                         }
 
+                        console.log('LSP: Returning hover contents:', contents);
                         return {
                             contents: contents,
                             range: result.range ? this.convertRange(result.range) : undefined
@@ -314,10 +327,11 @@ export class LSPManager {
                 }
             });
 
-            // Register definition provider
+            // Register definition provider with cross-file navigation support
             monaco.languages.registerDefinitionProvider(language, {
                 provideDefinition: async (model, position) => {
                     try {
+                        console.log(`LSP: Definition requested for ${language} at`, position);
                         const uri = model.uri.toString();
                         const result = await this.getDefinition(uri, {
                             line: position.lineNumber - 1,
@@ -325,13 +339,56 @@ export class LSPManager {
                         });
 
                         if (!result || !Array.isArray(result) || result.length === 0) {
+                            console.log('LSP: No definition results returned');
                             return [];
                         }
 
-                        return result.map(location => ({
-                            uri: monaco.Uri.parse(location.uri),
-                            range: this.convertRange(location.range)
-                        }));
+                        console.log(`LSP: Processing ${result.length} definition results`);
+
+                        // Process each definition result
+                        const definitions = [];
+                        for (const location of result) {
+                            try {
+                                const targetUri = location.uri;
+                                console.log(`LSP: Processing definition target: ${targetUri}`);
+
+                                // Convert the URI to a workspace-relative path for navigation
+                                const workspaceRelativePath = this.convertUriToWorkspacePath(targetUri);
+                                
+                                if (workspaceRelativePath) {
+                                    console.log(`LSP: Converted URI to workspace path: ${workspaceRelativePath}`);
+                                    
+                                    // Instead of trying to create a Monaco URI reference that might not exist,
+                                    // we'll trigger navigation through the DiffEditor
+                                    const lineNumber = location.range.start.line + 1;
+                                    const characterNumber = location.range.start.character + 1;
+                                    
+                                    console.log(`LSP: Triggering navigation to ${workspaceRelativePath}:${lineNumber}:${characterNumber}`);
+                                    
+                                    // Dispatch a custom event to trigger file navigation
+                                    this.diffEditor.dispatchEvent(new CustomEvent('open-file', {
+                                        detail: {
+                                            filePath: workspaceRelativePath,
+                                            lineNumber: lineNumber,
+                                            characterNumber: characterNumber
+                                        },
+                                        bubbles: true,
+                                        composed: true
+                                    }));
+                                    
+                                    // Return empty array to prevent Monaco from trying to handle the navigation
+                                    // since we're handling it ourselves
+                                    console.log('LSP: Navigation event dispatched, returning empty definitions array');
+                                    return [];
+                                } else {
+                                    console.log(`LSP: Could not convert URI to workspace path: ${targetUri}`);
+                                }
+                            } catch (error) {
+                                console.error('LSP: Error processing definition location:', error);
+                            }
+                        }
+
+                        return definitions;
                     } catch (error) {
                         console.error('LSP: Error in definition provider:', error);
                         return [];
@@ -342,6 +399,41 @@ export class LSPManager {
             this.registeredLanguages.add(language);
             console.log(`LSP: Registered providers for ${language}`);
         });
+    }
+
+    convertUriToWorkspacePath(uri) {
+        try {
+            console.log(`LSP: Converting URI to workspace path: ${uri}`);
+            
+            if (uri.startsWith('file://')) {
+                const filePath = uri.substring('file://'.length);
+                console.log(`LSP: Extracted file path: ${filePath}`);
+                
+                // Check if this is an absolute path that we can convert to workspace-relative
+                if (filePath.includes('/python/')) {
+                    // Find the python directory and extract the relative path from there
+                    const pythonIndex = filePath.indexOf('/python/');
+                    if (pythonIndex !== -1) {
+                        const relativePath = filePath.substring(pythonIndex + 1); // +1 to remove leading slash
+                        console.log(`LSP: Converted to workspace-relative path: ${relativePath}`);
+                        return relativePath;
+                    }
+                }
+                
+                // If we can't convert it, try to extract just the filename part
+                const fileName = filePath.split('/').pop();
+                if (fileName) {
+                    console.log(`LSP: Using filename as fallback: ${fileName}`);
+                    return fileName;
+                }
+            }
+            
+            console.log(`LSP: Could not convert URI: ${uri}`);
+            return null;
+        } catch (error) {
+            console.error('LSP: Error converting URI to workspace path:', error);
+            return null;
+        }
     }
 
     unregisterMonacoProviders() {
@@ -403,6 +495,7 @@ export class LSPManager {
     sendMessage(message) {
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
             try {
+                console.log('LSP: Sending message:', message.method || `request-${message.id}`, message);
                 this.websocket.send(JSON.stringify(message));
                 return true;
             } catch (error) {
@@ -410,6 +503,7 @@ export class LSPManager {
                 return false;
             }
         } else {
+            console.warn('LSP: Cannot send message - websocket not open');
             return false;
         }
     }
@@ -450,8 +544,11 @@ export class LSPManager {
 
     openDocument(uri, languageId, content) {
         if (!this.isConnected || !this.isInitialized) {
+            console.warn('LSP: Cannot open document - not connected or initialized');
             return;
         }
+
+        console.log(`LSP: Opening document ${uri} (${languageId})`);
 
         const message = {
             jsonrpc: '2.0',
@@ -472,8 +569,11 @@ export class LSPManager {
 
     updateDocument(uri, content, version) {
         if (!this.isConnected || !this.isInitialized || !this.openDocuments.has(uri)) {
+            console.warn('LSP: Cannot update document - not connected, initialized, or document not open');
             return;
         }
+
+        console.log(`LSP: Updating document ${uri} (version ${version})`);
 
         const message = {
             jsonrpc: '2.0',
@@ -496,8 +596,11 @@ export class LSPManager {
 
     closeDocument(uri) {
         if (!this.isConnected || !this.isInitialized || !this.openDocuments.has(uri)) {
+            console.warn('LSP: Cannot close document - not connected, initialized, or document not open');
             return;
         }
+
+        console.log(`LSP: Closing document ${uri}`);
 
         const message = {
             jsonrpc: '2.0',
@@ -515,10 +618,12 @@ export class LSPManager {
 
     async getCompletion(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
+            console.warn('LSP: Cannot get completion - not connected or initialized');
             return null;
         }
 
         try {
+            console.log(`LSP: Requesting completion for ${uri} at`, position);
             const result = await this.sendRequest('textDocument/completion', {
                 textDocument: { uri: uri },
                 position: position
@@ -532,10 +637,12 @@ export class LSPManager {
 
     async getHover(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
+            console.warn('LSP: Cannot get hover - not connected or initialized');
             return null;
         }
 
         try {
+            console.log(`LSP: Requesting hover for ${uri} at`, position);
             const result = await this.sendRequest('textDocument/hover', {
                 textDocument: { uri: uri },
                 position: position
@@ -549,10 +656,12 @@ export class LSPManager {
 
     async getDefinition(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
+            console.warn('LSP: Cannot get definition - not connected or initialized');
             return null;
         }
 
         try {
+            console.log(`LSP: Requesting definition for ${uri} at`, position);
             const result = await this.sendRequest('textDocument/definition', {
                 textDocument: { uri: uri },
                 position: position
@@ -566,6 +675,7 @@ export class LSPManager {
 
     handleDiagnostics(params) {
         const { uri, diagnostics } = params;
+        console.log(`LSP: Received ${diagnostics.length} diagnostics for ${uri}`);
         
         const monacoEditor = this.diffEditor.shadowRoot?.querySelector('monaco-diff-editor');
         if (monacoEditor && monacoEditor.diffEditor) {
@@ -593,6 +703,7 @@ export class LSPManager {
             }));
 
             monaco.editor.setModelMarkers(model, 'lsp', markers);
+            console.log(`LSP: Applied ${markers.length} markers to Monaco editor`);
         } catch (error) {
             console.error('LSP: Error applying diagnostics:', error);
         }

@@ -123,6 +123,7 @@ export class DiffEditor extends JRPCClient {
           <monaco-diff-editor
             .originalContent=${this.headContent}
             .modifiedContent=${this.workingContent}
+            .filePath=${this.currentFile}
             .language=${this.languageDetector.getLanguageFromFile(this.currentFile)}
             theme="vs-dark"
             @save-file=${this.handleSaveFile}

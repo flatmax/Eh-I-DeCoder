@@ -38,6 +38,7 @@ class MonacoDiffEditor extends LitElement {
     this._lastOriginalContent = null;
     this._lastModifiedContent = null;
     this._lastFilePath = null;
+    this._lastLanguage = null;
   }
 
   render() {
@@ -63,7 +64,8 @@ class MonacoDiffEditor extends LitElement {
     
     if (changedProperties.has('originalContent') || 
         changedProperties.has('modifiedContent') ||
-        changedProperties.has('filePath')) {
+        changedProperties.has('filePath') ||
+        changedProperties.has('language')) {
       this._updateEditorModels();
     }
     
@@ -112,7 +114,8 @@ class MonacoDiffEditor extends LitElement {
 
     const contentChanged = this.originalContent !== this._lastOriginalContent || 
                            this.modifiedContent !== this._lastModifiedContent ||
-                           this.filePath !== this._lastFilePath;
+                           this.filePath !== this._lastFilePath ||
+                           this.language !== this._lastLanguage;
     
     if (!contentChanged) {
       return;
@@ -122,19 +125,58 @@ class MonacoDiffEditor extends LitElement {
     const modified = this.modifiedContent || '';
     const language = this.language || 'plaintext';
     
-    // Create a file URI for the model. This is the key fix.
-    const uri = this.filePath ? monaco.Uri.file(this.filePath) : null;
+    // Create a proper file URI for the model. This is the key fix for LSP.
+    let modifiedUri = null;
+    let originalUri = null;
+    
+    if (this.filePath) {
+      console.log(`Monaco: Processing file path: ${this.filePath}`);
+      
+      // Create absolute file URI - this is critical for LSP to work
+      let absolutePath;
+      if (this.filePath.startsWith('/')) {
+        // Already absolute Unix path
+        absolutePath = this.filePath;
+      } else if (this.filePath.match(/^[a-zA-Z]:/)) {
+        // Windows absolute path
+        absolutePath = this.filePath;
+      } else {
+        // Relative path - make it absolute by assuming it's relative to current working directory
+        // For LSP to work properly, we need a real file system path
+        absolutePath = `/workspace/${this.filePath}`;
+      }
+      
+      // Create proper file:// URIs
+      modifiedUri = monaco.Uri.file(absolutePath);
+      originalUri = monaco.Uri.file(absolutePath + '.orig');
+      
+      console.log(`Monaco: Created URIs - Modified: ${modifiedUri.toString()}, Original: ${originalUri.toString()}`);
+    } else {
+      console.log('Monaco: No file path provided, using default URIs');
+      // Fallback URIs if no file path
+      modifiedUri = monaco.Uri.parse('inmemory://model/modified');
+      originalUri = monaco.Uri.parse('inmemory://model/original');
+    }
 
     // Dispose of old models before setting new ones to prevent memory leaks
     const oldModel = this.diffEditor.getModel();
     if (oldModel) {
-        if (oldModel.original) oldModel.original.dispose();
-        if (oldModel.modified) oldModel.modified.dispose();
+        if (oldModel.original) {
+          console.log(`Monaco: Disposing old original model: ${oldModel.original.uri.toString()}`);
+          oldModel.original.dispose();
+        }
+        if (oldModel.modified) {
+          console.log(`Monaco: Disposing old modified model: ${oldModel.modified.uri.toString()}`);
+          oldModel.modified.dispose();
+        }
     }
 
     // Create new models with the correct URI and language
-    const originalModel = monaco.editor.createModel(original, language, uri);
-    const modifiedModel = monaco.editor.createModel(modified, language, uri);
+    console.log(`Monaco: Creating new models with language: ${language}`);
+    const originalModel = monaco.editor.createModel(original, language, originalUri);
+    const modifiedModel = monaco.editor.createModel(modified, language, modifiedUri);
+
+    console.log(`Monaco: Created models - Original URI: ${originalModel.uri.toString()}, Modified URI: ${modifiedModel.uri.toString()}`);
 
     this.diffEditor.setModel({
         original: originalModel,
@@ -145,6 +187,9 @@ class MonacoDiffEditor extends LitElement {
     this._lastOriginalContent = this.originalContent;
     this._lastModifiedContent = this.modifiedContent;
     this._lastFilePath = this.filePath;
+    this._lastLanguage = this.language;
+
+    console.log(`Monaco: Updated models for ${this.filePath || 'unknown'} (${language})`);
   }
 
   _setupContentChangeListener() {
@@ -179,6 +224,7 @@ class MonacoDiffEditor extends LitElement {
 
   // Public API
   updateContent(originalContent, modifiedContent, language = 'javascript', filePath = null) {
+    console.log(`Monaco: updateContent called with filePath: ${filePath}, language: ${language}`);
     this.originalContent = originalContent;
     this.modifiedContent = modifiedContent;
     this.language = language;
