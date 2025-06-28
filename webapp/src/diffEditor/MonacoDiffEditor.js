@@ -33,12 +33,19 @@ class MonacoDiffEditor extends LitElement {
     // this.contentManager = new EditorContentManager(this); // Bypassed
     this._targetPosition = null;
     this._contentVersion = 1;
+    this._isInitialized = false;
 
     // Cache content to avoid unnecessary model recreation
     this._lastOriginalContent = null;
     this._lastModifiedContent = null;
     this._lastFilePath = null;
     this._lastLanguage = null;
+    
+    // Keep track of created models to avoid duplicates
+    this._currentModels = {
+      original: null,
+      modified: null
+    };
   }
 
   render() {
@@ -60,7 +67,7 @@ class MonacoDiffEditor extends LitElement {
   }
 
   updated(changedProperties) {
-    if (!this.diffEditor) return;
+    if (!this.diffEditor || !this._isInitialized) return;
     
     if (changedProperties.has('originalContent') || 
         changedProperties.has('modifiedContent') ||
@@ -79,6 +86,11 @@ class MonacoDiffEditor extends LitElement {
   }
 
   _initializeEditor() {
+    if (this._isInitialized) {
+      console.log('Monaco: Editor already initialized, skipping');
+      return;
+    }
+
     const container = this.shadowRoot.querySelector('#diff-editor-container');
     
     // Create a style element for Monaco's dynamic styles with absolute path
@@ -89,6 +101,7 @@ class MonacoDiffEditor extends LitElement {
     this.shadowRoot.appendChild(styleElement);
     
     this.diffEditor = monaco.editor.createDiffEditor(container, EditorConfig.getEditorOptions(this.theme));
+    this._isInitialized = true;
 
     this._updateEditorModels();
     this.eventHandlers.setupEventHandlers();
@@ -110,7 +123,7 @@ class MonacoDiffEditor extends LitElement {
    * LSP services like hover and go-to-definition to work correctly.
    */
   _updateEditorModels() {
-    if (!this.diffEditor) return;
+    if (!this.diffEditor || !this._isInitialized) return;
 
     const contentChanged = this.originalContent !== this._lastOriginalContent || 
                            this.modifiedContent !== this._lastModifiedContent ||
@@ -129,67 +142,132 @@ class MonacoDiffEditor extends LitElement {
     let modifiedUri = null;
     let originalUri = null;
     
-    if (this.filePath) {
+    if (this.filePath && this.filePath.trim() !== '') {
       console.log(`Monaco: Processing file path: ${this.filePath}`);
       
-      // Create absolute file URI - this is critical for LSP to work
-      let absolutePath;
-      if (this.filePath.startsWith('/')) {
-        // Already absolute Unix path
-        absolutePath = this.filePath;
-      } else if (this.filePath.match(/^[a-zA-Z]:/)) {
-        // Windows absolute path
-        absolutePath = this.filePath;
-      } else {
-        // Relative path - make it absolute by assuming it's relative to current working directory
-        // For LSP to work properly, we need a real file system path
-        absolutePath = `/workspace/${this.filePath}`;
-      }
+      // Create workspace-relative URI that the LSP server can properly normalize
+      // Use the /workspace/ prefix that the LSP server expects
+      const workspacePath = `/workspace/${this.filePath}`;
       
-      // Create proper file:// URIs
-      modifiedUri = monaco.Uri.file(absolutePath);
-      originalUri = monaco.Uri.file(absolutePath + '.orig');
+      // Create proper file:// URIs with the workspace prefix
+      modifiedUri = monaco.Uri.file(workspacePath);
+      originalUri = monaco.Uri.file(workspacePath + '.orig');
       
       console.log(`Monaco: Created URIs - Modified: ${modifiedUri.toString()}, Original: ${originalUri.toString()}`);
     } else {
       console.log('Monaco: No file path provided, using default URIs');
-      // Fallback URIs if no file path
+      // Fallback URIs if no file path - but these won't work with LSP
       modifiedUri = monaco.Uri.parse('inmemory://model/modified');
       originalUri = monaco.Uri.parse('inmemory://model/original');
     }
 
-    // Dispose of old models before setting new ones to prevent memory leaks
-    const oldModel = this.diffEditor.getModel();
-    if (oldModel) {
-        if (oldModel.original) {
-          console.log(`Monaco: Disposing old original model: ${oldModel.original.uri.toString()}`);
-          oldModel.original.dispose();
-        }
-        if (oldModel.modified) {
-          console.log(`Monaco: Disposing old modified model: ${oldModel.modified.uri.toString()}`);
-          oldModel.modified.dispose();
-        }
-    }
+    // Dispose of old models before setting new ones to prevent memory leaks and conflicts
+    this._disposeCurrentModels();
+
+    // Check if models with these URIs already exist and dispose them
+    this._disposeExistingModels(originalUri, modifiedUri);
 
     // Create new models with the correct URI and language
     console.log(`Monaco: Creating new models with language: ${language}`);
-    const originalModel = monaco.editor.createModel(original, language, originalUri);
-    const modifiedModel = monaco.editor.createModel(modified, language, modifiedUri);
+    
+    try {
+      const originalModel = monaco.editor.createModel(original, language, originalUri);
+      const modifiedModel = monaco.editor.createModel(modified, language, modifiedUri);
 
-    console.log(`Monaco: Created models - Original URI: ${originalModel.uri.toString()}, Modified URI: ${modifiedModel.uri.toString()}`);
+      console.log(`Monaco: Created models - Original URI: ${originalModel.uri.toString()}, Modified URI: ${modifiedModel.uri.toString()}`);
 
-    this.diffEditor.setModel({
-        original: originalModel,
-        modified: modifiedModel
-    });
+      // Store references to the new models
+      this._currentModels.original = originalModel;
+      this._currentModels.modified = modifiedModel;
 
-    // Update our content cache
-    this._lastOriginalContent = this.originalContent;
-    this._lastModifiedContent = this.modifiedContent;
-    this._lastFilePath = this.filePath;
-    this._lastLanguage = this.language;
+      this.diffEditor.setModel({
+          original: originalModel,
+          modified: modifiedModel
+      });
 
-    console.log(`Monaco: Updated models for ${this.filePath || 'unknown'} (${language})`);
+      // Update our content cache
+      this._lastOriginalContent = this.originalContent;
+      this._lastModifiedContent = this.modifiedContent;
+      this._lastFilePath = this.filePath;
+      this._lastLanguage = this.language;
+
+      console.log(`Monaco: Updated models for ${this.filePath || 'unknown'} (${language})`);
+      
+      // Apply target position if set
+      this.applyTargetPositionIfSet();
+      
+    } catch (error) {
+      console.error('Monaco: Error creating models:', error);
+      // If model creation fails, try to recover by using unique URIs
+      this._createModelsWithUniqueUris(original, modified, language);
+    }
+  }
+
+  _disposeCurrentModels() {
+    if (this._currentModels.original) {
+      console.log(`Monaco: Disposing current original model: ${this._currentModels.original.uri.toString()}`);
+      try {
+        this._currentModels.original.dispose();
+      } catch (error) {
+        console.warn('Monaco: Error disposing original model:', error);
+      }
+      this._currentModels.original = null;
+    }
+    
+    if (this._currentModels.modified) {
+      console.log(`Monaco: Disposing current modified model: ${this._currentModels.modified.uri.toString()}`);
+      try {
+        this._currentModels.modified.dispose();
+      } catch (error) {
+        console.warn('Monaco: Error disposing modified model:', error);
+      }
+      this._currentModels.modified = null;
+    }
+  }
+
+  _disposeExistingModels(originalUri, modifiedUri) {
+    // Check if models with these URIs already exist in Monaco's model service
+    try {
+      const existingOriginal = monaco.editor.getModel(originalUri);
+      if (existingOriginal) {
+        console.log(`Monaco: Disposing existing original model with URI: ${originalUri.toString()}`);
+        existingOriginal.dispose();
+      }
+      
+      const existingModified = monaco.editor.getModel(modifiedUri);
+      if (existingModified) {
+        console.log(`Monaco: Disposing existing modified model with URI: ${modifiedUri.toString()}`);
+        existingModified.dispose();
+      }
+    } catch (error) {
+      console.warn('Monaco: Error checking/disposing existing models:', error);
+    }
+  }
+
+  _createModelsWithUniqueUris(original, modified, language) {
+    // Fallback: create models with unique URIs to avoid conflicts
+    const timestamp = Date.now();
+    const uniqueModifiedUri = monaco.Uri.parse(`inmemory://model/modified-${timestamp}`);
+    const uniqueOriginalUri = monaco.Uri.parse(`inmemory://model/original-${timestamp}`);
+    
+    console.log(`Monaco: Creating models with unique URIs as fallback`);
+    
+    try {
+      const originalModel = monaco.editor.createModel(original, language, uniqueOriginalUri);
+      const modifiedModel = monaco.editor.createModel(modified, language, uniqueModifiedUri);
+
+      this._currentModels.original = originalModel;
+      this._currentModels.modified = modifiedModel;
+
+      this.diffEditor.setModel({
+          original: originalModel,
+          modified: modifiedModel
+      });
+
+      console.log(`Monaco: Successfully created models with unique URIs`);
+    } catch (error) {
+      console.error('Monaco: Failed to create models even with unique URIs:', error);
+    }
   }
 
   _setupContentChangeListener() {
@@ -326,6 +404,25 @@ class MonacoDiffEditor extends LitElement {
       const { lineNumber, column } = this._targetPosition;
       this.scrollToPosition(lineNumber, column);
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    
+    // Clean up models when component is removed
+    this._disposeCurrentModels();
+    
+    // Dispose the diff editor
+    if (this.diffEditor) {
+      try {
+        this.diffEditor.dispose();
+      } catch (error) {
+        console.warn('Monaco: Error disposing diff editor:', error);
+      }
+      this.diffEditor = null;
+    }
+    
+    this._isInitialized = false;
   }
 }
 
