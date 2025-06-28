@@ -409,7 +409,15 @@ class LSPServer {
 
     async getLanguageServerForUri(uri, languageId = null) {
         const filePath = uri.replace('file://', '');
-        const ext = path.extname(filePath).toLowerCase();
+        
+        // Handle .orig files by stripping the .orig extension to get the real file type
+        let actualFilePath = filePath;
+        if (filePath.endsWith('.orig')) {
+            actualFilePath = filePath.slice(0, -5); // Remove '.orig'
+            console.log(`LSP Server: Detected .orig file, using base file for language detection: ${actualFilePath}`);
+        }
+        
+        const ext = path.extname(actualFilePath).toLowerCase();
 
         console.log(`LSP Server: Getting language server for ${uri}, extension: ${ext}, languageId: ${languageId}`);
 
