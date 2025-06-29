@@ -5,8 +5,12 @@ lsp_server.py - Utilities for managing the LSP server
 import os
 import subprocess
 import time
-import socket
 import threading
+
+try:
+    from .port_utils import is_port_in_use, find_available_port
+except ImportError:
+    from port_utils import is_port_in_use, find_available_port
 
 lsp_process = None
 
@@ -20,30 +24,6 @@ def log_stream(stream, log_prefix):
         pass
     finally:
         stream.close()
-
-def is_port_in_use(port):
-    """Check if a port is already in use"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(('localhost', port))
-            print(f"LSP Python: Port {port} is available")
-            return False
-        except OSError:
-            print(f"LSP Python: Port {port} is already in use")
-            return True
-
-def find_available_port(start_port=9000, max_attempts=1000):
-    """Find an available port starting from start_port"""
-    print(f"LSP Python: Looking for available port starting from {start_port}")
-    for port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('', port))
-                print(f"LSP Python: Found available port: {port}")
-                return port
-            except OSError:
-                continue
-    raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
 
 def start_lsp_server(lsp_port=None):
     """Start the LSP server using npm run and return its port"""

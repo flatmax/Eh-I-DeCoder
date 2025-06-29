@@ -6,18 +6,13 @@ import os
 import subprocess
 import webbrowser
 import time
-import socket
+
+try:
+    from .port_utils import is_port_in_use, find_available_port
+except ImportError:
+    from port_utils import is_port_in_use, find_available_port
 
 npm_process = None
-
-def is_port_in_use(port):
-    """Check if a port is already in use"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind(('localhost', port))
-            return False
-        except OSError:
-            return True
 
 def start_npm_dev_server(webapp_port=9876):
     """Start npm dev server if not already running"""

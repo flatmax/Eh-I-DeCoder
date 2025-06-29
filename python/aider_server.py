@@ -8,7 +8,6 @@ import signal
 import sys
 import os
 import threading
-import socket
 from asyncio import Event
 from jrpc_oo import JRPCServer
 
@@ -19,6 +18,7 @@ try:
     from .chat_history import ChatHistory
     from .webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
     from .lsp_server import start_lsp_server, cleanup_lsp_process
+    from .port_utils import find_available_port
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
@@ -26,22 +26,12 @@ except ImportError:
     from chat_history import ChatHistory
     from webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
     from lsp_server import start_lsp_server, cleanup_lsp_process
+    from port_utils import find_available_port
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
 
 from aider.main import main
-
-def find_available_port(start_port=8999, max_attempts=1000):
-    """Find an available port starting from start_port"""
-    for port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('', port))
-                return port
-            except OSError:
-                continue
-    raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
