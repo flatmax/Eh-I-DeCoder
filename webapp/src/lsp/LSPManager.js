@@ -14,10 +14,62 @@ export class LSPManager {
         this.initializationInProgress = false;
         this.registeredLanguages = new Set();
         
+        // Enable definition requests for Ctrl+click only
+        this.definitionRequestsEnabled = true;
+        
+        // Track mouse and keyboard state for Ctrl+click detection
+        this.isCtrlPressed = false;
+        this.isMousePressed = false;
+        this.lastClickTime = 0;
+        this.clickTimeWindow = 500; // ms window to consider Ctrl+click valid
+        
         this.handleConnectionOpen = this.handleConnectionOpen.bind(this);
         this.handleConnectionClose = this.handleConnectionClose.bind(this);
         this.handleConnectionError = this.handleConnectionError.bind(this);
         this.handleMessage = this.handleMessage.bind(this);
+        
+        // Set up global key and mouse tracking
+        this.setupGlobalEventTracking();
+    }
+
+    setupGlobalEventTracking() {
+        // Track Ctrl key state globally
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                this.isCtrlPressed = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (!e.ctrlKey && !e.metaKey) {
+                this.isCtrlPressed = false;
+            }
+        });
+
+        // Track mouse clicks globally
+        document.addEventListener('mousedown', (e) => {
+            this.isMousePressed = true;
+            if (this.isCtrlPressed) {
+                this.lastClickTime = Date.now();
+                console.log('LSP: Ctrl+click detected, enabling definition requests');
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            this.isMousePressed = false;
+        });
+    }
+
+    isValidCtrlClick() {
+        const now = Date.now();
+        const timeSinceClick = now - this.lastClickTime;
+        
+        // Check if we're within the time window of a Ctrl+click
+        const withinTimeWindow = timeSinceClick < this.clickTimeWindow;
+        
+        console.log(`LSP: Checking Ctrl+click validity - Ctrl: ${this.isCtrlPressed}, Time since click: ${timeSinceClick}ms, Valid: ${withinTimeWindow}`);
+        
+        return withinTimeWindow;
     }
 
     async initialize(lspPort) {
@@ -327,10 +379,22 @@ export class LSPManager {
                 }
             });
 
-            // Register definition provider with cross-file navigation support
+            // Register definition provider - ONLY for Ctrl+click
             monaco.languages.registerDefinitionProvider(language, {
                 provideDefinition: async (model, position) => {
                     try {
+                        // Check if definition requests are enabled
+                        if (!this.definitionRequestsEnabled) {
+                            console.log('LSP: Definition requests are disabled, ignoring request');
+                            return [];
+                        }
+
+                        // Check if this is a valid Ctrl+click (not just Ctrl key press)
+                        if (!this.isValidCtrlClick()) {
+                            console.log('LSP: Definition request ignored - not a valid Ctrl+click');
+                            return [];
+                        }
+
                         console.log(`LSP: Definition requested for ${language} at`, position);
                         const uri = model.uri.toString();
                         const result = await this.getDefinition(uri, {
@@ -399,6 +463,12 @@ export class LSPManager {
             this.registeredLanguages.add(language);
             console.log(`LSP: Registered providers for ${language}`);
         });
+    }
+
+    // Method to enable/disable definition requests
+    setDefinitionRequestsEnabled(enabled) {
+        this.definitionRequestsEnabled = enabled;
+        console.log(`LSP: Definition requests ${enabled ? 'enabled' : 'disabled'}`);
     }
 
     convertUriToWorkspacePath(uri) {
@@ -657,6 +727,12 @@ export class LSPManager {
     async getDefinition(uri, position) {
         if (!this.isConnected || !this.isInitialized) {
             console.warn('LSP: Cannot get definition - not connected or initialized');
+            return null;
+        }
+
+        // Check that definition requests are enabled
+        if (!this.definitionRequestsEnabled) {
+            console.log('LSP: Definition requests are disabled');
             return null;
         }
 
