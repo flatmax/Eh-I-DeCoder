@@ -15,12 +15,13 @@ Eh-I-DeCoder is a streamlined AI coding assistant that brings together the power
 
 ## Architecture
 
-This application has two core components:
+This application has three core components:
 
 - **Python Backend**: A JSON-RPC-OO server that acts as the intelligent interface with Aider
 - **Web Frontend**: A user-friendly web application for seamless interaction with your AI coding assistant
+- **LSP Server**: Language Server Protocol integration providing intelligent code features
 
-The `aider-server` automatically manages both components, starting the backend server, launching the webapp dev server, and opening your browser.
+The `aider-server` automatically manages all components, starting the backend server, launching the webapp dev server, initializing the LSP server, and opening your browser.
 
 ---
 
@@ -33,6 +34,12 @@ The `aider-server` automatically manages both components, starting the backend s
 ### Frontend
 - npm
 
+### LSP Features (Optional)
+For enhanced code intelligence, install language servers:
+- **Python**: `python-lsp-server` (automatically installed)
+- **TypeScript/JavaScript**: `npm install -g typescript-language-server`
+- **C/C++**: Install `clangd` (usually available via system package manager)
+
 ---
 
 ## Setup
@@ -44,8 +51,7 @@ The `aider-server` automatically manages both components, starting the backend s
 cd python
 pip install -e .
 ```
-This command installs: Aider and all its required dependencies
-The aider-server console script
+This command installs: Aider and all its required dependencies, the aider-server console script, and python-lsp-server for LSP features.
 
 #### Troubleshooting
 If you encounter a ModuleNotFoundError: No module named 'boto3', simply install the missing dependency:
@@ -66,6 +72,7 @@ npm install
 Eh-I-DeCoder now provides a streamlined startup experience. The `aider-server` command automatically:
 - Starts the backend JSON-RPC server
 - Launches the webapp development server
+- Initializes the LSP server for code intelligence
 - Opens your browser to the application
 
 ### Quick Start
@@ -73,17 +80,21 @@ Eh-I-DeCoder now provides a streamlined startup experience. The `aider-server` c
 ```Bash
 # Start with default settings
 # Backend server: port 8999
-# Webapp: port 8000
+# Webapp: port 9876
+# LSP server: auto-detected port
 # Browser opens automatically
 # You need to specify your model to use in the aider-server command below (you can use the same Aider arguments you would normally use)
-aider-server -no-show-model-warnings --no-auto-commits  --no-attribute-author --no-attribute-committer
+aider-server --no-show-model-warnings --no-auto-commits --no-attribute-author --no-attribute-committer
 ```
 
 ### Advanced Options
 
 ```Bash
 # Specify different ports
-aider-server --port 8080 --webapp-port 3000
+aider-server --port 8080 --webapp-port 3000 --lsp-port 9001
+
+# Disable LSP features
+aider-server --no-lsp
 
 # Prevent automatic browser opening
 aider-server --no-browser
@@ -94,7 +105,7 @@ aider-server --model gpt-4 --api-key openai=<your-key-here>
 aider-server --model claude-3-sonnet --api-key anthropic=<your-key-here>
 
 # Combine server options with Aider arguments
-aider-server --port 8080 --webapp-port 3000 --no-browser --model gpt-4 --api-key openai=<your-key-here>
+aider-server --port 8080 --webapp-port 3000 --lsp-port 9001 --no-browser --model gpt-4 --api-key openai=<your-key-here>
 ```
 
 ### Alternative Startup Method
@@ -116,16 +127,85 @@ cd webapp
 npm start
 ```
 
-Your web application will be accessible at http://localhost:8000 (or your specified webapp port).
+Your web application will be accessible at http://localhost:9876 (or your specified webapp port).
 
 ---
 
 ## Features
 
+### Core Features
 - **Integrated Git Support**: Navigate through Git history, handle merges, and resolve conflicts
 - **Navigation History**: Back/forward navigation with visual history graph
 - **Chat History**: Browse previous AI conversations with infinite scrolling
-- **Language Server Protocol**: Code completion, hover information, and go-to-definition
 - **Merge Editor**: Side-by-side diff view with conflict resolution
 - **Auto-save**: Automatic saving with Ctrl+S/Cmd+S support
 - **Responsive UI**: Modern web interface optimized for coding workflows
+
+### Language Server Protocol (LSP) Features
+- **Auto-completion**: Intelligent code completion for Python, JavaScript/TypeScript, and C/C++
+- **Hover Information**: Rich hover tooltips with documentation and type information
+- **Go-to-Definition**: Ctrl+click navigation to symbol definitions across files
+- **Error Diagnostics**: Real-time error highlighting and problem detection
+- **Multi-language Support**: Automatic language detection and appropriate LSP server selection
+
+### LSP Keyboard Shortcuts
+- **Ctrl+Click**: Navigate to definition (works across files and projects)
+- **Ctrl+Space**: Trigger auto-completion (automatic on typing)
+- **Hover**: Move mouse over symbols for documentation
+
+### LSP Status
+The application shows LSP connection status in the sidebar. When connected, you'll see enhanced code intelligence features. If language servers are not installed, the application continues to work normally without LSP features.
+
+---
+
+## Language Server Setup
+
+### Python LSP
+Automatically installed with the backend. Provides:
+- Auto-completion for Python modules and functions
+- Hover documentation from docstrings
+- Go-to-definition for Python symbols
+- Error and warning diagnostics
+
+### TypeScript/JavaScript LSP
+```bash
+npm install -g typescript-language-server
+```
+Provides:
+- Auto-completion for JavaScript/TypeScript
+- Type information and documentation
+- Cross-file navigation
+- Syntax and type error detection
+
+### C/C++ LSP
+Install `clangd` via your system package manager:
+```bash
+# Ubuntu/Debian
+sudo apt install clangd
+
+# macOS
+brew install llvm
+
+# Windows
+# Download from LLVM releases or use Visual Studio installer
+```
+Provides:
+- C/C++ auto-completion
+- Header file navigation
+- Compiler error diagnostics
+- Cross-reference support
+
+---
+
+## Troubleshooting
+
+### LSP Issues
+- **No auto-completion**: Check if the appropriate language server is installed
+- **Go-to-definition not working**: Ensure you're using Ctrl+click, not just click
+- **LSP server failed to start**: Check the console output for specific language server errors
+
+### Port Conflicts
+If you encounter port conflicts, use the `--port`, `--webapp-port`, or `--lsp-port` options to specify different ports.
+
+### Performance
+LSP features may take a moment to initialize when opening large projects. This is normal behavior as language servers analyze the codebase.
