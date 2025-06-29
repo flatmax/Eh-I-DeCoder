@@ -479,21 +479,52 @@ export class LSPManager {
                 const filePath = uri.substring('file://'.length);
                 console.log(`LSP: Extracted file path: ${filePath}`);
                 
-                // Check if this is an absolute path that we can convert to workspace-relative
-                if (filePath.includes('/python/')) {
-                    // Find the python directory and extract the relative path from there
-                    const pythonIndex = filePath.indexOf('/python/');
-                    if (pythonIndex !== -1) {
-                        const relativePath = filePath.substring(pythonIndex + 1); // +1 to remove leading slash
-                        console.log(`LSP: Converted to workspace-relative path: ${relativePath}`);
+                // Look for common workspace directory patterns to extract relative path
+                const workspacePatterns = [
+                    '/Eh-I-DeCoder/',
+                    '/python/',
+                    '/webapp/',
+                    '/src/',
+                    '/repos/'
+                ];
+                
+                for (const pattern of workspacePatterns) {
+                    const patternIndex = filePath.indexOf(pattern);
+                    if (patternIndex !== -1) {
+                        // Find the workspace root by looking for the main project directory
+                        if (pattern === '/Eh-I-DeCoder/') {
+                            // Extract everything after the project root
+                            const relativePath = filePath.substring(patternIndex + pattern.length);
+                            console.log(`LSP: Found Eh-I-DeCoder pattern, extracted relative path: ${relativePath}`);
+                            return relativePath;
+                        } else if (pattern === '/python/' || pattern === '/webapp/') {
+                            // Extract the directory and everything after it
+                            const relativePath = filePath.substring(patternIndex + 1); // +1 to remove leading slash
+                            console.log(`LSP: Found ${pattern} pattern, extracted relative path: ${relativePath}`);
+                            return relativePath;
+                        }
+                    }
+                }
+                
+                // If no patterns match, try to extract a reasonable relative path
+                // Look for common file extensions and try to find a reasonable starting point
+                const pathParts = filePath.split('/');
+                
+                // Look for webapp, src, python directories in the path
+                for (let i = pathParts.length - 1; i >= 0; i--) {
+                    const part = pathParts[i];
+                    if (['webapp', 'python', 'src'].includes(part)) {
+                        // Take everything from this directory onwards
+                        const relativePath = pathParts.slice(i).join('/');
+                        console.log(`LSP: Found ${part} directory, extracted relative path: ${relativePath}`);
                         return relativePath;
                     }
                 }
                 
-                // If we can't convert it, try to extract just the filename part
-                const fileName = filePath.split('/').pop();
+                // Final fallback - just use the filename
+                const fileName = pathParts[pathParts.length - 1];
                 if (fileName) {
-                    console.log(`LSP: Using filename as fallback: ${fileName}`);
+                    console.log(`LSP: Using filename as final fallback: ${fileName}`);
                     return fileName;
                 }
             }
