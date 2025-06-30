@@ -1,5 +1,86 @@
 # Changelog
 
+## [v1.5.0] - 2024-12-20
+
+### Added
+- **LSP (Language Server Protocol) Integration**
+  - WebSocket-based language server integration with Monaco editor
+  - LSP server support with improved logging and error handling
+  - Monaco language providers with file URI handling
+  - Centralized LSP URI utilities for consistent file path handling
+  - Ctrl+click detection and definition request control mechanism
+  - Support for .orig files in language server detection
+  - Multiple workspace pattern support for LSP file path extraction
+
+- **Monaco Editor Migration**
+  - Complete migration from CodeMirror to Monaco diff editor
+  - Monaco diff editor with file content loading and language detection
+  - Advanced styling and configuration options for Monaco editor
+  - Find in files functionality integrated into Monaco diff editor
+  - ReadOnly option with configurable modified editor state
+  - Dynamic model management with MonacoModelManager class
+  - Improved content update and error handling
+
+- **Enhanced File Management**
+  - Directory checkbox selection functionality in file tree
+  - Ctrl+right-click to copy filename in file trees
+  - Title attributes for file tree nodes for better context
+  - Support for additional C/C++ file extensions
+  - File-loaded event dispatch in DiffEditor
+
+- **Navigation & History**
+  - Navigation history tracking and visualization in diff editor
+  - Alt+Left/Right Arrow support for navigation history
+  - Improved cursor position handling and editor navigation
+  - Dedicated navigation and file management managers
+
+- **Server & Configuration**
+  - Comprehensive server configuration with validation and help
+  - Dynamic port finding for JSON-RPC server
+  - Default webapp port changed to 9876 with localhost restriction
+  - Centralized port management utilities
+
+### Changed
+- **Major Refactoring**
+  - GitMergeView renamed to GitDiffView with related file updates
+  - Modularized DiffEditor component with dedicated managers
+  - Extracted editor logic into separate modules for better organization
+  - Centralized event dispatching with EventHelper utility
+  - Modularized process management with new ProcessManager classes
+  - Separated navigation and file management logic into dedicated managers
+
+- **UI/UX Improvements**
+  - Improved diff editor header layout and file path display
+  - Better layout and overflow handling in MainWindow
+  - Adjusted HEAD label positioning and styling in diff editor
+  - Enhanced graph container scrollbar and height styling
+  - Save functionality with loading indicator for diff editor
+
+- **Code Quality & Architecture**
+  - Reduced verbose logging in LSP server and client
+  - Improved file content reload and editor state preservation
+  - Better markdown processing for command and user roles
+  - Updated JRPC-OO conventions documentation
+
+### Fixed
+- Handle .orig files in language server detection
+- Add trailing space when inserting words in input
+- Guard against loading string before component initialization
+- Improved Monaco diff editor model management and error handling
+
+### Removed
+- Original language-server implementation
+- Unused editor components and imports
+- Unnecessary package installations
+- MergeEditor references (replaced with DiffEditor)
+
+### Technical Improvements
+- Enhanced LSP server with WebSocket integration
+- Better error handling and logging throughout the application
+- Modular component architecture for improved maintainability
+- Consistent file path handling across LSP components
+- Performance optimizations in editor operations
+
 ## [v1.3.0] - 2024-12-19
 
 ### Added
