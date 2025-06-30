@@ -2,7 +2,6 @@
 """
 aider_server.py - JSON-RPC server for the Aider AI coding assistant
 """
-import argparse
 import asyncio
 import signal
 import sys
@@ -19,6 +18,7 @@ try:
     from .webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
     from .lsp_server import start_lsp_server, cleanup_lsp_process
     from .port_utils import find_available_port
+    from .server_config import ServerConfig
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
@@ -27,22 +27,12 @@ except ImportError:
     from webapp_server import start_npm_dev_server, open_browser, cleanup_npm_process
     from lsp_server import start_lsp_server, cleanup_lsp_process
     from port_utils import find_available_port
+    from server_config import ServerConfig
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
 
 from aider.main import main
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run Aider with JSON-RPC server")
-    parser.add_argument("--port", type=int, default=8999, help="Port for JSON-RPC server")
-    parser.add_argument("--webapp-port", type=int, default=9876, help="Port for webapp dev server")
-    parser.add_argument("--lsp-port", type=int, help="Port for LSP server (auto-detected if not specified)")
-    parser.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
-    parser.add_argument("--no-lsp", action="store_true", help="Don't start LSP server")
-    
-    args, unknown_args = parser.parse_known_args()
-    return args, unknown_args
 
 shutdown_event = None
 
@@ -62,28 +52,52 @@ async def main_starter_async():
     
     signal.signal(signal.SIGINT, sigint_handler)
     
-    args, aider_args = parse_args()
+    # Parse configuration from command line
+    config = ServerConfig.from_args()
     
-    # Check if port was explicitly specified
-    port_specified = '--port' in sys.argv
-    server_port = find_available_port(start_port=args.port)
+    # Validate configuration
+    errors = config.validate()
+    if errors:
+        print("Configuration errors:")
+        for error in errors:
+            print(f"  - {error}")
+        return 1
     
-    # Start LSP server if not disabled
+    # Print configuration summary
+    config.print_summary()
+    
+    # Find available port for Aider server
+    try:
+        server_port = find_available_port(start_port=config.aider_port)
+        config.update_actual_ports(aider_port=server_port)
+    except RuntimeError as e:
+        print(f"Error finding available port for Aider server: {e}")
+        return 1
+    
+    # Start LSP server if enabled
     lsp_port = None
-    if not args.no_lsp:
-        lsp_port = start_lsp_server(args.lsp_port)
+    if config.is_lsp_enabled():
+        lsp_port = start_lsp_server(config)
         if lsp_port:
             print(f"LSP server running on port {lsp_port}")
         else:
             print("LSP server failed to start, continuing without LSP features")
     
-    # Start npm dev server
-    dev_server_started = start_npm_dev_server(args.webapp_port)
+    # Start webapp dev server
+    dev_server_started = start_npm_dev_server(config)
+    if not dev_server_started:
+        print("Warning: Failed to start webapp dev server")
     
+    # Create and configure JRPC server
     jrpc_server = JRPCServer(port=server_port)
     
     # Start aider in a separate thread
-    aider_thread = threading.Thread(target=main, args=(aider_args,), daemon=True)
+    aider_config = config.get_aider_config()
+    aider_thread = threading.Thread(
+        target=main, 
+        args=(aider_config['args'],), 
+        daemon=True
+    )
     aider_thread.start()
     
     # Wait for coder initialization
@@ -129,11 +143,10 @@ async def main_starter_async():
         print("Server running. Press Ctrl+C to exit.")
         
         # Open browser after servers are started
-        if dev_server_started and not args.no_browser:
+        if dev_server_started:
             # Wait a bit more for the dev server to be fully ready
             await asyncio.sleep(2)
-            # Include LSP port in the URL if available
-            open_browser(args.webapp_port, server_port, lsp_port)
+            open_browser(config)
         
         await shutdown_event.wait()
         print("Stopping server...")

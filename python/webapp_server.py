@@ -2,33 +2,41 @@
 """
 webapp_server.py - Utilities for managing the webapp development server
 """
-import os
 import webbrowser
 
 try:
     from .process_manager import WebappProcessManager
+    from .server_config import ServerConfig
 except ImportError:
     from process_manager import WebappProcessManager
+    from server_config import ServerConfig
 
 webapp_manager = None
 
-def start_npm_dev_server(webapp_port=9876):
-    """Start npm dev server if not already running"""
+def start_npm_dev_server(config: ServerConfig):
+    """Start npm dev server using configuration"""
     global webapp_manager
     
-    # Find webapp directory
-    webapp_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'webapp')
+    webapp_config = config.get_webapp_config()
+    webapp_manager = WebappProcessManager(
+        webapp_config['webapp_dir'], 
+        webapp_config['port']
+    )
     
-    webapp_manager = WebappProcessManager(webapp_dir, webapp_port)
-    return webapp_manager.start_dev_server()
+    success = webapp_manager.start_dev_server()
+    if success:
+        config.update_actual_ports(webapp_port=webapp_config['port'])
+    
+    return success
 
-def open_browser(webapp_port=9876, aider_port=8999, lsp_port=None):
-    """Open the webapp in the default browser with the aider port and optional LSP port as parameters"""
-    url = f"http://localhost:{webapp_port}/?port={aider_port}"
-    if lsp_port:
-        url += f"&lsp={lsp_port}"
+def open_browser(config: ServerConfig):
+    """Open the webapp in the default browser using configuration"""
+    if not config.should_open_browser():
+        return
     
+    url = config.get_browser_url()
     print(f"Opening browser to {url}")
+    
     try:
         webbrowser.open(url)
     except Exception as e:

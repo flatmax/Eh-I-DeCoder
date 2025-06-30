@@ -108,6 +108,17 @@ aider-server --model claude-3-sonnet --api-key anthropic=<your-key-here>
 aider-server --port 8080 --webapp-port 3000 --lsp-port 9001 --no-browser --model gpt-4 --api-key openai=<your-key-here>
 ```
 
+### Configuration Help
+
+The `aider-server` command provides comprehensive help and examples:
+
+```Bash
+# View all available options and examples
+aider-server --help
+```
+
+The server automatically validates your configuration and will report any issues (like port conflicts or missing directories) before starting.
+
 ### Alternative Startup Method
 
 You can also run the script directly:
@@ -158,6 +169,31 @@ The application shows LSP connection status in the sidebar. When connected, you'
 
 ---
 
+## Configuration
+
+### Server Configuration
+The `aider-server` command provides centralized configuration management:
+
+- **Port Configuration**: Specify ports for all server components
+- **Feature Toggles**: Enable/disable LSP features and browser opening
+- **Validation**: Automatic validation of configuration with helpful error messages
+- **Summary Display**: Clear overview of all configuration settings on startup
+
+### Configuration Validation
+The server automatically validates:
+- Port ranges (1024-65535)
+- Port conflicts between services
+- Required directories and files
+- LSP server availability
+
+### Environment Variables
+You can also configure the server using environment variables:
+- `PORT`: Webapp development server port
+- `LSP_PORT`: LSP server port
+- `WORKSPACE_ROOT`: Workspace root directory
+
+---
+
 ## Language Server Setup
 
 ### Python LSP
@@ -199,13 +235,18 @@ Provides:
 
 ## Troubleshooting
 
+### Configuration Issues
+- **Port conflicts**: Use `--port`, `--webapp-port`, or `--lsp-port` to specify different ports
+- **Invalid configuration**: The server will display specific validation errors on startup
+- **Missing directories**: Ensure you're running from the correct directory structure
+
 ### LSP Issues
 - **No auto-completion**: Check if the appropriate language server is installed
 - **Go-to-definition not working**: Ensure you're using Ctrl+click, not just click
 - **LSP server failed to start**: Check the console output for specific language server errors
 
-### Port Conflicts
-If you encounter port conflicts, use the `--port`, `--webapp-port`, or `--lsp-port` options to specify different ports.
-
 ### Performance
 LSP features may take a moment to initialize when opening large projects. This is normal behavior as language servers analyze the codebase.
+
+### Getting Help
+Use `aider-server --help` to see all available configuration options and examples.
