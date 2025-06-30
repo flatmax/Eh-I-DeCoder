@@ -9,6 +9,7 @@ import {ConnectionMixin} from './mixins/ConnectionMixin.js';
 import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
 import {ResizeMixin} from './mixins/ResizeMixin.js';
 import {navigationHistory} from './diffEditor/NavigationHistory.js';
+import {EventHelper} from './utils/EventHelper.js';
 import '../app-sidebar.js';
 import '../prompt-view.js';
 import './diffEditor/DiffEditor.js';
@@ -247,7 +248,7 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       if (sidebar) {
         // Give the sidebar time to switch tabs and render the find-in-files component
         setTimeout(() => {
-          const findInFiles = sidebar.shadowRoot?.querySelector('find-in-files');
+          const findInFiles = sidebar.shadowRoot?.querySelector('fin d-in-files');
           if (findInFiles) {
             findInFiles.focusSearchInput(selectedText);
           }

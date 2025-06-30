@@ -1,3 +1,5 @@
+import { EventHelper } from '../utils/EventHelper.js';
+
 export class MonacoKeyBindings {
   setupKeyBindings(diffEditor, component) {
     if (!diffEditor) return;
@@ -25,14 +27,8 @@ export class MonacoKeyBindings {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1.5,
       run: (editor) => {
-        // Emit save event with the modified content
-        component.dispatchEvent(new CustomEvent('save-file', {
-          detail: {
-            content: editor.getValue()
-          },
-          bubbles: true,
-          composed: true
-        }));
+        // Emit save event with the modified content using EventHelper
+        EventHelper.dispatchSaveFile(component, editor.getValue());
       }
     });
   }
@@ -57,14 +53,8 @@ export class MonacoKeyBindings {
           selectedText = editor.getModel().getValueInRange(selection);
         }
         
-        // Emit find-in-files event with selected text
-        component.dispatchEvent(new CustomEvent('request-find-in-files', {
-          detail: {
-            selectedText: selectedText
-          },
-          bubbles: true,
-          composed: true
-        }));
+        // Emit find-in-files event with selected text using EventHelper
+        EventHelper.dispatchRequestFindInFiles(component, selectedText);
       }
     });
   }

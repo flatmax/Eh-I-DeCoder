@@ -5,6 +5,7 @@ import { MonacoKeyBindings } from './MonacoKeyBindings.js';
 import { EditorConfig } from './EditorConfig.js';
 import { EditorEventHandlers } from './EditorEventHandlers.js';
 import { MonacoModelManager } from './MonacoModelManager.js';
+import { EventHelper } from '../utils/EventHelper.js';
 
 class MonacoDiffEditor extends LitElement {
   static properties = {
@@ -145,16 +146,8 @@ class MonacoDiffEditor extends LitElement {
       const content = modifiedEditor.getValue();
       this._contentVersion++;
       
-      // Dispatch content change event for LSP
-      this.dispatchEvent(new CustomEvent('content-changed', {
-        detail: {
-          content: content,
-          version: this._contentVersion,
-          changes: event.changes
-        },
-        bubbles: true,
-        composed: true
-      }));
+      // Dispatch content change event for LSP using EventHelper
+      EventHelper.dispatchContentChanged(this, content, this._contentVersion, event.changes);
     });
   }
 

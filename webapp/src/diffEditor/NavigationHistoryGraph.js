@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import * as d3 from 'd3';
 import { navigationHistory } from './NavigationHistory.js';
+import { EventHelper } from '../utils/EventHelper.js';
 
 export class NavigationHistoryGraph extends LitElement {
   static properties = {
@@ -286,16 +287,8 @@ export class NavigationHistoryGraph extends LitElement {
   }
 
   handleNodeClick(node) {
-    // Dispatch event to navigate to this file/position
-    this.dispatchEvent(new CustomEvent('navigate-to-history', {
-      detail: {
-        filePath: node.filePath,
-        line: node.line,
-        character: node.character
-      },
-      bubbles: true,
-      composed: true
-    }));
+    // Dispatch event to navigate to this file/position using EventHelper
+    EventHelper.dispatchNavigateToHistory(this, node.filePath, node.line, node.character);
   }
 
   showTooltip(event, node) {

@@ -6,6 +6,7 @@ import {LanguageDetector} from './LanguageDetector.js';
 import {NavigationManager} from './NavigationManager.js';
 import {FileManager} from './FileManager.js';
 import {LSPManager} from '../lsp/LSPManager.js';
+import {EventHelper} from '../utils/EventHelper.js';
 import './MonacoDiffEditor.js';
 import './NavigationHistoryGraph.js';
 
@@ -197,12 +198,8 @@ export class DiffEditor extends JRPCClient {
     // Get the selected text from the event
     const selectedText = event.detail.selectedText || '';
     
-    // Re-dispatch the event so it bubbles up to MainWindow
-    this.dispatchEvent(new CustomEvent('request-find-in-files', {
-      detail: { selectedText },
-      bubbles: true,
-      composed: true
-    }));
+    // Re-dispatch the event so it bubbles up to MainWindow using EventHelper
+    EventHelper.dispatchRequestFindInFiles(this, selectedText);
   }
 
   getCurrentCursorPosition() {

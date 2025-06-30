@@ -1,3 +1,5 @@
+import { EventHelper } from '../utils/EventHelper.js';
+
 export class EditorEventHandlers {
   constructor(editorComponent) {
     this.editorComponent = editorComponent;
@@ -8,23 +10,18 @@ export class EditorEventHandlers {
     
     // Emit event on content change
     diffEditor.getModifiedEditor().onDidChangeModelContent(() => {
-      this.editorComponent.dispatchEvent(new CustomEvent('content-changed', {
-        detail: this.editorComponent.getContent(),
-        bubbles: true,
-        composed: true
-      }));
+      EventHelper.dispatch(this.editorComponent, 'content-changed', 
+        this.editorComponent.getContent()
+      );
     });
 
     // Track cursor position changes
     diffEditor.getModifiedEditor().onDidChangeCursorPosition((e) => {
-      this.editorComponent.dispatchEvent(new CustomEvent('cursor-position-changed', {
-        detail: {
-          line: e.position.lineNumber,
-          character: e.position.column
-        },
-        bubbles: true,
-        composed: true
-      }));
+      EventHelper.dispatchCursorPositionChanged(
+        this.editorComponent,
+        e.position.lineNumber,
+        e.position.column
+      );
     });
   }
 
@@ -43,10 +40,7 @@ export class EditorEventHandlers {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1.7,
       run: () => {
-        this.editorComponent.dispatchEvent(new CustomEvent('navigation-back', {
-          bubbles: true,
-          composed: true
-        }));
+        EventHelper.dispatchNavigation(this.editorComponent, 'back');
       }
     });
 
@@ -62,10 +56,7 @@ export class EditorEventHandlers {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1.8,
       run: () => {
-        this.editorComponent.dispatchEvent(new CustomEvent('navigation-forward', {
-          bubbles: true,
-          composed: true
-        }));
+        EventHelper.dispatchNavigation(this.editorComponent, 'forward');
       }
     });
   }

@@ -1,4 +1,5 @@
 import { navigationHistory } from './NavigationHistory.js';
+import { EventHelper } from '../utils/EventHelper.js';
 
 export class FileManager {
   constructor(diffEditor) {
@@ -38,12 +39,8 @@ export class FileManager {
         workingLength: workingContent.length
       });
 
-      // Emit event to notify FileTree/RepoTree that a file has been loaded
-      document.dispatchEvent(new CustomEvent('file-loaded-in-editor', {
-        detail: { filePath },
-        bubbles: true,
-        composed: true
-      }));
+      // Emit event to notify FileTree/RepoTree that a file has been loaded using EventHelper
+      EventHelper.dispatchFileLoadedInEditor(filePath);
 
       // Record in navigation history
       this.diffEditor.navigationManager.recordFileSwitch(fromFile, fromLine, fromChar, filePath, toLine, toChar);

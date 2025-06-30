@@ -1,3 +1,5 @@
+import { EventHelper } from '../utils/EventHelper.js';
+
 /**
  * Navigation History implementation using a doubly linked list
  * Maintains one entry per file with cursor position
@@ -17,13 +19,11 @@ export class NavigationHistory {
    * Emit an event when navigation history changes
    */
   emitUpdate() {
-    window.dispatchEvent(new CustomEvent('navigation-history-updated', {
-      detail: {
-        currentFile: this.current?.filePath,
-        canGoBack: this.canGoBack(),
-        canGoForward: this.canGoForward()
-      }
-    }));
+    EventHelper.dispatchNavigationHistoryUpdate(
+      this.current?.filePath,
+      this.canGoBack(),
+      this.canGoForward()
+    );
   }
 
   /**
