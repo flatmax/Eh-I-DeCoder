@@ -11,6 +11,7 @@ import '../prompt-view.js';
 import '../repo-tree.js';
 import {SidebarStyles} from './sidebar/SidebarStyles.js';
 import {TabConfig} from './sidebar/TabConfig.js';
+import {EventHelper} from './utils/EventHelper.js';
 
 export class AppSidebar extends LitElement {
   static properties = {
@@ -39,16 +40,12 @@ export class AppSidebar extends LitElement {
 
   handleTabChange(e) {
     this.activeTabIndex = e.target.activeTabIndex;
-    this.dispatchEvent(new CustomEvent('tab-change', {
-      detail: { activeTabIndex: this.activeTabIndex }
-    }));
+    EventHelper.dispatchTabChange(this, this.activeTabIndex);
   }
 
   toggleExpanded() {
     this.expanded = !this.expanded;
-    this.dispatchEvent(new CustomEvent('toggle-expanded', {
-      detail: { expanded: this.expanded }
-    }));
+    EventHelper.dispatchToggleExpanded(this, this.expanded);
   }
 
   toggleConnectionDetails() {
@@ -56,15 +53,11 @@ export class AppSidebar extends LitElement {
   }
 
   updateServerURI() {
-    this.dispatchEvent(new CustomEvent('update-server-uri', {
-      detail: { newServerURI: this.newServerURI }
-    }));
+    EventHelper.dispatchUpdateServerURI(this, this.newServerURI);
   }
 
   handleOpenFile(e) {
-    this.dispatchEvent(new CustomEvent('open-file', {
-      detail: e.detail
-    }));
+    EventHelper.dispatchOpenFile(this, e.detail.filePath, e.detail.lineNumber, e.detail.characterNumber);
   }
 
   updated(changedProperties) {

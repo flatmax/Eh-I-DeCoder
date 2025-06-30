@@ -1,4 +1,5 @@
 import { html, css, LitElement } from 'lit';
+import { EventHelper } from '../utils/EventHelper.js';
 
 // Import Material Design Web Components
 import '@material/web/button/filled-button.js';
@@ -59,9 +60,7 @@ export class SearchForm extends LitElement {
       caseSensitive: this.searchState.caseSensitive
     };
     
-    this.dispatchEvent(new CustomEvent('search', {
-      detail: { query, options }
-    }));
+    EventHelper.dispatch(this, 'search', { query, options });
   }
 
   handleInputChange(e) {

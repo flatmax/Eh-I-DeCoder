@@ -1,4 +1,5 @@
 import { LitElement, html, css } from 'lit';
+import { EventHelper } from './utils/EventHelper.js';
 
 export class FuzzySearch extends LitElement {
   static properties = {
@@ -172,10 +173,7 @@ export class FuzzySearch extends LitElement {
   hide() {
     console.log('FuzzySearch.hide() called');
     // Emit event to notify parent that we want to hide
-    this.dispatchEvent(new CustomEvent('hide-requested', {
-      bubbles: true,
-      composed: true
-    }));
+    EventHelper.dispatch(this, 'hide-requested');
   }
 
   handleKeyDown(event) {
@@ -280,11 +278,7 @@ export class FuzzySearch extends LitElement {
   selectFile(filePath) {
     console.log('FuzzySearch file selected:', filePath);
     // Emit custom event with selected file
-    this.dispatchEvent(new CustomEvent('file-selected', {
-      detail: { filePath },
-      bubbles: true,
-      composed: true
-    }));
+    EventHelper.dispatch(this, 'file-selected', { filePath });
     
     this.hide();
   }

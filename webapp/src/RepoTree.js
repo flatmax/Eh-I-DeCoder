@@ -3,6 +3,7 @@ import {FileTree} from './FileTree.js';
 import {RepoTreeManagers} from './tree/RepoTreeManagers.js';
 import {RepoTreeRenderer} from './tree/RepoTreeRenderer.js';
 import {RepoTreeStyles} from './tree/RepoTreeStyles.js';
+import {EventHelper} from './utils/EventHelper.js';
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/fab/fab.js';
@@ -110,12 +111,8 @@ export class RepoTree extends FileTree {
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
       
-      // Emit word-clicked event with the filename
-      document.dispatchEvent(new CustomEvent('word-clicked', {
-        detail: { word: path },
-        bubbles: true,
-        composed: true
-      }));
+      // Emit word-clicked event with the filename using EventHelper
+      EventHelper.dispatchWindowEvent('word-clicked', { word: path });
       
       return;
     }

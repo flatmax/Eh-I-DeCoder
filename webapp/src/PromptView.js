@@ -16,6 +16,7 @@ import { ScrollManager } from './prompt/ScrollManager.js';
 import { EventHandler } from './prompt/EventHandler.js';
 import { promptViewStyles } from './prompt/PromptViewStyles.js';
 import { renderPromptView } from './prompt/PromptViewTemplate.js';
+import { EventHelper } from './utils/EventHelper.js';
 
 export class PromptView extends MessageHandler {
   static properties = {
@@ -171,10 +172,7 @@ export class PromptView extends MessageHandler {
 
   handleModeToggle(event) {
     event.stopPropagation(); // Prevent header click from triggering
-    this.dispatchEvent(new CustomEvent('mode-toggle', {
-      bubbles: true,
-      composed: true
-    }));
+    EventHelper.dispatchModeToggle(this);
   }
 
   handleTabClick(event, tabName) {

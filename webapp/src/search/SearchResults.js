@@ -1,5 +1,6 @@
 import { html, css, LitElement } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
+import { EventHelper } from '../utils/EventHelper.js';
 
 // Import Material Design Web Components
 import '@material/web/iconbutton/icon-button.js';
@@ -36,23 +37,19 @@ export class SearchResults extends LitElement {
   }
 
   handleExpandAll() {
-    this.dispatchEvent(new CustomEvent('expand-all'));
+    EventHelper.dispatch(this, 'expand-all');
   }
 
   handleCollapseAll() {
-    this.dispatchEvent(new CustomEvent('collapse-all'));
+    EventHelper.dispatch(this, 'collapse-all');
   }
 
   handleFileHeaderClick(filePath) {
-    this.dispatchEvent(new CustomEvent('file-header-click', {
-      detail: { filePath }
-    }));
+    EventHelper.dispatch(this, 'file-header-click', { filePath });
   }
 
   handleOpenFile(filePath, lineNumber) {
-    this.dispatchEvent(new CustomEvent('open-file', {
-      detail: { filePath, lineNumber }
-    }));
+    EventHelper.dispatchOpenFile(this, filePath, lineNumber);
   }
 
   render() {
