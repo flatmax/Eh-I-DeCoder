@@ -236,8 +236,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     console.log(`Switched to ${this.gitHistoryMode ? 'Git History' : 'File Explorer'} mode`);
   }
 
-  handleRequestFindInFiles(event) {
-    const selectedText = event.detail.selectedText || '';
+  handleRequestFindInFiles(event) {    
+    const selectedText = event.detail?.selectedText || '';
     
     // Switch to find-in-files tab (tab index 1)
     this.activeTabIndex = 1;
@@ -246,13 +246,22 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.updateComplete.then(() => {
       const sidebar = this.shadowRoot.querySelector('app-sidebar');
       if (sidebar) {
+        // Update the sidebar's active tab index
+        sidebar.activeTabIndex = this.activeTabIndex;
+        sidebar.requestUpdate();
+        
         // Give the sidebar time to switch tabs and render the find-in-files component
         setTimeout(() => {
-          const findInFiles = sidebar.shadowRoot?.querySelector('fin d-in-files');
-          if (findInFiles) {
+          const findInFiles = sidebar.shadowRoot?.querySelector('find-in-files');
+          if (findInFiles && typeof findInFiles.focusSearchInput === 'function') {
             findInFiles.focusSearchInput(selectedText);
+          } else {
+            console.warn('MainWindow: FindInFiles component not found or focusSearchInput method not available');
+            console.log('Available elements in sidebar:', sidebar.shadowRoot ? Array.from(sidebar.shadowRoot.querySelectorAll('*')).map(el => el.tagName) : 'No shadow root');
           }
         }, 100);
+      } else {
+        console.warn('MainWindow: Sidebar not found');
       }
     });
   }

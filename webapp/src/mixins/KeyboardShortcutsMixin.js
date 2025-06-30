@@ -46,6 +46,7 @@ export const KeyboardShortcutsMixin = (superClass) => class extends superClass {
     if (event.ctrlKey && event.shiftKey && event.key === 'F') {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
       this._focusSearchInput();
     }
   }
