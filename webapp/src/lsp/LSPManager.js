@@ -1,3 +1,5 @@
+import { lspUriUtils } from './LSPUriUtils.js';
+
 export class LSPManager {
     constructor(diffEditor) {
         this.diffEditor = diffEditor;
@@ -410,14 +412,13 @@ export class LSPManager {
                         console.log(`LSP: Processing ${result.length} definition results`);
 
                         // Process each definition result
-                        const definitions = [];
                         for (const location of result) {
                             try {
                                 const targetUri = location.uri;
                                 console.log(`LSP: Processing definition target: ${targetUri}`);
 
-                                // Convert the URI to a workspace-relative path for navigation
-                                const workspaceRelativePath = this.convertUriToWorkspacePath(targetUri);
+                                // Use centralized URI utility to convert URI to workspace path
+                                const workspaceRelativePath = lspUriUtils.convertUriToWorkspacePath(targetUri);
                                 
                                 if (workspaceRelativePath) {
                                     console.log(`LSP: Converted URI to workspace path: ${workspaceRelativePath}`);
@@ -452,7 +453,7 @@ export class LSPManager {
                             }
                         }
 
-                        return definitions;
+                        return [];
                     } catch (error) {
                         console.error('LSP: Error in definition provider:', error);
                         return [];
@@ -469,72 +470,6 @@ export class LSPManager {
     setDefinitionRequestsEnabled(enabled) {
         this.definitionRequestsEnabled = enabled;
         console.log(`LSP: Definition requests ${enabled ? 'enabled' : 'disabled'}`);
-    }
-
-    convertUriToWorkspacePath(uri) {
-        try {
-            console.log(`LSP: Converting URI to workspace path: ${uri}`);
-            
-            if (uri.startsWith('file://')) {
-                const filePath = uri.substring('file://'.length);
-                console.log(`LSP: Extracted file path: ${filePath}`);
-                
-                // Look for common workspace directory patterns to extract relative path
-                const workspacePatterns = [
-                    '/Eh-I-DeCoder/',
-                    '/python/',
-                    '/webapp/',
-                    '/src/',
-                    '/repos/'
-                ];
-                
-                for (const pattern of workspacePatterns) {
-                    const patternIndex = filePath.indexOf(pattern);
-                    if (patternIndex !== -1) {
-                        // Find the workspace root by looking for the main project directory
-                        if (pattern === '/Eh-I-DeCoder/') {
-                            // Extract everything after the project root
-                            const relativePath = filePath.substring(patternIndex + pattern.length);
-                            console.log(`LSP: Found Eh-I-DeCoder pattern, extracted relative path: ${relativePath}`);
-                            return relativePath;
-                        } else if (pattern === '/python/' || pattern === '/webapp/') {
-                            // Extract the directory and everything after it
-                            const relativePath = filePath.substring(patternIndex + 1); // +1 to remove leading slash
-                            console.log(`LSP: Found ${pattern} pattern, extracted relative path: ${relativePath}`);
-                            return relativePath;
-                        }
-                    }
-                }
-                
-                // If no patterns match, try to extract a reasonable relative path
-                // Look for common file extensions and try to find a reasonable starting point
-                const pathParts = filePath.split('/');
-                
-                // Look for webapp, src, python directories in the path
-                for (let i = pathParts.length - 1; i >= 0; i--) {
-                    const part = pathParts[i];
-                    if (['webapp', 'python', 'src'].includes(part)) {
-                        // Take everything from this directory onwards
-                        const relativePath = pathParts.slice(i).join('/');
-                        console.log(`LSP: Found ${part} directory, extracted relative path: ${relativePath}`);
-                        return relativePath;
-                    }
-                }
-                
-                // Final fallback - just use the filename
-                const fileName = pathParts[pathParts.length - 1];
-                if (fileName) {
-                    console.log(`LSP: Using filename as final fallback: ${fileName}`);
-                    return fileName;
-                }
-            }
-            
-            console.log(`LSP: Could not convert URI: ${uri}`);
-            return null;
-        } catch (error) {
-            console.error('LSP: Error converting URI to workspace path:', error);
-            return null;
-        }
     }
 
     unregisterMonacoProviders() {

@@ -5,6 +5,65 @@ const { spawn } = require('child_process');
 const net = require('net');
 const path = require('path');
 
+// Import the URI utilities for Node.js environment
+class LSPUriUtils {
+    constructor(workspaceRoot = null) {
+        this.workspaceRoot = workspaceRoot;
+        this.workspacePrefix = '/workspace/';
+    }
+
+    /**
+     * Normalize URI for LSP server communication
+     * Handles both absolute and relative paths
+     */
+    normalizeUriForLSP(uri, workspaceRoot = null) {
+        const root = workspaceRoot || this.workspaceRoot;
+        console.log(`LSP Server: Normalizing URI: ${uri}, workspace root: ${root}`);
+        
+        // Handle file:// URIs properly
+        if (uri && uri.startsWith('file://')) {
+            const filePath = uri.substring('file://'.length);
+            
+            // If it starts with /workspace/, convert to absolute path in workspace
+            if (filePath.startsWith(this.workspacePrefix)) {
+                const relativePath = filePath.substring(this.workspacePrefix.length);
+                if (root) {
+                    const absolutePath = path.resolve(root, relativePath);
+                    const normalizedUri = `file://${absolutePath}`;
+                    console.log(`LSP Server: Converted workspace URI ${uri} to ${normalizedUri}`);
+                    return normalizedUri;
+                }
+                // Fallback if no workspace root
+                const normalizedUri = `file://${root}/${relativePath}`;
+                console.log(`LSP Server: Converted workspace URI ${uri} to ${normalizedUri} (fallback)`);
+                return normalizedUri;
+            }
+            
+            // If it's already an absolute path, keep it as is
+            if (path.isAbsolute(filePath)) {
+                console.log(`LSP Server: URI is already absolute: ${uri}`);
+                return uri;
+            }
+            
+            // If it's a relative path, make it absolute relative to workspace
+            if (root) {
+                const absolutePath = path.resolve(root, filePath);
+                const normalizedUri = `file://${absolutePath}`;
+                console.log(`LSP Server: Converted relative URI ${uri} to ${normalizedUri}`);
+                return normalizedUri;
+            }
+        }
+        
+        console.log(`LSP Server: URI unchanged: ${uri}`);
+        return uri;
+    }
+
+    setWorkspaceRoot(workspaceRoot) {
+        this.workspaceRoot = workspaceRoot;
+        console.log(`LSP Server: Workspace root set to: ${workspaceRoot}`);
+    }
+}
+
 class LSPServer {
     constructor() {
         this.port = null;
@@ -14,6 +73,9 @@ class LSPServer {
         this.clients = new Set();
         this.workspaceRoot = process.cwd();
         this.messageId = 1;
+        
+        // Initialize URI utilities
+        this.uriUtils = new LSPUriUtils(this.workspaceRoot);
         
         // Language server configurations
         this.languageConfigs = {
@@ -75,6 +137,9 @@ class LSPServer {
             } else if (process.env.WORKSPACE_ROOT) {
                 this.workspaceRoot = process.env.WORKSPACE_ROOT;
             }
+
+            // Update URI utils with workspace root
+            this.uriUtils.setWorkspaceRoot(this.workspaceRoot);
 
             console.log(`LSP Server starting on port ${this.port}`);
             console.log(`Workspace root: ${this.workspaceRoot}`);
@@ -174,50 +239,16 @@ class LSPServer {
         }
     }
 
-    _normalizeUri(uri) {
-        console.log(`LSP Server: Normalizing URI: ${uri}`);
-        
-        // Handle file:// URIs properly
-        if (uri && uri.startsWith('file://')) {
-            // For file:// URIs, we need to handle both absolute and relative paths
-            const filePath = uri.substring('file://'.length);
-            
-            // If it starts with /workspace/, convert to absolute path in workspace
-            if (filePath.startsWith('/workspace/')) {
-                const relativePath = filePath.substring('/workspace/'.length);
-                const absolutePath = path.resolve(this.workspaceRoot, relativePath);
-                const normalizedUri = `file://${absolutePath}`;
-                console.log(`LSP Server: Converted workspace URI ${uri} to ${normalizedUri}`);
-                return normalizedUri;
-            }
-            
-            // If it's already an absolute path, keep it as is
-            if (path.isAbsolute(filePath)) {
-                console.log(`LSP Server: URI is already absolute: ${uri}`);
-                return uri;
-            }
-            
-            // If it's a relative path, make it absolute relative to workspace
-            const absolutePath = path.resolve(this.workspaceRoot, filePath);
-            const normalizedUri = `file://${absolutePath}`;
-            console.log(`LSP Server: Converted relative URI ${uri} to ${normalizedUri}`);
-            return normalizedUri;
-        }
-        
-        console.log(`LSP Server: URI unchanged: ${uri}`);
-        return uri;
-    }
-
     async handleMessage(ws, message) {
         const clientId = ws.clientId || 'unknown';
         
         // Log all incoming messages for debugging
         console.log(`LSP Server [${clientId}]: Received message:`, message.method || `response-${message.id}`, message);
         
-        // Normalize URI before handling
+        // Normalize URI using centralized utility before handling
         if (message.params && message.params.textDocument && message.params.textDocument.uri) {
             const originalUri = message.params.textDocument.uri;
-            message.params.textDocument.uri = this._normalizeUri(originalUri);
+            message.params.textDocument.uri = this.uriUtils.normalizeUriForLSP(originalUri, this.workspaceRoot);
             if (originalUri !== message.params.textDocument.uri) {
                 console.log(`LSP Server [${clientId}]: URI normalized from ${originalUri} to ${message.params.textDocument.uri}`);
             }

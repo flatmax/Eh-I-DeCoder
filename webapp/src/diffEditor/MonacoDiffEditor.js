@@ -4,7 +4,7 @@ import { MonacoLoader } from './MonacoLoader.js';
 import { MonacoKeyBindings } from './MonacoKeyBindings.js';
 import { EditorConfig } from './EditorConfig.js';
 import { EditorEventHandlers } from './EditorEventHandlers.js';
-// import { EditorContentManager } from './EditorContentManager.js'; // Bypassed for LSP URI fix
+import { lspUriUtils } from '../lsp/LSPUriUtils.js';
 
 class MonacoDiffEditor extends LitElement {
   static properties = {
@@ -30,7 +30,6 @@ class MonacoDiffEditor extends LitElement {
     this.monacoLoader = new MonacoLoader();
     this.keyBindings = new MonacoKeyBindings();
     this.eventHandlers = new EditorEventHandlers(this);
-    // this.contentManager = new EditorContentManager(this); // Bypassed
     this._targetPosition = null;
     this._contentVersion = 1;
     this._isInitialized = false;
@@ -118,9 +117,8 @@ class MonacoDiffEditor extends LitElement {
   }
 
   /**
-   * This method replaces the logic from EditorContentManager to ensure that
-   * Monaco editor models are created with a file URI. This is essential for
-   * LSP services like hover and go-to-definition to work correctly.
+   * Update editor models using centralized URI utilities
+   * This ensures consistent URI handling across the application
    */
   _updateEditorModels() {
     if (!this.diffEditor || !this._isInitialized) return;
@@ -138,28 +136,13 @@ class MonacoDiffEditor extends LitElement {
     const modified = this.modifiedContent || '';
     const language = this.language || 'plaintext';
     
-    // Create a proper file URI for the model. This is the key fix for LSP.
-    let modifiedUri = null;
-    let originalUri = null;
+    console.log(`Monaco: Processing file path: ${this.filePath}`);
     
-    if (this.filePath && this.filePath.trim() !== '') {
-      console.log(`Monaco: Processing file path: ${this.filePath}`);
-      
-      // Create workspace-relative URI that the LSP server can properly normalize
-      // Use the /workspace/ prefix that the LSP server expects
-      const workspacePath = `/workspace/${this.filePath}`;
-      
-      // Create proper file:// URIs with the workspace prefix
-      modifiedUri = monaco.Uri.file(workspacePath);
-      originalUri = monaco.Uri.file(workspacePath + '.orig');
-      
-      console.log(`Monaco: Created URIs - Modified: ${modifiedUri.toString()}, Original: ${originalUri.toString()}`);
-    } else {
-      console.log('Monaco: No file path provided, using default URIs');
-      // Fallback URIs if no file path - but these won't work with LSP
-      modifiedUri = monaco.Uri.parse('inmemory://model/modified');
-      originalUri = monaco.Uri.parse('inmemory://model/original');
-    }
+    // Use centralized URI utility to create proper URIs
+    const modifiedUri = lspUriUtils.createMonacoUri(this.filePath, false);
+    const originalUri = lspUriUtils.createMonacoUri(this.filePath, true);
+    
+    console.log(`Monaco: Created URIs - Modified: ${modifiedUri.toString()}, Original: ${originalUri.toString()}`);
 
     // Dispose of old models before setting new ones to prevent memory leaks and conflicts
     this._disposeCurrentModels();
@@ -246,13 +229,12 @@ class MonacoDiffEditor extends LitElement {
 
   _createModelsWithUniqueUris(original, modified, language) {
     // Fallback: create models with unique URIs to avoid conflicts
-    const timestamp = Date.now();
-    const uniqueModifiedUri = monaco.Uri.parse(`inmemory://model/modified-${timestamp}`);
-    const uniqueOriginalUri = monaco.Uri.parse(`inmemory://model/original-${timestamp}`);
-    
     console.log(`Monaco: Creating models with unique URIs as fallback`);
     
     try {
+      const uniqueModifiedUri = lspUriUtils.createUniqueUri('inmemory://model/', '-modified');
+      const uniqueOriginalUri = lspUriUtils.createUniqueUri('inmemory://model/', '-original');
+      
       const originalModel = monaco.editor.createModel(original, language, uniqueOriginalUri);
       const modifiedModel = monaco.editor.createModel(modified, language, uniqueModifiedUri);
 
