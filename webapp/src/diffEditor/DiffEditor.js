@@ -7,6 +7,7 @@ import {NavigationManager} from './NavigationManager.js';
 import {FileManager} from './FileManager.js';
 import {LSPManager} from '../lsp/LSPManager.js';
 import {EventHelper} from '../utils/EventHelper.js';
+import {FileContentService} from '../services/FileContentService.js';
 import './MonacoDiffEditor.js';
 import './NavigationHistoryGraph.js';
 
@@ -172,21 +173,16 @@ export class DiffEditor extends JRPCClient {
 
     try {
       console.log(`Saving changes to file: ${this.currentFile}`);
-      const response = await this.call['Repo.save_file_content'](this.currentFile, content);
+      await FileContentService.saveFile(this, this.currentFile, content);
       
-      if (response && response.error) {
-        console.error(`Error saving file: ${response.error}`);
-        alert(`Failed to save file: ${response.error}`);
-      } else {
-        console.log(`File ${this.currentFile} saved successfully`);
-        // Update the working content to reflect the saved state
-        this.workingContent = content;
-        
-        // Show save indicator briefly
-        setTimeout(() => {
-          this.isSaving = false;
-        }, 1000);
-      }
+      console.log(`File ${this.currentFile} saved successfully`);
+      // Update the working content to reflect the saved state
+      this.workingContent = content;
+      
+      // Show save indicator briefly
+      setTimeout(() => {
+        this.isSaving = false;
+      }, 1000);
     } catch (error) {
       console.error(`Error saving file ${this.currentFile}:`, error);
       alert(`Failed to save file: ${error.message}`);

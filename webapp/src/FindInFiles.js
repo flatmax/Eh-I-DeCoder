@@ -3,6 +3,7 @@ import { JRPCClient } from '@flatmax/jrpc-oo';
 import { SearchForm } from './search/SearchForm.js';
 import { SearchResults } from './search/SearchResults.js';
 import { SearchState } from './search/SearchState.js';
+import { EventHelper } from './utils/EventHelper.js';
 
 // Import Material Design Web Components
 import '@material/web/progress/circular-progress.js';
@@ -84,13 +85,8 @@ export class FindInFiles extends JRPCClient {
       }
     }
     
-    // Dispatch custom event to be handled by MainWindow
-    const event = new CustomEvent('open-file', {
-      bubbles: true,
-      composed: true,
-      detail: { filePath, lineNumber }
-    });
-    this.dispatchEvent(event);
+    // Use EventHelper for consistent event dispatching
+    EventHelper.dispatchOpenFile(this, filePath, lineNumber);
   }
   
   updateStateFromSearchState() {

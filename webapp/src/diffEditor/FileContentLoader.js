@@ -1,4 +1,4 @@
-import {extractResponseData} from '../Utils.js';
+import { FileContentService } from '../services/FileContentService.js';
 
 export class FileContentLoader {
   constructor(jrpcClient) {
@@ -8,13 +8,10 @@ export class FileContentLoader {
   async loadFileContent(filePath) {
     console.log(`Loading file content for: ${filePath}`);
     
-    // Get HEAD version and working directory version
-    const headResponse = await this.jrpcClient.call['Repo.get_file_content'](filePath, 'HEAD');
-    const workingResponse = await this.jrpcClient.call['Repo.get_file_content'](filePath, 'working');
-    
-    // Extract content from responses (handle UUID wrapper)
-    const headContent = this.extractContent(headResponse);
-    const workingContent = this.extractContent(workingResponse);
+    const { headContent, workingContent } = await FileContentService.loadFileVersions(
+      this.jrpcClient, 
+      filePath
+    );
     
     console.log('File content loaded:', {
       filePath,
@@ -25,19 +22,9 @@ export class FileContentLoader {
     return { headContent, workingContent };
   }
 
-  extractContent(response) {
-    return extractResponseData(response, '');
-  }
-
   async saveFileContent(filePath, content) {
     console.log(`Saving changes to file: ${filePath}`);
-    const response = await this.jrpcClient.call['Repo.save_file_content'](filePath, content);
-    
-    // Check response
-    if (response.error) {
-      throw new Error(`Failed to save file: ${response.error}`);
-    }
-    
+    const response = await FileContentService.saveFile(this.jrpcClient, filePath, content);
     console.log('File saved successfully');
     return response;
   }

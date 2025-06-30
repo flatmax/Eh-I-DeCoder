@@ -1,4 +1,6 @@
-import {extractResponseData} from '../Utils.js';
+import { extractResponseData } from '../Utils.js';
+import { FileContentService } from '../services/FileContentService.js';
+import { EventHelper } from '../utils/EventHelper.js';
 
 export class GitDiffDataManager {
   constructor(GitDiffView) {
@@ -51,13 +53,14 @@ export class GitDiffDataManager {
     
     try {
       console.log('GitDiffView: Loading file contents for', this.view.selectedFile);
-      const [fromResponse, toResponse] = await Promise.all([
-        this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.fromCommit),
-        this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.toCommit)
+      
+      const [fromContent, toContent] = await Promise.all([
+        FileContentService.loadFile(this.view, this.view.selectedFile, this.view.fromCommit),
+        FileContentService.loadFile(this.view, this.view.selectedFile, this.view.toCommit)
       ]);
       
-      this.view.fromContent = extractResponseData(fromResponse, '');
-      this.view.toContent = extractResponseData(toResponse, '');
+      this.view.fromContent = fromContent;
+      this.view.toContent = toContent;
       console.log('GitDiffView: Loaded file contents, from length:', this.view.fromContent.length, 'to length:', this.view.toContent.length);
       
     } catch (error) {
@@ -77,20 +80,20 @@ export class GitDiffDataManager {
     
     try {
       console.log('GitDiffView: Loading conflict content for', this.view.selectedFile);
-      const response = await this.view.call['Repo.get_conflict_content'](this.view.selectedFile);
+      const conflictData = await FileContentService.loadConflictContent(this.view, this.view.selectedFile);
       
-      if (response.success) {
-        this.view.fromContent = response.ours || '';
-        this.view.toContent = response.theirs || '';
+      if (conflictData && conflictData.success !== false) {
+        this.view.fromContent = conflictData.ours || '';
+        this.view.toContent = conflictData.theirs || '';
         
         // If there's a merged version with conflict markers, use it
-        if (response.merged) {
-          this.view.toContent = response.merged;
+        if (conflictData.merged) {
+          this.view.toContent = conflictData.merged;
         }
         
         console.log('GitDiffView: Loaded conflict content');
       } else {
-        this.view.error = response.error || 'Failed to load conflict content';
+        this.view.error = conflictData?.error || 'Failed to load conflict content';
       }
       
     } catch (error) {
