@@ -316,14 +316,24 @@ export class LSPManager {
                             return { suggestions: [] };
                         }
 
-                        const suggestions = result.items.map(item => ({
-                            label: item.label,
-                            kind: this.convertCompletionItemKind(item.kind),
-                            documentation: item.documentation,
-                            detail: item.detail,
-                            insertText: item.insertText || item.label,
-                            range: position
-                        }));
+                        const suggestions = result.items.map(item => {
+                            // Create a proper range for the completion item
+                            const range = new monaco.Range(
+                                position.lineNumber,
+                                position.column,
+                                position.lineNumber,
+                                position.column
+                            );
+
+                            return {
+                                label: item.label,
+                                kind: this.convertCompletionItemKind(item.kind),
+                                documentation: item.documentation,
+                                detail: item.detail,
+                                insertText: item.insertText || item.label,
+                                range: range
+                            };
+                        });
 
                         console.log(`LSP: Returning ${suggestions.length} completion suggestions`);
                         return { suggestions };
