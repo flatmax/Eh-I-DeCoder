@@ -38,18 +38,21 @@ from aider.main import main
 shutdown_event = None
 jrpc_server = None
 aider_thread = None
+cleanup_done = False
 
 def cleanup_all():
     """Comprehensive cleanup function"""
+    global cleanup_done
+    
+    if cleanup_done:
+        return
+    
+    cleanup_done = True
     print("Performing cleanup...")
+    
+    # Clean up external processes first
     cleanup_npm_process()
     cleanup_lsp_process()
-    
-    # Force cleanup of any remaining threads
-    for thread in threading.enumerate():
-        if thread != threading.current_thread() and thread.is_alive():
-            if hasattr(thread, '_stop'):
-                thread._stop()
 
 def force_exit():
     """Force exit the application"""
