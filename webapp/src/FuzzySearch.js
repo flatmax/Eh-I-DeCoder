@@ -130,7 +130,6 @@ export class FuzzySearch extends LitElement {
 
   updated(changedProperties) {
     if (changedProperties.has('visible')) {
-      console.log('FuzzySearch visibility changed to:', this.visible);
       if (this.visible) {
         // Add global key listener when visible
         document.addEventListener('keydown', this.boundKeyHandler, true);
@@ -138,7 +137,6 @@ export class FuzzySearch extends LitElement {
           const input = this.shadowRoot.querySelector('.search-input');
           if (input) {
             input.focus();
-            console.log('FuzzySearch input focused');
           }
         });
       } else {
@@ -148,13 +146,11 @@ export class FuzzySearch extends LitElement {
     }
     
     if (changedProperties.has('files')) {
-      console.log('FuzzySearch files updated:', this.files.length);
       this.filteredFiles = this.files.slice(0, 50);
     }
   }
 
   show(files = []) {
-    console.log('FuzzySearch.show() called with files:', files.length);
     this.files = files;
     this.searchTerm = '';
     this.selectedIndex = 0;
@@ -165,13 +161,11 @@ export class FuzzySearch extends LitElement {
       const input = this.shadowRoot.querySelector('.search-input');
       if (input) {
         input.focus();
-        console.log('Input focused after show()');
       }
     });
   }
 
   hide() {
-    console.log('FuzzySearch.hide() called');
     // Emit event to notify parent that we want to hide
     EventHelper.dispatch(this, 'hide-requested');
   }
@@ -179,12 +173,6 @@ export class FuzzySearch extends LitElement {
   handleKeyDown(event) {
     // Only handle keys when visible
     if (!this.visible) return;
-    
-    // Only log navigation keys, not regular typing
-    const isNavigationKey = ['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(event.key);
-    if (isNavigationKey) {
-      console.log('FuzzySearch key pressed:', event.key);
-    }
     
     // Stop propagation to prevent other handlers from interfering
     event.stopPropagation();
@@ -276,7 +264,6 @@ export class FuzzySearch extends LitElement {
   }
 
   selectFile(filePath) {
-    console.log('FuzzySearch file selected:', filePath);
     // Emit custom event with selected file
     EventHelper.dispatch(this, 'file-selected', { filePath });
     
@@ -284,10 +271,8 @@ export class FuzzySearch extends LitElement {
   }
 
   handleBackdropClick(event) {
-    console.log('FuzzySearch backdrop clicked, target:', event.target, 'this:', this);
     // Only hide if clicking on the backdrop (the host element itself)
     if (event.target === this) {
-      console.log('Hiding fuzzy search due to backdrop click');
       this.hide();
     }
   }
