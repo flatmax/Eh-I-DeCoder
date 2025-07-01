@@ -216,4 +216,15 @@ export class EventHelper {
     const event = this.createEvent('file-loaded-in-editor', { filePath });
     document.dispatchEvent(event);
   }
+
+  /**
+   * Dispatch word clicked event (for copying text to PromptView)
+   * @param {HTMLElement} component - Component to dispatch from
+   * @param {string} word - Word or text that was clicked
+   */
+  static dispatchWordClicked(component, word) {
+    const event = this.createEvent('word-clicked', { word });
+    document.dispatchEvent(event);
+    return true;
+  }
 }
