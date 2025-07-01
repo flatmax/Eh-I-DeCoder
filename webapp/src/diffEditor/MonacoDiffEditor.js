@@ -76,7 +76,6 @@ class MonacoDiffEditor extends LitElement {
 
   _initializeEditor() {
     if (this._isInitialized) {
-      console.log('Monaco: Editor already initialized, skipping');
       return;
     }
 
@@ -112,8 +111,6 @@ class MonacoDiffEditor extends LitElement {
   _updateEditorModels() {
     if (!this.diffEditor || !this._isInitialized) return;
 
-    console.log(`Monaco: Processing file path: ${this.filePath}`);
-
     // Use model manager to handle model lifecycle
     const models = this.modelManager.updateModels(
       this.originalContent,
@@ -123,13 +120,18 @@ class MonacoDiffEditor extends LitElement {
     );
 
     if (models) {
-      // Set the models in the diff editor
-      this.diffEditor.setModel({
-        original: models.original,
-        modified: models.modified
-      });
+      // Only set models in diff editor if they're new (not incremental updates)
+      const needsModelSet = !this.diffEditor.getModel() || 
+                           this.diffEditor.getModel().original !== models.original ||
+                           this.diffEditor.getModel().modified !== models.modified;
 
-      console.log(`Monaco: Updated models for ${this.filePath || 'unknown'} (${this.language})`);
+      if (needsModelSet) {
+        // Set the models in the diff editor
+        this.diffEditor.setModel({
+          original: models.original,
+          modified: models.modified
+        });
+      }
       
       // Apply target position if set
       this.applyTargetPositionIfSet();
@@ -160,7 +162,6 @@ class MonacoDiffEditor extends LitElement {
 
   // Public API
   updateContent(originalContent, modifiedContent, language = 'javascript', filePath = null) {
-    console.log(`Monaco: updateContent called with filePath: ${filePath}, language: ${language}`);
     this.originalContent = originalContent;
     this.modifiedContent = modifiedContent;
     this.language = language;
