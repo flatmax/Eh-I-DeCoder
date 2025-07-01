@@ -14,7 +14,7 @@ except ImportError:
 
 lsp_manager = None
 
-def start_lsp_server(config: ServerConfig):
+def start_lsp_server(config: ServerConfig, repo=None):
     """Start the LSP server using configuration and return its port"""
     global lsp_manager
     
@@ -32,13 +32,27 @@ def start_lsp_server(config: ServerConfig):
         print("LSP Python: Error - no LSP port allocated")
         return None
     
+    # Get workspace root from repo if available
+    workspace_root = lsp_config['workspace_root']  # fallback to config default
+    if repo:
+        try:
+            repo_root = repo.get_repo_root()
+            if isinstance(repo_root, str):  # Success case
+                workspace_root = repo_root
+                print(f"LSP Python: Using repository root as workspace: {workspace_root}")
+            else:
+                print(f"LSP Python: Could not get repo root, using config default: {workspace_root}")
+        except Exception as e:
+            print(f"LSP Python: Error getting repo root, using config default: {e}")
+    
     print(f"LSP Python: Using allocated port {lsp_port}")
     print(f"LSP Python: Looking for webapp directory at: {lsp_config['webapp_dir']}")
+    print(f"LSP Python: Using workspace root: {workspace_root}")
     
     lsp_manager = LSPProcessManager(
         lsp_config['webapp_dir'], 
         lsp_port, 
-        lsp_config['workspace_root']
+        workspace_root
     )
     
     actual_port = lsp_manager.start_lsp_server()

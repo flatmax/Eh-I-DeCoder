@@ -109,19 +109,6 @@ async def main_starter_async():
         print(f"Error finding available ports: {e}")
         return 1
     
-    # Start LSP server if enabled
-    if config.is_lsp_enabled() and lsp_port:
-        actual_lsp_port = start_lsp_server(config)
-        if actual_lsp_port:
-            print(f"LSP server running on port {actual_lsp_port}")
-        else:
-            print("LSP server failed to start, continuing without LSP features")
-    
-    # Start webapp dev server
-    dev_server_started = start_npm_dev_server(config)
-    if not dev_server_started:
-        print("Warning: Failed to start webapp dev server")
-    
     # Create and configure JRPC server
     jrpc_server = JRPCServer(port=server_port)
     
@@ -172,6 +159,19 @@ async def main_starter_async():
     except Exception as e:
         print(f"Error initializing components: {e}")
         return 1
+    
+    # Start LSP server if enabled - pass the repo instance to get the correct workspace root
+    if config.is_lsp_enabled() and lsp_port:
+        actual_lsp_port = start_lsp_server(config, repo)
+        if actual_lsp_port:
+            print(f"LSP server running on port {actual_lsp_port}")
+        else:
+            print("LSP server failed to start, continuing without LSP features")
+    
+    # Start webapp dev server
+    dev_server_started = start_npm_dev_server(config)
+    if not dev_server_started:
+        print("Warning: Failed to start webapp dev server")
     
     try:
         await jrpc_server.start()

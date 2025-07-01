@@ -80,6 +80,29 @@ class Repo(BaseWrapper):
             self.log(f"get_repo_name returning error: {error_msg}")
             return error_msg
     
+    def get_repo_root(self):
+        """Get the absolute path to the repository root directory"""
+        self.log("get_repo_root method called")
+        
+        if not self.repo:
+            error_msg = {"error": "No Git repository available"}
+            self.log(f"get_repo_root returning error: {error_msg}")
+            return error_msg
+        
+        try:
+            repo_root = self.repo.working_tree_dir
+            if repo_root:
+                self.log(f"get_repo_root returning: {repo_root}")
+                return repo_root
+            else:
+                error_msg = {"error": "Could not determine repository root"}
+                self.log(f"get_repo_root returning error: {error_msg}")
+                return error_msg
+        except Exception as e:
+            error_msg = {"error": f"Error getting repository root: {e}"}
+            self.log(f"get_repo_root returning error: {error_msg}")
+            return error_msg
+    
     def get_status(self):
         """Get the current status of the repository"""
         self.log("get_status method called")
