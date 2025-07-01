@@ -27,17 +27,12 @@ def start_lsp_server(config: ServerConfig):
     lsp_config = config.get_lsp_config()
     lsp_port = lsp_config['port']
     
-    # Find an available port if none specified
+    # Use the port from config (which should already be allocated)
     if lsp_port is None:
-        try:
-            lsp_port = find_available_port(9000)
-            print(f"LSP Python: Auto-selected port {lsp_port}")
-        except RuntimeError as e:
-            print(f"LSP Python: Error finding available port for LSP server: {e}")
-            return None
-    else:
-        print(f"LSP Python: Using configured port {lsp_port}")
+        print("LSP Python: Error - no LSP port allocated")
+        return None
     
+    print(f"LSP Python: Using allocated port {lsp_port}")
     print(f"LSP Python: Looking for webapp directory at: {lsp_config['webapp_dir']}")
     
     lsp_manager = LSPProcessManager(

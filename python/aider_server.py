@@ -7,6 +7,7 @@ import signal
 import sys
 import os
 import threading
+import atexit
 from asyncio import Event
 from jrpc_oo import JRPCServer
 
@@ -35,22 +36,44 @@ CoderWrapper.apply_coder_create_patch()
 from aider.main import main
 
 shutdown_event = None
+jrpc_server = None
+aider_thread = None
+
+def cleanup_all():
+    """Comprehensive cleanup function"""
+    print("Performing cleanup...")
+    cleanup_npm_process()
+    cleanup_lsp_process()
+    
+    # Force cleanup of any remaining threads
+    for thread in threading.enumerate():
+        if thread != threading.current_thread() and thread.is_alive():
+            if hasattr(thread, '_stop'):
+                thread._stop()
+
+def force_exit():
+    """Force exit the application"""
+    cleanup_all()
+    os._exit(0)
 
 async def main_starter_async():
-    global shutdown_event
+    global shutdown_event, jrpc_server, aider_thread
     shutdown_event = Event()
+    
+    # Register cleanup function to run on exit
+    atexit.register(cleanup_all)
     
     def sigint_handler(sig, frame):
         print("\nShutting down...")
-        cleanup_npm_process()
-        cleanup_lsp_process()
+        cleanup_all()
         try:
             loop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(shutdown_event.set)
         except RuntimeError:
-            os._exit(1)
+            force_exit()
     
     signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTERM, sigint_handler)
     
     # Parse configuration from command line
     config = ServerConfig.from_args()
@@ -66,20 +89,31 @@ async def main_starter_async():
     # Print configuration summary
     config.print_summary()
     
-    # Find available port for Aider server
+    # Find available ports for all services
     try:
-        server_port = find_available_port(start_port=config.aider_port)
-        config.update_actual_ports(aider_port=server_port)
+        # Start with the base aider port and find consecutive available ports
+        base_port = config.aider_port
+        server_port = find_available_port(start_port=base_port)
+        
+        # Find LSP port (if LSP is enabled) - make sure it's different from server port
+        lsp_port = None
+        if config.is_lsp_enabled():
+            lsp_start_port = server_port + 1 if server_port >= base_port else base_port + 100
+            lsp_port = find_available_port(start_port=lsp_start_port)
+            print(f"Allocated LSP port: {lsp_port}")
+        
+        # Update config with allocated ports
+        config.update_actual_ports(aider_port=server_port, lsp_port=lsp_port)
+        
     except RuntimeError as e:
-        print(f"Error finding available port for Aider server: {e}")
+        print(f"Error finding available ports: {e}")
         return 1
     
     # Start LSP server if enabled
-    lsp_port = None
-    if config.is_lsp_enabled():
-        lsp_port = start_lsp_server(config)
-        if lsp_port:
-            print(f"LSP server running on port {lsp_port}")
+    if config.is_lsp_enabled() and lsp_port:
+        actual_lsp_port = start_lsp_server(config)
+        if actual_lsp_port:
+            print(f"LSP server running on port {actual_lsp_port}")
         else:
             print("LSP server failed to start, continuing without LSP features")
     
@@ -91,12 +125,13 @@ async def main_starter_async():
     # Create and configure JRPC server
     jrpc_server = JRPCServer(port=server_port)
     
-    # Start aider in a separate thread
+    # Start aider in a separate thread with proper daemon setting
     aider_config = config.get_aider_config()
     aider_thread = threading.Thread(
         target=main, 
         args=(aider_config['args'],), 
-        daemon=True
+        daemon=True,
+        name="AiderThread"
     )
     aider_thread.start()
     
@@ -151,7 +186,11 @@ async def main_starter_async():
         await shutdown_event.wait()
         print("Stopping server...")
         
-        await asyncio.wait_for(jrpc_server.stop(), timeout=5.0)
+        # Stop JRPC server with timeout
+        try:
+            await asyncio.wait_for(jrpc_server.stop(), timeout=5.0)
+        except asyncio.TimeoutError:
+            print("JRPC server stop timed out, forcing shutdown")
         
     except OSError as e:
         if e.errno == 98:
@@ -164,9 +203,11 @@ async def main_starter_async():
         print(f"Server error: {e}")
         return 3
     finally:
-        # Clean up processes
-        cleanup_npm_process()
-        cleanup_lsp_process()
+        # Ensure cleanup happens
+        cleanup_all()
+        
+        # Give a moment for cleanup to complete
+        await asyncio.sleep(0.5)
 
 def main_starter():
     try:
@@ -183,14 +224,16 @@ def main_starter():
         
     except KeyboardInterrupt:
         print("\nForced exit")
-        cleanup_npm_process()
-        cleanup_lsp_process()
-        os._exit(1)
+        force_exit()
     except Exception as e:
         print(f"Unhandled exception: {e}")
-        cleanup_npm_process()
-        cleanup_lsp_process()
-        os._exit(3)
+        force_exit()
+    finally:
+        # Final cleanup attempt
+        cleanup_all()
 
 if __name__ == "__main__":
-    sys.exit(main_starter())
+    try:
+        sys.exit(main_starter())
+    except:
+        force_exit()
