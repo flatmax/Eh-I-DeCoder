@@ -26,7 +26,15 @@ export class LSPUriUtils {
 
         console.log(`LSPUriUtils: Creating Monaco URI for file path: ${filePath}`);
         
-        // Create workspace-relative URI that the LSP server expects
+        // For external files (absolute paths), create URI directly
+        if (filePath.startsWith('/')) {
+            const suffix = isOriginal ? '.orig' : '';
+            const uri = window.monaco.Uri.file(filePath + suffix);
+            console.log(`LSPUriUtils: Created Monaco URI for external file: ${uri.toString()}`);
+            return uri;
+        }
+        
+        // For workspace files, create workspace-relative URI
         const workspacePath = this.workspacePrefix + filePath;
         const suffix = isOriginal ? '.orig' : '';
         const finalPath = workspacePath + suffix;
@@ -45,63 +53,36 @@ export class LSPUriUtils {
         try {
             console.log(`LSPUriUtils: Converting URI to workspace path: ${uri}`);
             
-            if (uri.startsWith('file://')) {
+            if (uri && uri.startsWith('file://')) {
                 const filePath = uri.substring('file://'.length);
                 console.log(`LSPUriUtils: Extracted file path: ${filePath}`);
                 
-                // Handle workspace prefix
+                // Handle workspace prefix URIs (from Monaco editor)
                 if (filePath.startsWith(this.workspacePrefix)) {
                     const relativePath = filePath.substring(this.workspacePrefix.length);
-                    console.log(`LSPUriUtils: Found workspace prefix, extracted relative path: ${relativePath}`);
-                    return relativePath;
+                    // Remove .orig suffix if present
+                    const cleanPath = relativePath.endsWith('.orig') ? 
+                        relativePath.slice(0, -5) : relativePath;
+                    console.log(`LSPUriUtils: Found workspace prefix, extracted relative path: ${cleanPath}`);
+                    return cleanPath;
                 }
                 
-                // Look for common workspace directory patterns
-                const workspacePatterns = [
-                    '/Eh-I-DeCoder/',
-                    '/python/',
-                    '/webapp/',
-                    '/src/',
-                    '/repos/'
-                ];
-                
-                for (const pattern of workspacePatterns) {
-                    const patternIndex = filePath.indexOf(pattern);
-                    if (patternIndex !== -1) {
-                        if (pattern === '/Eh-I-DeCoder/') {
-                            // Extract everything after the project root
-                            const relativePath = filePath.substring(patternIndex + pattern.length);
-                            console.log(`LSPUriUtils: Found Eh-I-DeCoder pattern, extracted relative path: ${relativePath}`);
-                            return relativePath;
-                        } else if (pattern === '/python/' || pattern === '/webapp/') {
-                            // Extract the directory and everything after it
-                            const relativePath = filePath.substring(patternIndex + 1); // +1 to remove leading slash
-                            console.log(`LSPUriUtils: Found ${pattern} pattern, extracted relative path: ${relativePath}`);
-                            return relativePath;
-                        }
-                    }
+                // Check if this is actually within the workspace root
+                if (this.workspaceRoot && filePath.startsWith(this.workspaceRoot + '/')) {
+                    const relativePath = filePath.substring(this.workspaceRoot.length + 1);
+                    // Remove .orig suffix if present
+                    const cleanPath = relativePath.endsWith('.orig') ? 
+                        relativePath.slice(0, -5) : relativePath;
+                    console.log(`LSPUriUtils: File is within workspace root, converted to relative path: ${cleanPath}`);
+                    return cleanPath;
                 }
                 
-                // If no patterns match, try to extract a reasonable relative path
-                const pathParts = filePath.split('/');
-                
-                // Look for webapp, src, python directories in the path
-                for (let i = pathParts.length - 1; i >= 0; i--) {
-                    const part = pathParts[i];
-                    if (['webapp', 'python', 'src'].includes(part)) {
-                        // Take everything from this directory onwards
-                        const relativePath = pathParts.slice(i).join('/');
-                        console.log(`LSPUriUtils: Found ${part} directory, extracted relative path: ${relativePath}`);
-                        return relativePath;
-                    }
-                }
-                
-                // Final fallback - just use the filename
-                const fileName = pathParts[pathParts.length - 1];
-                if (fileName) {
-                    console.log(`LSPUriUtils: Using filename as final fallback: ${fileName}`);
-                    return fileName;
-                }
+                // For external files, return the full absolute path
+                // Remove .orig suffix if present
+                const cleanPath = filePath.endsWith('.orig') ? 
+                    filePath.slice(0, -5) : filePath;
+                console.log(`LSPUriUtils: External file detected, returning absolute path: ${cleanPath}`);
+                return cleanPath;
             }
             
             console.log(`LSPUriUtils: Could not convert URI: ${uri}`);
@@ -128,18 +109,22 @@ export class LSPUriUtils {
             if (filePath.startsWith(this.workspacePrefix)) {
                 const relativePath = filePath.substring(this.workspacePrefix.length);
                 if (root) {
+                    // Remove .orig suffix for LSP communication
+                    const cleanPath = relativePath.endsWith('.orig') ? 
+                        relativePath.slice(0, -5) : relativePath;
                     const path = require('path') || window.path;
                     if (path && path.resolve) {
-                        const absolutePath = path.resolve(root, relativePath);
+                        const absolutePath = path.resolve(root, cleanPath);
                         const normalizedUri = `file://${absolutePath}`;
                         console.log(`LSPUriUtils: Converted workspace URI ${uri} to ${normalizedUri}`);
                         return normalizedUri;
                     }
+                    // Fallback if path module not available
+                    const absolutePath = `${root}/${cleanPath}`;
+                    const normalizedUri = `file://${absolutePath}`;
+                    console.log(`LSPUriUtils: Converted workspace URI ${uri} to ${normalizedUri} (fallback)`);
+                    return normalizedUri;
                 }
-                // Fallback if path module not available
-                const normalizedUri = `file://${root}/${relativePath}`;
-                console.log(`LSPUriUtils: Converted workspace URI ${uri} to ${normalizedUri} (fallback)`);
-                return normalizedUri;
             }
             
             // If it's already an absolute path, keep it as is
@@ -252,6 +237,22 @@ export class LSPUriUtils {
     setWorkspaceRoot(workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
         console.log(`LSPUriUtils: Workspace root set to: ${workspaceRoot}`);
+    }
+
+    /**
+     * Check if a file path represents an external file (outside workspace)
+     */
+    isExternalFile(filePath) {
+        if (!filePath || !this.workspaceRoot) {
+            return false;
+        }
+
+        // If it's an absolute path that doesn't start with workspace root, it's external
+        if (filePath.startsWith('/') && !filePath.startsWith(this.workspaceRoot + '/')) {
+            return true;
+        }
+
+        return false;
     }
 }
 
