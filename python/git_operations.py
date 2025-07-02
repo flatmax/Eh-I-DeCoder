@@ -150,7 +150,7 @@ class GitOperations:
     def execute_rebase(self, rebase_plan=None):
         """Execute the interactive rebase with the given plan or continue existing rebase"""
         try:
-            return self.re_ops.execute_rebase(rebase_plan)
+            return self.rebase_ops.execute_rebase(rebase_plan)
         except Exception as e:
             # Convert to dict for backward compatibility
             if isinstance(e, (GitError, GitRepositoryError)):
