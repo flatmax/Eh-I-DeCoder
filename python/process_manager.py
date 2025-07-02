@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-process_manager.py - Shared utilities for managing external processes
+process_manager.py - Simplified process management utilities
 """
 import os
 import subprocess
 import time
 import threading
+from contextlib import contextmanager
 
 class ProcessManager:
-    """Manages external processes with common patterns for startup, monitoring, and cleanup"""
+    """Manages external processes with simplified patterns"""
     
     def __init__(self, name, command, args=None, cwd=None, env_vars=None):
         self.name = name
@@ -17,31 +18,17 @@ class ProcessManager:
         self.cwd = cwd
         self.env_vars = env_vars or {}
         self.process = None
-        self.logging_threads = []
     
     def start(self, startup_delay=3, check_port=None):
-        """
-        Start the process with optional port checking
-        
-        Args:
-            startup_delay: Time to wait after starting before checking status
-            check_port: Port to check if process is listening (optional)
-        
-        Returns:
-            bool: True if process started successfully, False otherwise
-        """
+        """Start the process with optional port checking"""
         if self.is_running():
-            print(f"{self.name}: Process already running")
+            print(f"{self.name}: Already running")
             return True
         
-        print(f"{self.name}: Starting process...")
+        print(f"{self.name}: Starting...")
         
         try:
-            # Prepare environment
-            env = os.environ.copy()
-            env.update(self.env_vars)
-            
-            # Start process
+            env = {**os.environ, **self.env_vars}
             self.process = subprocess.Popen(
                 [self.command] + self.args,
                 cwd=self.cwd,
@@ -51,204 +38,130 @@ class ProcessManager:
                 text=True
             )
             
-            print(f"{self.name}: Process started with PID: {self.process.pid}")
+            print(f"{self.name}: Started with PID: {self.process.pid}")
+            self._start_logging()
             
-            # Set up logging threads
-            self._setup_logging()
-            
-            # Give the process time to start
             if startup_delay > 0:
-                print(f"{self.name}: Waiting {startup_delay} seconds for process to start...")
                 time.sleep(startup_delay)
             
-            # Check if process is still running
-            if self.process.poll() is None:
-                print(f"{self.name}: Process started successfully")
-                
-                # Optional port check
-                if check_port:
-                    return self._check_port_listening(check_port)
-                
-                return True
-            else:
-                print(f"{self.name}: Process failed to start or exited prematurely")
-                self._cleanup_logging_threads()
+            if not self.is_running():
+                print(f"{self.name}: Failed to start")
                 return False
                 
+            if check_port:
+                return self._check_port(check_port)
+                
+            return True
+                
         except FileNotFoundError:
-            print(f"{self.name}: Error: {self.command} not found. Please install the required software.")
+            print(f"{self.name}: Error: {self.command} not found")
             return False
         except Exception as e:
-            print(f"{self.name}: Error starting process: {e}")
+            print(f"{self.name}: Error: {e}")
             return False
     
-    def _check_port_listening(self, port):
-        """Check if the process is listening on the specified port"""
+    def _check_port(self, port):
+        """Check if process is listening on port"""
         try:
             from .port_utils import is_port_in_use
         except ImportError:
             from port_utils import is_port_in_use
         
-        print(f"{self.name}: Testing if port {port} is listening...")
-        if is_port_in_use(port):
-            print(f"{self.name}: Confirmed - process is listening on port {port}")
-            return True
-        else:
-            print(f"{self.name}: Warning - process is running but port {port} is not listening yet")
-            # Give it a bit more time
-            time.sleep(2)
+        for _ in range(2):  # Try twice
             if is_port_in_use(port):
-                print(f"{self.name}: Process is now listening on port {port}")
+                print(f"{self.name}: Listening on port {port}")
                 return True
-            else:
-                print(f"{self.name}: Process failed to bind to port {port}")
-                return False
+            time.sleep(2)
+        
+        print(f"{self.name}: Failed to bind to port {port}")
+        return False
     
-    def _setup_logging(self):
-        """Set up logging threads for stdout and stderr"""
-        if self.process:
-            stdout_thread = threading.Thread(
-                target=self._log_stream, 
-                args=(self.process.stdout, f"{self.name}-STDOUT")
+    def _start_logging(self):
+        """Start logging threads for stdout/stderr"""
+        for stream, label in [(self.process.stdout, 'OUT'), (self.process.stderr, 'ERR')]:
+            thread = threading.Thread(
+                target=lambda s, l: [print(f"[{self.name}-{l}] {line.strip()}") 
+                                    for line in iter(s.readline, '')],
+                args=(stream, label),
+                daemon=True
             )
-            stderr_thread = threading.Thread(
-                target=self._log_stream, 
-                args=(self.process.stderr, f"{self.name}-STDERR")
-            )
-            
-            stdout_thread.daemon = True
-            stderr_thread.daemon = True
-            
-            stdout_thread.start()
-            stderr_thread.start()
-            
-            self.logging_threads = [stdout_thread, stderr_thread]
-            print(f"{self.name}: Started logging threads for process output")
-    
-    def _log_stream(self, stream, log_prefix):
-        """Reads from a stream and logs its output"""
-        try:
-            for line in iter(stream.readline, ''):
-                print(f"[{log_prefix}] {line.strip()}", flush=True)
-        except ValueError:
-            # This can happen if the stream is closed while reading
-            pass
-        finally:
-            stream.close()
-    
-    def _cleanup_logging_threads(self, timeout=1):
-        """Clean up logging threads"""
-        for thread in self.logging_threads:
-            if thread.is_alive():
-                thread.join(timeout=timeout)
-        self.logging_threads = []
+            thread.start()
     
     def is_running(self):
-        """Check if the process is currently running"""
-        return self.process is not None and self.process.poll() is None
-    
-    def get_pid(self):
-        """Get the process ID if running"""
-        return self.process.pid if self.process else None
+        """Check if process is running"""
+        return self.process and self.process.poll() is None
     
     def cleanup(self, timeout=5):
-        """Clean up the process and associated resources"""
+        """Clean up the process"""
         if not self.is_running():
-            if self.process:
-                print(f"{self.name}: Process already terminated with code {self.process.poll()}")
-            else:
-                print(f"{self.name}: No process to clean up")
             return
         
-        print(f"{self.name}: Cleaning up process...")
-        print(f"{self.name}: Terminating process with PID: {self.process.pid}")
+        print(f"{self.name}: Stopping...")
         
         try:
             self.process.terminate()
-            print(f"{self.name}: Waiting for process to terminate...")
             self.process.wait(timeout=timeout)
-            print(f"{self.name}: Process terminated successfully")
+            print(f"{self.name}: Stopped")
         except subprocess.TimeoutExpired:
-            print(f"{self.name}: Process did not terminate gracefully, killing it...")
+            print(f"{self.name}: Force killing...")
             self.process.kill()
-            print(f"{self.name}: Process killed")
         except Exception as e:
-            print(f"{self.name}: Error during cleanup: {e}")
+            print(f"{self.name}: Cleanup error: {e}")
         finally:
-            # Clean up logging threads
-            self._cleanup_logging_threads()
             self.process = None
 
 class NPMProcessManager(ProcessManager):
     """Specialized ProcessManager for npm processes"""
     
     def __init__(self, name, script, cwd, port=None):
-        super().__init__(name, 'npm', ['run', script], cwd)
-        if port:
-            self.env_vars['PORT'] = str(port)
-            self.env_vars['LSP_PORT'] = str(port)
+        env_vars = {'PORT': str(port), 'LSP_PORT': str(port)} if port else {}
+        super().__init__(name, 'npm', ['run', script], cwd, env_vars)
+        self.port = port
     
-    def start_with_port_check(self, port, startup_delay=3):
-        """Start npm process and check if it's listening on the specified port"""
+    def start_with_port_check(self, startup_delay=3):
+        """Start npm process and check port"""
+        if not self.port:
+            return self.start(startup_delay)
+            
         try:
             from .port_utils import is_port_in_use
         except ImportError:
             from port_utils import is_port_in_use
         
-        if is_port_in_use(port):
-            print(f"{self.name}: Port {port} is already in use - assuming server is running")
+        if is_port_in_use(self.port):
+            print(f"{self.name}: Port {self.port} already in use")
             return True
         
-        return self.start(startup_delay=startup_delay, check_port=port)
+        return self.start(startup_delay, self.port)
 
 class WebappProcessManager(NPMProcessManager):
-    """Specialized ProcessManager for webapp dev server"""
+    """Webapp dev server manager"""
     
     def __init__(self, webapp_dir, port=9876):
         super().__init__("Webapp Dev Server", 'start', webapp_dir, port)
     
     def start_dev_server(self):
         """Start the webapp development server"""
-        # Check if webapp directory and package.json exist
-        if not os.path.exists(self.cwd):
-            print(f"{self.name}: Warning: webapp directory not found at {self.cwd}")
-            return False
+        for path in [self.cwd, os.path.join(self.cwd, 'package.json')]:
+            if not os.path.exists(path):
+                print(f"{self.name}: Missing {path}")
+                return False
         
-        package_json = os.path.join(self.cwd, 'package.json')
-        if not os.path.exists(package_json):
-            print(f"{self.name}: Warning: package.json not found at {package_json}")
-            return False
-        
-        port = int(self.env_vars.get('PORT', 9876))
-        return self.start_with_port_check(port)
+        return self.start_with_port_check()
 
 class LSPProcessManager(NPMProcessManager):
-    """Specialized ProcessManager for LSP server"""
+    """LSP server manager"""
     
     def __init__(self, webapp_dir, lsp_port, workspace_root):
         super().__init__("LSP Server", 'lsp', webapp_dir, lsp_port)
-        self.env_vars['LSP_PORT'] = str(lsp_port)
         self.env_vars['WORKSPACE_ROOT'] = workspace_root
     
     def start_lsp_server(self):
         """Start the LSP server"""
-        # Check if webapp directory and package.json exist
-        if not os.path.exists(self.cwd):
-            print(f"{self.name}: Warning: webapp directory not found at {self.cwd}")
-            return None
+        for path in [self.cwd, os.path.join(self.cwd, 'package.json')]:
+            if not os.path.exists(path):
+                print(f"{self.name}: Missing {path}")
+                return None
         
-        package_json = os.path.join(self.cwd, 'package.json')
-        if not os.path.exists(package_json):
-            print(f"{self.name}: Warning: package.json not found at {package_json}")
-            return None
-        
-        lsp_port = int(self.env_vars['LSP_PORT'])
-        workspace_root = self.env_vars['WORKSPACE_ROOT']
-        
-        print(f"{self.name}: Environment variables set - LSP_PORT={lsp_port}, WORKSPACE_ROOT={workspace_root}")
-        print(f"{self.name}: Executing 'npm run lsp' in directory: {self.cwd}")
-        
-        if self.start_with_port_check(lsp_port):
-            return lsp_port
-        else:
-            return None
+        print(f"{self.name}: LSP_PORT={self.port}, WORKSPACE_ROOT={self.env_vars['WORKSPACE_ROOT']}")
+        return self.port if self.start_with_port_check() else None
