@@ -9,6 +9,7 @@ import os
 import threading
 import atexit
 from asyncio import Event
+from concurrent.futures import ThreadPoolExecutor
 from jrpc_oo import JRPCServer
 
 try:
@@ -59,6 +60,47 @@ def force_exit():
     cleanup_all()
     os._exit(0)
 
+async def find_ports_async(config):
+    """Find available ports concurrently"""
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Find server port
+        server_port_future = loop.run_in_executor(
+            executor, 
+            find_available_port, 
+            config.aider_port
+        )
+        
+        # Find LSP port if needed
+        if config.is_lsp_enabled():
+            lsp_start_port = config.aider_port + 100
+            lsp_port_future = loop.run_in_executor(
+                executor,
+                find_available_port,
+                lsp_start_port
+            )
+            server_port = await server_port_future
+            lsp_port = await lsp_port_future
+            return server_port, lsp_port
+        else:
+            server_port = await server_port_future
+            return server_port, None
+
+async def start_aider_async(aider_config):
+    """Start aider in a thread asynchronously"""
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        await loop.run_in_executor(executor, main, aider_config['args'])
+
+async def wait_for_coder_init(timeout=30):
+    """Wait for coder initialization with shorter polling interval"""
+    start_time = asyncio.get_event_loop().time()
+    while CoderWrapper._coder_instance is None:
+        if asyncio.get_event_loop().time() - start_time > timeout:
+            return False
+        await asyncio.sleep(0.1)  # Reduced from 0.5 to 0.1
+    return True
+
 async def main_starter_async():
     global shutdown_event, jrpc_server, aider_thread
     shutdown_event = Event()
@@ -92,22 +134,14 @@ async def main_starter_async():
     # Print configuration summary
     config.print_summary()
     
-    # Find available ports for all services
+    # Find available ports concurrently
     try:
-        # Start with the base aider port and find consecutive available ports
-        base_port = config.aider_port
-        server_port = find_available_port(start_port=base_port)
-        
-        # Find LSP port (if LSP is enabled) - make sure it's different from server port
-        lsp_port = None
-        if config.is_lsp_enabled():
-            lsp_start_port = server_port + 1 if server_port >= base_port else base_port + 100
-            lsp_port = find_available_port(start_port=lsp_start_port)
-            print(f"Allocated LSP port: {lsp_port}")
-        
-        # Update config with allocated ports
+        server_port, lsp_port = await find_ports_async(config)
         config.update_actual_ports(aider_port=server_port, lsp_port=lsp_port)
         
+        if config.is_lsp_enabled() and lsp_port:
+            print(f"Allocated LSP port: {lsp_port}")
+            
     except RuntimeError as e:
         print(f"Error finding available ports: {e}")
         return 1
@@ -115,8 +149,13 @@ async def main_starter_async():
     # Create and configure JRPC server
     jrpc_server = JRPCServer(port=server_port)
     
-    # Start aider in a separate thread with proper daemon setting
+    # Start all services concurrently
     aider_config = config.get_aider_config()
+    
+    # Create tasks for parallel startup
+    tasks = []
+    
+    # Start aider in a separate thread
     aider_thread = threading.Thread(
         target=main, 
         args=(aider_config['args'],), 
@@ -125,18 +164,20 @@ async def main_starter_async():
     )
     aider_thread.start()
     
-    # Wait for coder initialization
-    print("Waiting for coder initialization...")
-    timeout = 60
-    start_time = asyncio.get_event_loop().time()
-    while CoderWrapper._coder_instance is None:
-        if asyncio.get_event_loop().time() - start_time > timeout:
-            print(f"Timed out waiting for coder initialization after {timeout} seconds")
-            break
-        await asyncio.sleep(0.5)
+    # Start webapp dev server asynchronously
+    webapp_task = asyncio.create_task(
+        asyncio.to_thread(start_npm_dev_server, config)
+    )
+    tasks.append(webapp_task)
     
-    if CoderWrapper._coder_instance:
-        print(f"Coder initialized after {asyncio.get_event_loop().time() - start_time:.1f} seconds")
+    # Wait for coder initialization (with shorter timeout)
+    print("Waiting for coder initialization...")
+    coder_initialized = await wait_for_coder_init(timeout=30)
+    
+    if not coder_initialized:
+        print("Warning: Coder initialization timed out, continuing anyway...")
+    else:
+        print(f"Coder initialized")
     
     # Create wrappers and add to server
     try:
@@ -163,28 +204,38 @@ async def main_starter_async():
         print(f"Error initializing components: {e}")
         return 1
     
-    # Start LSP server if enabled - pass the repo instance to get the correct workspace root
+    # Start LSP server if enabled (asynchronously)
     if config.is_lsp_enabled() and lsp_port:
-        actual_lsp_port = start_lsp_server(config, repo)
-        if actual_lsp_port:
-            print(f"LSP server running on port {actual_lsp_port}")
-        else:
-            print("LSP server failed to start, continuing without LSP features")
+        lsp_task = asyncio.create_task(
+            asyncio.to_thread(start_lsp_server, config, repo)
+        )
+        tasks.append(lsp_task)
     
-    # Start webapp dev server
-    dev_server_started = start_npm_dev_server(config)
-    if not dev_server_started:
-        print("Warning: Failed to start webapp dev server")
-    
+    # Start JRPC server
     try:
         await jrpc_server.start()
         print("Server running. Press Ctrl+C to exit.")
         
-        # Open browser after servers are started
+        # Wait for webapp to be ready and open browser
+        dev_server_started = await webapp_task
         if dev_server_started:
-            # Wait a bit more for the dev server to be fully ready
-            await asyncio.sleep(2)
-            open_browser(config)
+            # Small delay for dev server readiness
+            await asyncio.sleep(0.5)  # Reduced from 2 seconds
+            # Open browser asynchronously
+            asyncio.create_task(asyncio.to_thread(open_browser, config))
+        else:
+            print("Warning: Failed to start webapp dev server")
+        
+        # Check LSP server result if started
+        if config.is_lsp_enabled() and lsp_port and len(tasks) > 1:
+            try:
+                actual_lsp_port = await tasks[1]  # LSP task
+                if actual_lsp_port:
+                    print(f"LSP server running on port {actual_lsp_port}")
+                else:
+                    print("LSP server failed to start, continuing without LSP features")
+            except Exception as e:
+                print(f"LSP server error: {e}")
         
         await shutdown_event.wait()
         print("Stopping server...")
@@ -206,6 +257,11 @@ async def main_starter_async():
         print(f"Server error: {e}")
         return 3
     finally:
+        # Cancel any remaining tasks
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        
         # Ensure cleanup happens
         cleanup_all()
         
