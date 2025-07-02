@@ -9,12 +9,14 @@ try:
     from .git_monitor import GitMonitor
     from .git_operations import GitOperations
     from .git_search import GitSearch
+    from .exceptions import GitError, GitRepositoryError, FileOperationError
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
     from git_monitor import GitMonitor
     from git_operations import GitOperations
     from git_search import GitSearch
+    from exceptions import GitError, GitRepositoryError, FileOperationError
 
 
 class Repo(BaseWrapper):
@@ -50,12 +52,16 @@ class Repo(BaseWrapper):
             self.log(f"Error initializing Git repository: {e}")
             self.repo = None
     
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo:
+            raise GitRepositoryError("No Git repository available")
+    
     def get_repo_name(self):
         """Get the name of the repository (top-level directory name)"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Get the repository root directory path
             repo_root = self.repo.working_tree_dir
             if repo_root:
@@ -63,30 +69,32 @@ class Repo(BaseWrapper):
                 repo_name = os.path.basename(repo_root)
                 return repo_name
             else:
-                return {"error": "Could not determine repository root"}
+                raise GitError("Could not determine repository root")
         except Exception as e:
-            return {"error": f"Error getting repository name: {e}"}
+            if isinstance(e, (GitError, GitRepositoryError)):
+                raise
+            raise GitError(f"Error getting repository name: {e}")
     
     def get_repo_root(self):
         """Get the absolute path to the repository root directory"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             repo_root = self.repo.working_tree_dir
             if repo_root:
                 return repo_root
             else:
-                return {"error": "Could not determine repository root"}
+                raise GitError("Could not determine repository root")
         except Exception as e:
-            return {"error": f"Error getting repository root: {e}"}
+            if isinstance(e, (GitError, GitRepositoryError)):
+                raise
+            raise GitError(f"Error getting repository root: {e}")
     
     def get_status(self):
         """Get the current status of the repository"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Get the branch name, handling detached HEAD state
             try:
                 branch_name = self.repo.active_branch.name
@@ -135,15 +143,15 @@ class Repo(BaseWrapper):
             
             return status
         except Exception as e:
-            self.log(f"Error getting repository status: {e}")
-            return {"error": str(e)}
+            if isinstance(e, (GitError, GitRepositoryError)):
+                raise
+            raise GitError(f"Error getting repository status: {e}")
     
     def get_file_line_counts(self, file_paths):
         """Get line counts for a list of files"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             line_counts = {}
             repo_root = self.repo.working_tree_dir
             
@@ -182,7 +190,9 @@ class Repo(BaseWrapper):
             return line_counts
             
         except Exception as e:
-            return {"error": f"Error getting file line counts: {e}"}
+            if isinstance(e, (GitError, GitRepositoryError)):
+                raise
+            raise GitError(f"Error getting file line counts: {e}")
     
     def _is_text_file(self, file_path):
         """Check if a file is likely to be a text file"""
@@ -257,16 +267,15 @@ class Repo(BaseWrapper):
     
     def create_file(self, file_path, content=""):
         """Create a new file in the repository and stage it"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Get the absolute path within the repository
             if os.path.isabs(file_path):
                 # If absolute path, make sure it's within the repo
                 repo_root = self.repo.working_tree_dir
                 if not file_path.startswith(repo_root):
-                    return {"error": f"File path {file_path} is outside repository"}
+                    raise FileOperationError(f"File path {file_path} is outside repository")
                 abs_path = file_path
             else:
                 # If relative path, make it relative to repo root
@@ -274,7 +283,7 @@ class Repo(BaseWrapper):
             
             # Check if file already exists
             if os.path.exists(abs_path):
-                return {"error": f"File {file_path} already exists"}
+                raise FileOperationError(f"File {file_path} already exists")
             
             # Create directory structure if it doesn't exist
             dir_path = os.path.dirname(abs_path)
@@ -301,14 +310,15 @@ class Repo(BaseWrapper):
                 return {"success": f"File {file_path} created successfully but failed to stage: {stage_error}"}
             
         except Exception as e:
-            return {"error": f"Error creating file {file_path}: {e}"}
+            if isinstance(e, (FileOperationError, GitRepositoryError)):
+                raise
+            raise FileOperationError(f"Error creating file {file_path}: {e}")
     
     def get_commit_history(self, max_count=50, branch=None, skip=0):
         """Get commit history with detailed information - optimized for performance with pagination support"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             commits = []
             
             # Use current branch if no branch specified - much faster than --all
@@ -334,14 +344,15 @@ class Repo(BaseWrapper):
             return commits
             
         except Exception as e:
-            return {"error": f"Error getting commit history: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting commit history: {e}")
     
     def get_changed_files(self, from_commit, to_commit):
         """Get list of files changed between two commits"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Get the commit objects
             from_commit_obj = self.repo.commit(from_commit)
             to_commit_obj = self.repo.commit(to_commit)
@@ -364,15 +375,16 @@ class Repo(BaseWrapper):
             return changed_files
             
         except Exception as e:
-            return {"error": f"Error getting changed files: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting changed files: {e}")
     
     # Delegate methods to component modules
     def get_file_content(self, file_path, version='working'):
         """Get the content of a file from either HEAD, working directory, or specific commit"""
-        if not self.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             if version == 'HEAD':
                 # Get file content from HEAD commit
                 try:
@@ -403,9 +415,11 @@ class Repo(BaseWrapper):
                     return ""
                 
         except UnicodeDecodeError as e:
-            return {"error": f"File {file_path} contains binary data or invalid encoding: {e}"}
+            raise FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}")
         except Exception as e:
-            return {"error": f"Error reading file {file_path}: {e}"}
+            if isinstance(e, (FileOperationError, GitRepositoryError)):
+                raise
+            raise FileOperationError(f"Error reading file {file_path}: {e}")
             
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""

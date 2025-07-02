@@ -4,9 +4,11 @@ import asyncio
 try:
     from .base_wrapper import BaseWrapper
     from .logger import Logger
+    from .exceptions import FileOperationError
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
+    from exceptions import FileOperationError
 
 class ChatHistory(BaseWrapper):
     """Handles chat history file operations for the webapp"""
@@ -48,7 +50,7 @@ class ChatHistory(BaseWrapper):
             return 0
         except Exception as e:
             Logger.error(f"Error getting file size: {e}")
-            return 0
+            raise FileOperationError(f"Error getting file size: {e}")
     
     def load_chunk(self, start_pos=None, chunk_size=None):
         """Load a chunk of the chat history file from the end or a specific position
@@ -114,16 +116,10 @@ class ChatHistory(BaseWrapper):
             Logger.error(f"Error loading chat history chunk: {e}")
             import traceback
             Logger.error(f"Traceback: {traceback.format_exc()}")
-            return {
-                'content': f'Error loading chat history: {str(e)}',
-                'start_pos': 0,
-                'end_pos': 0,
-                'has_more': False,
-                'file_size': 0
-            }
+            raise FileOperationError(f"Error loading chat history: {str(e)}")
     
     def load_previous_chunk(self, current_start_pos, chunk_size=None):
-        """Load the previous chunk before the current start position
+        """Loa the previous chunk before the current start position
         
         Args:
             current_start_pos: Current start position
@@ -205,4 +201,4 @@ class ChatHistory(BaseWrapper):
             Logger.error(f"Error searching chat history: {e}")
             import traceback
             Logger.error(f"Traceback: {traceback.format_exc()}")
-            return []
+            raise FileOperationError(f"Error searching chat history: {e}")

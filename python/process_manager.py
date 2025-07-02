@@ -8,6 +8,11 @@ import time
 import threading
 from contextlib import contextmanager
 
+try:
+    from .exceptions import ProcessError
+except ImportError:
+    from exceptions import ProcessError
+
 class ProcessManager:
     """Manages external processes with simplified patterns"""
     
@@ -42,7 +47,7 @@ class ProcessManager:
             
             if not self.is_running():
                 print(f"{self.name}: Failed to start")
-                return False
+                raise ProcessError(f"{self.name} failed to start")
                 
             if check_port:
                 return self._check_port(check_port)
@@ -50,11 +55,13 @@ class ProcessManager:
             return True
                 
         except FileNotFoundError:
-            print(f"{self.name}: Error: {self.command} not found")
-            return False
+            error_msg = f"{self.name}: Error: {self.command} not found"
+            print(error_msg)
+            raise ProcessError(error_msg)
         except Exception as e:
-            print(f"{self.name}: Error: {e}")
-            return False
+            error_msg = f"{self.name}: Error: {e}"
+            print(error_msg)
+            raise ProcessError(error_msg)
     
     def _check_port(self, port):
         """Check if process is listening on port"""
@@ -68,8 +75,9 @@ class ProcessManager:
                 return True
             time.sleep(2)
         
-        print(f"{self.name}: Failed to bind to port {port}")
-        return False
+        error_msg = f"{self.name}: Failed to bind to port {port}"
+        print(error_msg)
+        raise ProcessError(error_msg)
     
     def _start_logging(self):
         """Start logging threads for stdout/stderr"""
@@ -96,7 +104,11 @@ class ProcessManager:
             self.process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             print(f"{self.name}: Force killing...")
-            self.process.kill()
+            try:
+                self.process.kill()
+                self.process.wait(timeout=2)
+            except Exception as e:
+                print(f"{self.name}: Failed to kill process: {e}")
         except Exception as e:
             print(f"{self.name}: Cleanup error: {e}")
         finally:
@@ -123,7 +135,11 @@ class NPMProcessManager(ProcessManager):
         if is_port_in_use(self.port):
             return True
         
-        return self.start(startup_delay, self.port)
+        try:
+            return self.start(startup_delay, self.port)
+        except ProcessError:
+            # Re-raise with context
+            raise
 
 class WebappProcessManager(NPMProcessManager):
     """Webapp dev server manager"""
@@ -135,10 +151,15 @@ class WebappProcessManager(NPMProcessManager):
         """Start the webapp development server"""
         for path in [self.cwd, os.path.join(self.cwd, 'package.json')]:
             if not os.path.exists(path):
-                print(f"{self.name}: Missing {path}")
-                return False
+                error_msg = f"{self.name}: Missing {path}"
+                print(error_msg)
+                raise ProcessError(error_msg)
         
-        return self.start_with_port_check()
+        try:
+            return self.start_with_port_check()
+        except ProcessError:
+            # Re-raise with context
+            raise
 
 class LSPProcessManager(NPMProcessManager):
     """LSP server manager"""
@@ -151,7 +172,13 @@ class LSPProcessManager(NPMProcessManager):
         """Start the LSP server"""
         for path in [self.cwd, os.path.join(self.cwd, 'package.json')]:
             if not os.path.exists(path):
-                print(f"{self.name}: Missing {path}")
-                return None
+                error_msg = f"{self.name}: Missing {path}"
+                print(error_msg)
+                raise ProcessError(error_msg)
         
-        return self.port if self.start_with_port_check() else None
+        try:
+            success = self.start_with_port_check()
+            return self.port if success else None
+        except ProcessError:
+            # Return None instead of re-raising for LSP (optional component)
+            return None

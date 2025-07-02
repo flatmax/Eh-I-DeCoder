@@ -1,12 +1,21 @@
 import os
 import re
 import git
+try:
+    from .exceptions import GitError, GitRepositoryError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError
 
 class GitSearch:
     """Handles searching for content in repository files"""
     
     def __init__(self, repo_instance):
         self.repo = repo_instance
+    
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
     
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files
@@ -19,12 +28,11 @@ class GitSearch:
             ignore_case (bool): If True, perform case-insensitive search
             
         Returns:
-            dict: A dictionary with results or error information
+            list: A list of search results
         """
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Use the optimized git grep implementation for faster searches
             return self._search_with_git_grep(query, word, regex, respect_gitignore, ignore_case)
         except git.exc.GitCommandError as e:
@@ -32,7 +40,9 @@ class GitSearch:
             self.repo.log(f"Git grep failed: {e}. Using Python implementation.")
             return self._search_with_python(query, word, regex, respect_gitignore, ignore_case)
         except Exception as e:
-            return {"error": f"Error during search: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error during search: {e}")
     
     def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files using Git's built-in grep command"""
@@ -122,7 +132,7 @@ class GitSearch:
                     else:
                         pattern = re.compile(query, re.IGNORECASE if ignore_case else 0)
                 except re.error as e:
-                    return {"error": f"Invalid regular expression: {e}"}
+                    raise ValueError(f"Invalid regular expression: {e}")
             else:
                 if word:
                     # For word-only search, prepare for whole word matching
@@ -161,6 +171,9 @@ class GitSearch:
                     except UnicodeDecodeError:
                         # Skip binary files that couldn't be decoded as utf-8
                         continue
+                    except Exception:
+                        # Skip files we can't read
+                        continue
                     
                     file_matches = []
                     for line_num, line in enumerate(lines, 1):
@@ -196,4 +209,6 @@ class GitSearch:
             return results
             
         except Exception as e:
-            return {"error": f"Error during Python search: {e}"}
+            if isinstance(e, ValueError):
+                raise GitError(str(e))
+            raise GitError(f"Error during Python search: {e}")
