@@ -48,13 +48,10 @@ class GitChangeHandler(FileSystemEventHandler):
             is_important = any(pattern in event.src_path for pattern in important_git_patterns)
             if not is_important:
                 return
-                
-            self.repo.log(f"Important git file changed: {event.src_path}")
         else:
             # For files outside .git directory, this could be a file save event
             # Check if it's a file modification (not creation or deletion)
             if event.event_type == 'modified' and not event.is_directory:
-                self.repo.log(f"File modified externally: {event.src_path}")
                 # Notify MergeEditor about the file save
                 self.repo._notify_file_saved(event.src_path)
         
@@ -64,8 +61,6 @@ class GitChangeHandler(FileSystemEventHandler):
             return
             
         self.last_event_time = current_time
-        self.repo.log(f"Git change detected: {event.src_path}")
-        self.repo.log(f"Git change event: {event}")
         self.repo._notify_git_change()
 
 
@@ -84,11 +79,8 @@ class GitMonitor:
             return {"error": "No git repository available"}
             
         if self._observer and self._observer.is_alive():
-            self.repo.log("Git monitor is already running")
             return {"status": "info", "message": "Git monitor already running"}
             
-        self.repo.log(f"Starting git monitor using watchdog")
-        
         # Create the event handler and file system observer
         self._event_handler = GitChangeHandler(self.repo)
         self._observer = Observer()
@@ -110,10 +102,8 @@ class GitMonitor:
     def stop_git_monitor(self):
         """Stop the git repository monitor"""
         if not self._observer or not self._observer.is_alive():
-            self.repo.log("Git monitor is not running")
             return {"status": "info", "message": "Git monitor not running"}
             
-        self.repo.log("Stopping git monitor")
         self._observer.stop()
         self._observer.join(timeout=1.0)
         self._observer = None

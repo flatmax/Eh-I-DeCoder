@@ -35,7 +35,6 @@ def open_browser(config: ServerConfig):
         return
     
     url = config.get_browser_url()
-    print(f"Opening browser to {url}")
     
     try:
         webbrowser.open(url)

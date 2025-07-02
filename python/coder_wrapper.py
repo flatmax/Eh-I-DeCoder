@@ -87,7 +87,6 @@ class CoderWrapper(BaseWrapper):
                 raise ValueError("No coder instance available, and none was provided")
         
         self.coder = coder
-        Logger.info(f"CoderWrapper initialized with coder: {coder}")
         
         # Initialize base class
         super().__init__()
@@ -102,22 +101,18 @@ class CoderWrapper(BaseWrapper):
         
         # Only wrap methods if they exist in the coder instance
         if self.original_add_rel_fname:
-            self.log("Wrapping add_rel_fname method")
             coder.add_rel_fname = self.add_rel_fname_wrapper
             
         if self.original_drop_rel_fname:
-            self.log("Wrapping drop_rel_fname method")
             coder.drop_rel_fname = self.drop_rel_fname_wrapper
         
         # Register for coder type changes
         from aider.coders.base_coder import Coder
         if hasattr(Coder, '_coder_change_callbacks'):
-            self.log("Registering for coder change notifications")
             self.register_coder_change_callback(self.on_coder_type_changed)
     
     def on_coder_type_changed(self, coder_type, edit_format, coder_instance):
         """Handle coder type change events"""
-        self.log(f"Coder type changed to: {coder_type} (edit_format: {edit_format})")
         self.coder = coder_instance
         # You could send this to the webapp
         self._safe_create_task(self.get_call()['MessageHandler.onCoderTypeChanged'](
@@ -127,26 +122,20 @@ class CoderWrapper(BaseWrapper):
     
     def add_rel_fname_wrapper(self, filename):
         """Wrapper for coder's add_rel_fname method to notify RepoTree after adding file"""
-        self.log(f"add_rel_fname_wrapper called for {filename}")
-        
         # Call original method and store result
         result = self.original_add_rel_fname(filename)
         
         # Notify RepoTree to refresh its file list
-        self.log(f"Notifying RepoTree about file addition: {filename}")
         self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
         
         return result
     
     def drop_rel_fname_wrapper(self, filename):
         """Wrapper for coder's drop_rel_fname method to notify RepoTree after dropping file"""
-        self.log(f"drop_rel_fname_wrapper called for {filename}")
-        
         # Call original method and store result
         result = self.original_drop_rel_fname(filename)
         
         # Notify RepoTree to refresh its file list
-        self.log(f"Notifying RepoTree about file removal: {filename}")
         self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
         
         return result
@@ -158,7 +147,6 @@ class CoderWrapper(BaseWrapper):
         # Use a custom event to signal threads to stop
         # This will not affect the main server
         if hasattr(self, '_current_run_thread') and self._current_run_thread:
-            self.log(f"Sending interrupt to thread: {self._current_run_thread.name}")
             # Raise exception in the coder thread using ctypes
             import ctypes
             thread_id = self._current_run_thread.ident
@@ -171,25 +159,19 @@ class CoderWrapper(BaseWrapper):
                 if res > 1:
                     # If more than one thread was affected, undo it
                     ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread_id), None)
-                    self.log("Failed to interrupt thread (affected multiple threads)")
                     return {"status": "error", "message": "Failed to interrupt thread"}
                 else:
-                    self.log("Interrupt signal sent to thread")
                     return {"status": "interrupt_sent_to_thread"}
             else:
-                self.log("No thread ID available")
                 return {"status": "error", "message": "No thread ID available"}
         else:
-            self.log("No active thread to interrupt")
             return {"status": "error", "message": "No active thread to interrupt"}
         
     def signal_completion(self):
         """Signal that command processing is complete"""
-        self.log("Signaling command completion to webapp")
         try:
             # Send completion signal to MessageHandler
             self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
-            self.log("streamComplete call initiated")
         except Exception as e:
             self.log(f"Error signaling completion: {e}")
 
@@ -211,21 +193,8 @@ class CoderWrapper(BaseWrapper):
         Wrapper for the coder's run method to execute it non-blockingly.
         This method is intended to be called via JRPC and return immediately.
         """
-        self.log(f"run_wrapper called with message (first 100 chars): {str(message)[:100]}...")
-        
-        # Iterate through all remotes and print their call variable
-        remotes = self.get_remotes()
-        self.log(f"Found {len(remotes)} remotes")
-        for remote_uuid, remote_info in remotes.items():
-            self.log(f"Remote {remote_uuid}: {remote_info}")
-            if hasattr(self, 'get_call') and self.get_call():
-                self.log(f"Remote {remote_uuid} call methods: {list(self.get_call().keys())}")
-            else:
-                self.log(f"Remote {remote_uuid}: No call variable available")
-        
         # Check if this is a terminal command
         if self._is_terminal_command(message):
-            self.log(f"Terminal command detected: {message}")
             # Send immediate response that this command should be executed in the terminal
             self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](
                 f"The command `{message}` (without suffix string) should be executed directly in your terminal, not in the web interface.", 
@@ -240,10 +209,8 @@ class CoderWrapper(BaseWrapper):
 
         def task_to_run_in_thread():
             thread_name = threading.current_thread().name
-            self.log(f"Thread '{thread_name}' started for coder.run with message (first 100 chars): {str(message)[:100]}...")
             try:
                 if asyncio.iscoroutinefunction(actual_run_method):
-                    self.log(f"coder.run ('{actual_run_method.__name__}') is an async function. Running in a new event loop.")
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
                     try:
@@ -251,17 +218,13 @@ class CoderWrapper(BaseWrapper):
                     finally:
                         loop.close()
                 else:
-                    self.log(f"coder.run ('{actual_run_method.__name__}') is a sync function. Running directly.")
                     actual_run_method(message)
-                
-                self.log(f"Thread '{thread_name}' for coder.run completed for message (first 100 chars): {str(message)[:100]}...")
                 
                 # Signal completion to MessageHandler
                 self.signal_completion()
                 
             except Exception as e:
-                self.log(f"Exception in threaded coder.run (Thread '{thread_name}'): {e}")
-                self.log(f"Traceback: {traceback.format_exc()}")
+                self.log(f"Exception in threaded coder.run: {e}")
                 
                 # Signal completion even on error to reset the UI
                 self.signal_completion()
@@ -269,7 +232,6 @@ class CoderWrapper(BaseWrapper):
                 # Clear the thread reference when done
                 if hasattr(self, '_current_run_thread') and self._current_run_thread == threading.current_thread():
                     self._current_run_thread = None
-                    self.log(f"Thread reference cleared for '{thread_name}'")
 
         # Create and start a daemon thread to run the task
         thread = threading.Thread(target=task_to_run_in_thread, name="CoderRunThread")
@@ -280,5 +242,4 @@ class CoderWrapper(BaseWrapper):
         
         thread.start()
         
-        self.log(f"Thread '{thread.name}' launched for coder.run, run_wrapper returning immediately.")
         return {"status": "coder.run initiated", "thread_name": thread.name}

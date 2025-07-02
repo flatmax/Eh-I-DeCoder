@@ -19,10 +19,7 @@ def start_lsp_server(config: ServerConfig, repo=None):
     global lsp_manager
     
     if not config.is_lsp_enabled():
-        print("LSP Python: LSP server disabled by configuration")
         return None
-    
-    print("LSP Python: Starting LSP server...")
     
     lsp_config = config.get_lsp_config()
     lsp_port = lsp_config['port']
@@ -39,15 +36,8 @@ def start_lsp_server(config: ServerConfig, repo=None):
             repo_root = repo.get_repo_root()
             if isinstance(repo_root, str):  # Success case
                 workspace_root = repo_root
-                print(f"LSP Python: Using repository root as workspace: {workspace_root}")
-            else:
-                print(f"LSP Python: Could not get repo root, using config default: {workspace_root}")
         except Exception as e:
-            print(f"LSP Python: Error getting repo root, using config default: {e}")
-    
-    print(f"LSP Python: Using allocated port {lsp_port}")
-    print(f"LSP Python: Looking for webapp directory at: {lsp_config['webapp_dir']}")
-    print(f"LSP Python: Using workspace root: {workspace_root}")
+            print(f"LSP Python: Error getting repo root: {e}")
     
     lsp_manager = LSPProcessManager(
         lsp_config['webapp_dir'], 

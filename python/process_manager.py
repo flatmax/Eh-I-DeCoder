@@ -22,10 +22,7 @@ class ProcessManager:
     def start(self, startup_delay=3, check_port=None):
         """Start the process with optional port checking"""
         if self.is_running():
-            print(f"{self.name}: Already running")
             return True
-        
-        print(f"{self.name}: Starting...")
         
         try:
             env = {**os.environ, **self.env_vars}
@@ -38,7 +35,6 @@ class ProcessManager:
                 text=True
             )
             
-            print(f"{self.name}: Started with PID: {self.process.pid}")
             self._start_logging()
             
             if startup_delay > 0:
@@ -69,7 +65,6 @@ class ProcessManager:
         
         for _ in range(2):  # Try twice
             if is_port_in_use(port):
-                print(f"{self.name}: Listening on port {port}")
                 return True
             time.sleep(2)
         
@@ -96,12 +91,9 @@ class ProcessManager:
         if not self.is_running():
             return
         
-        print(f"{self.name}: Stopping...")
-        
         try:
             self.process.terminate()
             self.process.wait(timeout=timeout)
-            print(f"{self.name}: Stopped")
         except subprocess.TimeoutExpired:
             print(f"{self.name}: Force killing...")
             self.process.kill()
@@ -129,7 +121,6 @@ class NPMProcessManager(ProcessManager):
             from port_utils import is_port_in_use
         
         if is_port_in_use(self.port):
-            print(f"{self.name}: Port {self.port} already in use")
             return True
         
         return self.start(startup_delay, self.port)
@@ -163,5 +154,4 @@ class LSPProcessManager(NPMProcessManager):
                 print(f"{self.name}: Missing {path}")
                 return None
         
-        print(f"{self.name}: LSP_PORT={self.port}, WORKSPACE_ROOT={self.env_vars['WORKSPACE_ROOT']}")
         return self.port if self.start_with_port_check() else None
