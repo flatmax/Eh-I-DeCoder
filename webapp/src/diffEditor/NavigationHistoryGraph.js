@@ -5,12 +5,16 @@ import { EventHelper } from '../utils/EventHelper.js';
 
 export class NavigationHistoryGraph extends LitElement {
   static properties = {
-    currentFile: { type: String }
+    currentFile: { type: String },
+    currentTrackId: { type: Number },
+    trackCount: { type: Number }
   };
 
   constructor() {
     super();
     this.currentFile = null;
+    this.currentTrackId = 0;
+    this.trackCount = 1;
     this.svg = null;
     this.colorScale = null;
     this.lastHistoryState = null;
@@ -48,7 +52,7 @@ export class NavigationHistoryGraph extends LitElement {
       border-radius: 3px;
     }
 
-    .graph-container::-webkit-scrollbar-thumb:hover {
+    .graph-container::-webkit-scroll-thumb:hover {
       background: #4f4f4f;
     }
 
@@ -100,6 +104,23 @@ export class NavigationHistoryGraph extends LitElement {
       text-anchor: middle;
     }
 
+    .track-label {
+      font-size: 11px;
+      fill: #969696;
+      text-anchor: start;
+    }
+
+    .track-label.current {
+      fill: #007acc;
+      font-weight: bold;
+    }
+
+    .track-separator {
+      stroke: #3e3e42;
+      stroke-width: 1px;
+      stroke-dasharray: 2,2;
+    }
+
     .tooltip {
       position: absolute;
       padding: 6px 8px;
@@ -128,6 +149,12 @@ export class NavigationHistoryGraph extends LitElement {
     .tooltip .position {
       font-size: 10px;
       color: #969696;
+    }
+
+    .tooltip .track-info {
+      font-size: 10px;
+      color: #969696;
+      margin-top: 3px;
     }
   `;
 
@@ -172,108 +199,142 @@ export class NavigationHistoryGraph extends LitElement {
   handleNavigationUpdate(event) {
     // Update graph when navigation history changes
     this.currentFile = event.detail?.currentFile;
+    this.currentTrackId = event.detail?.currentTrackId || 0;
+    this.trackCount = event.detail?.trackCount || 1;
     this.updateGraph();
   }
 
   updateGraph() {
     if (!this.svg) return;
 
-    const historyArray = navigationHistory.toArray();
-    if (historyArray.length === 0) {
+    const allTracks = navigationHistory.getAllTracks();
+    if (allTracks.length === 0) {
       // Clear the graph when there's no history
       this.svg.selectAll('*').remove();
       return;
     }
 
     // Check if history has actually changed
-    const historyState = JSON.stringify(historyArray);
+    const historyState = JSON.stringify(allTracks);
     if (historyState === this.lastHistoryState) return;
     this.lastHistoryState = historyState;
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const nodeRadius = 5;
-    const nodeSpacing = 50;
-    const labelOffset = 14;
-    const margin = { top: 20, right: 15, bottom: 20, left: 15 };
+    const nodeRadius = 4;
+    const nodeSpacing = 40;
+    const trackHeight = 30;
+    const labelOffset = 12;
+    const margin = { top: 20, right: 15, bottom: 20, left: 50 };
     
-    // Calculate available height accounting for scrollbar
+    // Calculate dimensions
     const scrollbarHeight = 6;
     const containerHeight = container.clientHeight || 60;
-    const height = containerHeight - scrollbarHeight;
+    const totalHeight = Math.max(containerHeight - scrollbarHeight, (allTracks.length * trackHeight) + margin.top + margin.bottom);
 
-    // Calculate required width
-    const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
+    // Find maximum nodes across all tracks
+    const maxNodes = Math.max(...allTracks.map(track => track.nodes.length));
+    const requiredWidth = Math.max(containerWidth, (maxNodes * nodeSpacing) + margin.left + margin.right);
 
     // Update SVG dimensions
     this.svg
       .attr('width', requiredWidth)
-      .attr('height', height);
+      .attr('height', totalHeight);
 
     // Clear previous content
     this.svg.selectAll('*').remove();
 
-    // Create main group - center vertically
+    // Create main group
     const g = this.svg.append('g')
-      .attr('transform', `translate(${margin.left},${height / 2})`);
+      .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Prepare node data with positions
-    const nodes = historyArray.map((entry, i) => ({
-      ...entry,
-      x: i * nodeSpacing,
-      y: 0,
-      directory: this.getDirectory(entry.filePath),
-      filename: this.getFilename(entry.filePath),
-      labelAbove: i % 2 === 0  // Alternate label position
-    }));
+    // Draw tracks
+    allTracks.forEach((track, trackIndex) => {
+      const trackY = trackIndex * trackHeight;
+      
+      // Track label
+      g.append('text')
+        .attr('class', `track-label ${track.isCurrentTrack ? 'current' : ''}`)
+        .attr('x', -40)
+        .attr('y', trackY + 5)
+        .text(`T${track.trackId}`);
 
-    // Create links between consecutive nodes
-    const links = [];
-    for (let i = 0; i < nodes.length - 1; i++) {
-      links.push({
-        source: nodes[i],
-        target: nodes[i + 1],
-        active: nodes[i].isCurrent || nodes[i + 1].isCurrent
-      });
-    }
+      // Track separator line (except for last track)
+      if (trackIndex < allTracks.length - 1) {
+        g.append('line')
+          .attr('class', 'track-separator')
+          .attr('x1', -45)
+          .attr('y1', trackY + trackHeight - 5)
+          .attr('x2', requiredWidth - margin.left - margin.right)
+          .attr('y2', trackY + trackHeight - 5);
+      }
 
-    // Draw links
-    g.selectAll('.link')
-      .data(links)
-      .enter().append('line')
-      .attr('class', d => `link ${d.active ? 'active' : ''}`)
-      .attr('x1', d => d.source.x)
-      .attr('y1', d => d.source.y)
-      .attr('x2', d => d.target.x)
-      .attr('y2', d => d.target.y);
+      // Prepare node data with positions
+      const nodes = track.nodes.map((entry, i) => ({
+        ...entry,
+        x: i * nodeSpacing,
+        y: trackY,
+        trackId: track.trackId,
+        isCurrentTrack: track.isCurrentTrack,
+        directory: this.getDirectory(entry.filePath),
+        filename: this.getFilename(entry.filePath),
+        labelAbove: (trackIndex + i) % 2 === 0  // Alternate label position
+      }));
 
-    // Draw nodes
-    const nodeGroups = g.selectAll('.node-group')
-      .data(nodes)
-      .enter().append('g')
-      .attr('class', 'node-group')
-      .attr('transform', d => `translate(${d.x},${d.y})`);
+      // Create links between consecutive nodes
+      const links = [];
+      for (let i = 0; i < nodes.length - 1; i++) {
+        links.push({
+          source: nodes[i],
+          target: nodes[i + 1],
+          active: nodes[i].isCurrent || nodes[i + 1].isCurrent
+        });
+      }
 
-    nodeGroups.append('circle')
-      .attr('class', d => `node ${d.isCurrent ? 'current' : ''} ${d.hasChanges ? 'has-changes' : ''}`)
-      .attr('r', nodeRadius)
-      .attr('fill', d => this.colorScale(d.directory))
-      .on('click', (event, d) => this.handleNodeClick(d))
-      .on('mouseenter', (event, d) => this.showTooltip(event, d))
-      .on('mouseleave', () => this.hideTooltip());
+      // Draw links
+      g.selectAll(`.link-track-${track.trackId}`)
+        .data(links)
+        .enter().append('line')
+        .attr('class', d => `link ${d.active ? 'active' : ''}`)
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
 
-    // Add labels alternating above and below nodes
-    nodeGroups.append('text')
-      .attr('class', 'node-label')
-      .attr('y', d => d.labelAbove ? -labelOffset : labelOffset + nodeRadius)
-      .attr('dy', d => d.labelAbove ? '0' : '0.35em')
-      .text(d => d.filename);
+      // Draw nodes
+      const nodeGroups = g.selectAll(`.node-group-track-${track.trackId}`)
+        .data(nodes)
+        .enter().append('g')
+        .attr('class', 'node-group')
+        .attr('transform', d => `translate(${d.x},${d.y})`);
+
+      nodeGroups.append('circle')
+        .attr('class', d => `node ${d.isCurrent ? 'current' : ''} ${d.hasChanges ? 'has-changes' : ''}`)
+        .attr('r', nodeRadius)
+        .attr('fill', d => this.colorScale(d.directory))
+        .on('click', (event, d) => this.handleNodeClick(d))
+        .on('mouseenter', (event, d) => this.showTooltip(event, d))
+        .on('mouseleave', () => this.hideTooltip());
+
+      // Add labels only for current track to reduce clutter
+      if (track.isCurrentTrack) {
+        nodeGroups.append('text')
+          .attr('class', 'node-label')
+          .attr('y', d => d.labelAbove ? -labelOffset : labelOffset + nodeRadius)
+          .attr('dy', d => d.labelAbove ? '0' : '0.35em')
+          .text(d => d.filename);
+      }
+    });
 
     // Scroll to current node if needed
-    const currentNode = nodes.find(n => n.isCurrent);
-    if (currentNode) {
-      const scrollLeft = currentNode.x - (containerWidth / 2) + margin.left;
-      container.scrollLeft = Math.max(0, scrollLeft);
+    const currentTrack = allTracks.find(t => t.isCurrentTrack);
+    if (currentTrack) {
+      const currentNode = currentTrack.nodes.find(n => n.isCurrent);
+      if (currentNode) {
+        const nodeIndex = currentTrack.nodes.indexOf(currentNode);
+        const scrollLeft = (nodeIndex * nodeSpacing) - (containerWidth / 2) + margin.left;
+        container.scrollLeft = Math.max(0, scrollLeft);
+      }
     }
   }
 
@@ -287,7 +348,19 @@ export class NavigationHistoryGraph extends LitElement {
   }
 
   handleNodeClick(node) {
-    // Dispatch event to navigate to this file/position using EventHelper
+    // First switch to the track if needed
+    if (node.trackId !== this.currentTrackId) {
+      // Switch to the track containing this node
+      while (navigationHistory.currentTrackId !== node.trackId) {
+        if (navigationHistory.currentTrackId < node.trackId) {
+          navigationHistory.switchToNextTrack();
+        } else {
+          navigationHistory.switchToPreviousTrack();
+        }
+      }
+    }
+    
+    // Then navigate to the file/position
     EventHelper.dispatchNavigateToHistory(this, node.filePath, node.line, node.character);
   }
 
@@ -299,6 +372,7 @@ export class NavigationHistoryGraph extends LitElement {
     tooltip.html(`
       <div class="file-path">${node.filePath}</div>
       <div class="position">Line ${node.line}, Column ${node.character}</div>
+      <div class="track-info">Track ${node.trackId}${node.isCurrentTrack ? ' (current)' : ''}</div>
     `);
     
     tooltip

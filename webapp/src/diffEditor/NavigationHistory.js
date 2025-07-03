@@ -1,28 +1,143 @@
 import { EventHelper } from '../utils/EventHelper.js';
 
 /**
- * Navigation History implementation using a doubly linked list
- * Maintains one entry per file with cursor position
+ * Navigation History implementation using multiple tracks of doubly linked lists
+ * Each track maintains one entry per file with cursor position
  */
 export class NavigationHistory {
   constructor() {
-    this.head = null;
-    this.tail = null;
-    this.current = null;
-    this.size = 0;
+    this.tracks = new Map(); // Map of track ID to track data
+    this.currentTrackId = 0;
+    this.nextTrackId = 1;
+    this.maxTracksPerFile = 5; // Maximum number of tracks
+    
+    // Initialize first track
+    this.tracks.set(0, {
+      head: null,
+      tail: null,
+      current: null,
+      size: 0,
+      fileMap: new Map()
+    });
+    
     this.maxSize = 50;
     this.isNavigating = false;
-    this.fileMap = new Map(); // Map to quickly find existing file entries
+  }
+
+  /**
+   * Get the current track
+   */
+  getCurrentTrack() {
+    return this.tracks.get(this.currentTrackId);
+  }
+
+  /**
+   * Create a new track
+   */
+  createNewTrack() {
+    if (this.tracks.size >= this.maxTracksPerFile) {
+      // Remove oldest track (except track 0)
+      let oldestId = 1;
+      for (const [id] of this.tracks) {
+        if (id > 0 && id < oldestId) {
+          oldestId = id;
+        }
+      }
+      if (oldestId !== this.currentTrackId) {
+        this.tracks.delete(oldestId);
+      }
+    }
+    
+    const newTrackId = this.nextTrackId++;
+    this.tracks.set(newTrackId, {
+      head: null,
+      tail: null,
+      current: null,
+      size: 0,
+      fileMap: new Map()
+    });
+    
+    return newTrackId;
+  }
+
+  /**
+   * Switch to next track (Alt+Down)
+   */
+  switchToNextTrack() {
+    const trackIds = Array.from(this.tracks.keys()).sort((a, b) => a - b);
+    const currentIndex = trackIds.indexOf(this.currentTrackId);
+    
+    if (currentIndex < trackIds.length - 1) {
+      this.currentTrackId = trackIds[currentIndex + 1];
+    } else {
+      // Create new track if at the end
+      this.currentTrackId = this.createNewTrack();
+    }
+    
+    this.emitUpdate();
+    return this.currentTrackId;
+  }
+
+  /**
+   * Switch to previous track (Alt+Up)
+   */
+  switchToPreviousTrack() {
+    const trackIds = Array.from(this.tracks.keys()).sort((a, b) => a - b);
+    const currentIndex = trackIds.indexOf(this.currentTrackId);
+    
+    if (currentIndex > 0) {
+      this.currentTrackId = trackIds[currentIndex - 1];
+      this.emitUpdate();
+    }
+    
+    return this.currentTrackId;
+  }
+
+  /**
+   * Get all tracks for visualization
+   */
+  getAllTracks() {
+    const result = [];
+    const trackIds = Array.from(this.tracks.keys()).sort((a, b) => a - b);
+    
+    for (const trackId of trackIds) {
+      const track = this.tracks.get(trackId);
+      const nodes = [];
+      let node = track.head;
+      
+      while (node) {
+        nodes.push({
+          filePath: node.filePath,
+          line: node.line,
+          character: node.character,
+          timestamp: node.timestamp,
+          isCurrent: node === track.current,
+          hasChanges: node.hasChanges
+        });
+        node = node.next;
+      }
+      
+      result.push({
+        trackId,
+        isCurrentTrack: trackId === this.currentTrackId,
+        nodes
+      });
+    }
+    
+    return result;
   }
 
   /**
    * Emit an event when navigation history changes
    */
   emitUpdate() {
+    const track = this.getCurrentTrack();
     EventHelper.dispatchNavigationHistoryUpdate(
-      this.current?.filePath,
+      track?.current?.filePath,
       this.canGoBack(),
-      this.canGoForward()
+      this.canGoForward(),
+      this.currentTrackId,
+      this.tracks.size
     );
   }
 
@@ -41,28 +156,30 @@ export class NavigationHistory {
       return;
     }
 
+    const track = this.getCurrentTrack();
+
     // If switching to the same file, just update the position
-    if (fromFile === toFile && this.current && this.current.filePath === toFile) {
-      this.current.line = toLine;
-      this.current.character = toChar;
-      this.current.timestamp = Date.now();
+    if (fromFile === toFile && track.current && track.current.filePath === toFile) {
+      track.current.line = toLine;
+      track.current.character = toChar;
+      track.current.timestamp = Date.now();
       this.emitUpdate();
       return;
     }
 
     // Update the current file's position if we're leaving a file
-    if (fromFile && this.current && this.current.filePath === fromFile) {
-      this.current.line = fromLine;
-      this.current.character = fromChar;
-      this.current.timestamp = Date.now();
+    if (fromFile && track.current && track.current.filePath === fromFile) {
+      track.current.line = fromLine;
+      track.current.character = fromChar;
+      track.current.timestamp = Date.now();
     }
 
     // Check if the target file already exists in history
-    const existingNode = this.fileMap.get(toFile);
+    const existingNode = track.fileMap.get(toFile);
     
     if (existingNode) {
       // File exists in history - move it to after current position
-      this.moveNodeAfterCurrent(existingNode);
+      this.moveNodeAfterCurrent(track, existingNode);
       
       // Update its position
       existingNode.line = toLine;
@@ -70,7 +187,7 @@ export class NavigationHistory {
       existingNode.timestamp = Date.now();
       
       // Make it the current node
-      this.current = existingNode;
+      track.current = existingNode;
     } else {
       // New file - create a new node
       const newNode = {
@@ -83,16 +200,16 @@ export class NavigationHistory {
       };
 
       // Insert after current position
-      this.insertAfterCurrent(newNode);
+      this.insertAfterCurrent(track, newNode);
       
       // Add to file map
-      this.fileMap.set(toFile, newNode);
+      track.fileMap.set(toFile, newNode);
       
       // Make it the current node
-      this.current = newNode;
+      track.current = newNode;
       
       // Check size limit
-      this.enforceMaxSize();
+      this.enforceMaxSize(track);
     }
 
     // Emit update event
@@ -107,7 +224,8 @@ export class NavigationHistory {
    * @returns {Object|null} Position {filePath, line, character} or null if not found
    */
   navigateToPosition(filePath, line, character) {
-    const targetNode = this.fileMap.get(filePath);
+    const track = this.getCurrentTrack();
+    const targetNode = track.fileMap.get(filePath);
     if (!targetNode) {
       return null;
     }
@@ -120,7 +238,7 @@ export class NavigationHistory {
     targetNode.timestamp = Date.now();
     
     // Make it the current node
-    this.current = targetNode;
+    track.current = targetNode;
     
     // Emit update event
     this.emitUpdate();
@@ -138,10 +256,11 @@ export class NavigationHistory {
    * @param {number} character - New character position
    */
   updateCurrentPosition(line, character) {
-    if (this.current && !this.isNavigating) {
-      this.current.line = line;
-      this.current.character = character;
-      this.current.timestamp = Date.now();
+    const track = this.getCurrentTrack();
+    if (track.current && !this.isNavigating) {
+      track.current.line = line;
+      track.current.character = character;
+      track.current.timestamp = Date.now();
     }
   }
 
@@ -154,18 +273,19 @@ export class NavigationHistory {
       return null;
     }
 
+    const track = this.getCurrentTrack();
     this.isNavigating = true;
     
     // Move current pointer back
-    this.current = this.current.prev;
+    track.current = track.current.prev;
     
     // Emit update event
     this.emitUpdate();
     
     return {
-      filePath: this.current.filePath,
-      line: this.current.line,
-      character: this.current.character
+      filePath: track.current.filePath,
+      line: track.current.line,
+      character: track.current.character
     };
   }
 
@@ -178,18 +298,19 @@ export class NavigationHistory {
       return null;
     }
 
+    const track = this.getCurrentTrack();
     this.isNavigating = true;
     
     // Move current pointer forward
-    this.current = this.current.next;
+    track.current = track.current.next;
     
     // Emit update event
     this.emitUpdate();
     
     return {
-      filePath: this.current.filePath,
-      line: this.current.line,
-      character: this.current.character
+      filePath: track.current.filePath,
+      line: track.current.line,
+      character: track.current.character
     };
   }
 
@@ -198,7 +319,8 @@ export class NavigationHistory {
    * @returns {boolean}
    */
   canGoBack() {
-    return this.current && this.current.prev !== null;
+    const track = this.getCurrentTrack();
+    return track.current && track.current.prev !== null;
   }
 
   /**
@@ -206,7 +328,8 @@ export class NavigationHistory {
    * @returns {boolean}
    */
   canGoForward() {
-    return this.current && this.current.next !== null;
+    const track = this.getCurrentTrack();
+    return track.current && track.current.next !== null;
   }
 
   /**
@@ -218,84 +341,88 @@ export class NavigationHistory {
 
   /**
    * Move an existing node to after the current position
+   * @param {Object} track - The track to operate on
    * @param {Object} node - The node to move
    */
-  moveNodeAfterCurrent(node) {
+  moveNodeAfterCurrent(track, node) {
     // If it's already after current, nothing to do
-    if (this.current && this.current.next === node) {
+    if (track.current && track.current.next === node) {
       return;
     }
 
     // Remove node from its current position
-    this.removeNode(node);
+    this.removeNode(track, node);
 
     // Insert after current
-    this.insertAfterCurrent(node);
+    this.insertAfterCurrent(track, node);
   }
 
   /**
    * Remove a node from the list (but don't delete it)
+   * @param {Object} track - The track to operate on
    * @param {Object} node - The node to remove
    */
-  removeNode(node) {
+  removeNode(track, node) {
     if (node.prev) {
       node.prev.next = node.next;
     } else {
-      this.head = node.next;
+      track.head = node.next;
     }
 
     if (node.next) {
       node.next.prev = node.prev;
     } else {
-      this.tail = node.prev;
+      track.tail = node.prev;
     }
 
     node.prev = null;
     node.next = null;
-    this.size--;
+    track.size--;
   }
 
   /**
    * Insert a node after the current position
+   * @param {Object} track - The track to operate on
    * @param {Object} node - The node to insert
    */
-  insertAfterCurrent(node) {
-    if (!this.current) {
+  insertAfterCurrent(track, node) {
+    if (!track.current) {
       // No current node - this becomes the first node
-      this.head = this.tail = node;
+      track.head = track.tail = node;
       node.prev = null;
       node.next = null;
     } else {
       // Insert after current
-      node.prev = this.current;
-      node.next = this.current.next;
+      node.prev = track.current;
+      node.next = track.current.next;
       
-      if (this.current.next) {
-        this.current.next.prev = node;
+      if (track.current.next) {
+        track.current.next.prev = node;
       } else {
-        this.tail = node;
+        track.tail = node;
       }
       
-      this.current.next = node;
+      track.current.next = node;
     }
     
-    this.size++;
+    track.size++;
   }
 
   /**
    * Enforce the maximum size limit by removing oldest entries
+   * @param {Object} track - The track to operate on
    */
-  enforceMaxSize() {
-    while (this.size > this.maxSize && this.head !== this.current) {
-      const toRemove = this.head;
-      this.head = this.head.next;
-      if (this.head) {
-        this.head.prev = null;
+  enforceMaxSize(track) {
+    while (track.size > this.maxSize && track.head !== track.current) {
+      const toRemove = track.head;
+      track.head = track.head.next;
+      if (track.head) {
+        track.head.prev = null;
       }
       
       // Remove from file map
-      this.fileMap.delete(toRemove.filePath);
-      this.size--;
+      track.fileMap.delete(toRemove.filePath);
+      track.size--;
     }
   }
 
@@ -303,11 +430,19 @@ export class NavigationHistory {
    * Clear all history
    */
   clear() {
-    this.head = null;
-    this.tail = null;
-    this.current = null;
-    this.size = 0;
-    this.fileMap.clear();
+    this.tracks.clear();
+    this.currentTrackId = 0;
+    this.nextTrackId = 1;
+    
+    // Re-initialize first track
+    this.tracks.set(0, {
+      head: null,
+      tail: null,
+      current: null,
+      size: 0,
+      fileMap: new Map()
+    });
+    
     this.isNavigating = false;
     this.emitUpdate();
   }
@@ -317,14 +452,15 @@ export class NavigationHistory {
    * @returns {Array} Array of history entries
    */
   toArray() {
+    const track = this.getCurrentTrack();
     const result = [];
-    let node = this.head;
+    let node = track.head;
     while (node) {
       result.push({
         filePath: node.filePath,
         line: node.line,
         character: node.character,
-        isCurrent: node === this.current
+        isCurrent: node === track.current
       });
       node = node.next;
     }

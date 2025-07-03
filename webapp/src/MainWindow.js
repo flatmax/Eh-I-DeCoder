@@ -189,6 +189,55 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       event.preventDefault();
       this.navigateForward();
     }
+    
+    // Alt+Up Arrow to switch to previous track
+    if (event.altKey && event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.switchToPreviousTrack();
+    }
+    
+    // Alt+Down Arrow to switch to next track
+    if (event.altKey && event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.switchToNextTrack();
+    }
+  }
+
+  switchToPreviousTrack() {
+    const previousTrackId = navigationHistory.switchToPreviousTrack();
+    console.log(`Switched to track ${previousTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.navigateToTrackPosition(track.current);
+    }
+  }
+
+  switchToNextTrack() {
+    const nextTrackId = navigationHistory.switchToNextTrack();
+    console.log(`Switched to track ${nextTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.navigateToTrackPosition(track.current);
+    }
+  }
+
+  navigateToTrackPosition(position) {
+    // Switch to file explorer mode if we're in git history mode
+    if (this.gitHistoryMode) {
+      this.gitHistoryMode = false;
+    }
+    
+    // Find diff editor and navigate to the position
+    this.updateComplete.then(() => {
+      const diffEditor = this.shadowRoot.querySelector('diff-editor');
+      if (diffEditor) {
+        diffEditor.loadFileContent(position.filePath, position.line, position.character);
+      }
+    });
   }
 
   navigateBack() {

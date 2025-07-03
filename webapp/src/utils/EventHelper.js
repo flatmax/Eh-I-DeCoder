@@ -199,12 +199,16 @@ export class EventHelper {
    * @param {string} currentFile - Current file path
    * @param {boolean} canGoBack - Can navigate back
    * @param {boolean} canGoForward - Can navigate forward
+   * @param {number} currentTrackId - Current track ID
+   * @param {number} trackCount - Total number of tracks
    */
-  static dispatchNavigationHistoryUpdate(currentFile, canGoBack, canGoForward) {
+  static dispatchNavigationHistoryUpdate(currentFile, canGoBack, canGoForward, currentTrackId = 0, trackCount = 1) {
     this.dispatchWindowEvent('navigation-history-updated', {
       currentFile,
       canGoBack,
-      canGoForward
+      canGoForward,
+      currentTrackId,
+      trackCount
     });
   }
 
