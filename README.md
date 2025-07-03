@@ -12,10 +12,10 @@ Eh-I-DeCoder is a streamlined AI coding assistant that brings together the power
 *"What ... ¿ ... ? ... just happened here?"*
 
 ![Editor with shrunken AI dialog](https://github.com/user-attachments/assets/1b06da39-47d0-4339-b0c5-aab38a842143)
-*Editor with shrunken AI dialog.*
+*Checkboxes for context.*
 
 ![Checkboxes for context](https://github.com/user-attachments/assets/321aa86a-389c-425f-9f4c-20be81ab2464)
-*Checkboxes for context.*
+*Editor with shrunken AI dialog.*
 
 ![Git action menus per file](https://github.com/user-attachments/assets/300463d2-095a-4d99-b35f-08074a76f33c)
 *Git action menus per file.*
