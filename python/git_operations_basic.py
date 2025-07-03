@@ -1,15 +1,9 @@
 import os
 import subprocess
 try:
-    from ..exceptions import GitError, GitRepositoryError, FileOperationError
+    from .exceptions import GitError, GitRepositoryError, FileOperationError
 except ImportError:
-    try:
-        from exceptions import GitError, GitRepositoryError, FileOperationError
-    except ImportError:
-        # Fallback for when running as standalone
-        class GitError(Exception): pass
-        class GitRepositoryError(Exception): pass
-        class FileOperationError(Exception): pass
+    from exceptions import GitError, GitRepositoryError, FileOperationError
 
 class GitBasicOperations:
     """Handles basic Git operations like staging, committing, and file management"""

@@ -9,7 +9,7 @@ try:
     from .git_operations import GitOperations
     from .git_search import GitSearch
     from .file_analyzer import FileAnalyzer
-    from .exceptions import GitError, GitRepositoryError, FileOperationError
+    from .exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
@@ -17,7 +17,7 @@ except ImportError:
     from git_operations import GitOperations
     from git_search import GitSearch
     from file_analyzer import FileAnalyzer
-    from exceptions import GitError, GitRepositoryError, FileOperationError
+    from exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
 
 
 class Repo(BaseWrapper):
@@ -72,9 +72,7 @@ class Repo(BaseWrapper):
             else:
                 raise GitError("Could not determine repository root")
         except Exception as e:
-            if isinstance(e, (GitError, GitRepositoryError)):
-                raise
-            raise GitError(f"Error getting repository name: {e}")
+            return create_error_response(e)
     
     def get_repo_root(self):
         """Get the absolute path to the repository root directory"""
@@ -87,9 +85,7 @@ class Repo(BaseWrapper):
             else:
                 raise GitError("Could not determine repository root")
         except Exception as e:
-            if isinstance(e, (GitError, GitRepositoryError)):
-                raise
-            raise GitError(f"Error getting repository root: {e}")
+            return create_error_response(e)
     
     def get_status(self):
         """Get the current status of the repository"""
@@ -144,13 +140,14 @@ class Repo(BaseWrapper):
             
             return status
         except Exception as e:
-            if isinstance(e, (GitError, GitRepositoryError)):
-                raise
-            raise GitError(f"Error getting repository status: {e}")
+            return create_error_response(e)
     
     def get_file_line_counts(self, file_paths):
         """Get line counts for a list of files"""
-        return self.file_analyzer.get_file_line_counts(file_paths)
+        try:
+            return self.file_analyzer.get_file_line_counts(file_paths)
+        except Exception as e:
+            return create_error_response(e)
     
     def create_file(self, file_path, content=""):
         """Create a new file in the repository and stage it"""
@@ -197,9 +194,7 @@ class Repo(BaseWrapper):
                 return {"success": f"File {file_path} created successfully but failed to stage: {stage_error}"}
             
         except Exception as e:
-            if isinstance(e, (FileOperationError, GitRepositoryError)):
-                raise
-            raise FileOperationError(f"Error creating file {file_path}: {e}")
+            return create_error_response(e)
     
     def get_commit_history(self, max_count=50, branch=None, skip=0):
         """Get commit history with detailed information - optimized for performance with pagination support"""
@@ -231,9 +226,7 @@ class Repo(BaseWrapper):
             return commits
             
         except Exception as e:
-            if isinstance(e, GitRepositoryError):
-                raise
-            raise GitError(f"Error getting commit history: {e}")
+            return create_error_response(e)
     
     def get_changed_files(self, from_commit, to_commit):
         """Get list of files changed between two commits"""
@@ -262,9 +255,7 @@ class Repo(BaseWrapper):
             return changed_files
             
         except Exception as e:
-            if isinstance(e, GitRepositoryError):
-                raise
-            raise GitError(f"Error getting changed files: {e}")
+            return create_error_response(e)
     
     # Delegate methods to component modules
     def get_file_content(self, file_path, version='working'):
@@ -302,11 +293,9 @@ class Repo(BaseWrapper):
                     return ""
                 
         except UnicodeDecodeError as e:
-            raise FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}")
+            return create_error_response(FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}"))
         except Exception as e:
-            if isinstance(e, (FileOperationError, GitRepositoryError)):
-                raise
-            raise FileOperationError(f"Error reading file {file_path}: {e}")
+            return create_error_response(e)
             
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
@@ -387,15 +376,24 @@ class Repo(BaseWrapper):
             
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files"""
-        return self.git_search.search_files(query, word, regex, respect_gitignore, ignore_case)
+        try:
+            return self.git_search.search_files(query, word, regex, respect_gitignore, ignore_case)
+        except Exception as e:
+            return create_error_response(e)
     
     def start_git_monitor(self, interval=None):
         """Start monitoring the git repository for changes"""
-        return self.git_monitor.start_git_monitor(interval)
+        try:
+            return self.git_monitor.start_git_monitor(interval)
+        except Exception as e:
+            return create_error_response(e)
             
     def stop_git_monitor(self):
         """Stop the git repository monitor"""
-        return self.git_monitor.stop_git_monitor()
+        try:
+            return self.git_monitor.stop_git_monitor()
+        except Exception as e:
+            return create_error_response(e)
     
     def _notify_git_change(self):
         """Notify RepoTree component about git state changes"""

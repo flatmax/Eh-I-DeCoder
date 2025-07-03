@@ -1,5 +1,9 @@
 import os
 import subprocess
+try:
+    from .exceptions import GitError, GitRepositoryError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError
 
 class GitEditorOperations:
     """Handles Git editor operations and status detection"""
@@ -7,8 +11,15 @@ class GitEditorOperations:
     def __init__(self, repo_instance):
         self.repo = repo_instance
     
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
+    
     def _is_git_operation_active(self):
         """Check if there's an active Git operation that would be waiting for editor input"""
+        self._ensure_repo()
+        
         git_dir = self.repo.repo.git_dir
         
         # Check for active rebase
@@ -44,10 +55,9 @@ class GitEditorOperations:
 
     def get_git_editor_status(self):
         """Get comprehensive Git editor status - detects what Git is waiting for"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             git_dir = self.repo.repo.git_dir
             working_dir = self.repo.repo.working_tree_dir
             
@@ -198,14 +208,15 @@ class GitEditorOperations:
             return result
             
         except Exception as e:
-            return {"error": f"Error getting Git editor status: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting Git editor status: {e}")
 
     def save_git_editor_file(self, file_type, content):
         """Save content to the appropriate Git editor file"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             git_dir = self.repo.repo.git_dir
             
             # Map file types to actual file paths
@@ -219,13 +230,13 @@ class GitEditorOperations:
             }
             
             if file_type not in file_map:
-                return {"error": f"Unknown file type: {file_type}"}
+                raise GitError(f"Unknown file type: {file_type}")
             
             file_path = file_map[file_type]
             
             # Check if the file exists (should exist if Git is waiting for it)
             if not os.path.exists(file_path):
-                return {"error": f"Git editor file not found: {file_path}"}
+                raise GitError(f"Git editor file not found: {file_path}")
             
             # Save the content
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -238,7 +249,9 @@ class GitEditorOperations:
             return {"success": True, "message": f"Git editor file saved successfully"}
             
         except Exception as e:
-            return {"error": f"Error saving Git editor file: {e}"}
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error saving Git editor file: {e}")
 
     def _continue_after_rebase_todo_save(self):
         """Continue rebase after saving todo file"""

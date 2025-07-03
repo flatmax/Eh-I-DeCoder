@@ -10,9 +10,11 @@ import threading
 try:
     from .base_wrapper import BaseWrapper
     from .logger import Logger
+    from .exceptions import create_error_response
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
+    from exceptions import create_error_response
 
 # Enable tracemalloc for debugging
 tracemalloc.start()
@@ -250,11 +252,14 @@ class IOWrapper(BaseWrapper):
     
     def signal_command_complete(self):
         """Signal that command processing is complete"""
-        if self.has_command_output:
-            # Reset the flag
-            self.has_command_output = False
-            # Send completion signal
-            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
+        try:
+            if self.has_command_output:
+                # Reset the flag
+                self.has_command_output = False
+                # Send completion signal
+                self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
+        except Exception as e:
+            self.log(f"Error in signal_command_complete: {e}")
     
     async def send_to_webapp(self, message):
         """Send completed response to webapp - OPTIMIZED VERSION"""

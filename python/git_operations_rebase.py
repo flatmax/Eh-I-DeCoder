@@ -1,6 +1,10 @@
 import os
 import subprocess
 import tempfile
+try:
+    from .exceptions import GitError, GitRepositoryError, FileOperationError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError, FileOperationError
 
 class GitRebaseOperations:
     """Handles Git rebase operations including interactive rebase and conflict resolution"""
@@ -8,12 +12,16 @@ class GitRebaseOperations:
     def __init__(self, repo_instance):
         self.repo = repo_instance
     
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
+    
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Get commits between from_commit and to_commit
             commits = []
             for commit in self.repo.repo.iter_commits(f"{from_commit}..{to_commit}"):
@@ -31,14 +39,15 @@ class GitRebaseOperations:
             return {"success": True, "commits": commits}
             
         except Exception as e:
-            return {"error": f"Error starting interactive rebase: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error starting interactive rebase: {e}")
 
     def get_rebase_status(self):
         """Get the current rebase status and todo file content"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             git_dir = self.repo.repo.git_dir
             rebase_merge_dir = os.path.join(git_dir, 'rebase-merge')
             rebase_apply_dir = os.path.join(git_dir, 'rebase-apply')
@@ -115,14 +124,15 @@ class GitRebaseOperations:
                 }
                 
         except Exception as e:
-            return {"error": f"Error getting rebase status: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting rebase status: {e}")
 
     def execute_rebase(self, rebase_plan=None):
         """Execute the interactive rebase with the given plan or continue existing rebase"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Check if we're already in a rebase
             rebase_status = self.get_rebase_status()
             
@@ -132,7 +142,7 @@ class GitRebaseOperations:
             
             # Start new rebase if rebase_plan is provided
             if not rebase_plan:
-                return {"error": "No rebase plan provided and no active rebase found"}
+                raise GitError("No rebase plan provided and no active rebase found")
             
             # Create a temporary rebase script
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -183,7 +193,7 @@ class GitRebaseOperations:
                             "error": "Conflicts detected during rebase"
                         }
                     else:
-                        return {"error": f"Rebase failed: {result.stderr}"}
+                        raise GitError(f"Rebase failed: {result.stderr}")
                         
             finally:
                 # Clean up temporary file
@@ -193,14 +203,15 @@ class GitRebaseOperations:
                     pass
                     
         except Exception as e:
-            return {"error": f"Error executing rebase: {e}"}
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error executing rebase: {e}")
 
     def get_conflict_content(self, file_path):
         """Get the conflict content for a file (ours, theirs, and merged)"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
             # Get the merged content with conflict markers
@@ -239,14 +250,15 @@ class GitRebaseOperations:
             }
             
         except Exception as e:
-            return {"error": f"Error getting conflict content: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting conflict content: {e}")
 
     def resolve_conflict(self, file_path, resolved_content):
         """Resolve a conflict by saving the resolved content and staging the file"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
             # Write the resolved content
@@ -259,14 +271,15 @@ class GitRebaseOperations:
             return {"success": True, "message": f"Conflict resolved for {file_path}"}
             
         except Exception as e:
-            return {"error": f"Error resolving conflict: {e}"}
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise FileOperationError(f"Error resolving conflict: {e}")
 
     def continue_rebase(self):
         """Continue the rebase after resolving conflicts"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Set up environment to prevent interactive editors
             env = os.environ.copy()
             env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
@@ -299,17 +312,18 @@ class GitRebaseOperations:
                         "error": "More conflicts detected"
                     }
                 else:
-                    return {"error": f"Failed to continue rebase: {result.stderr}"}
+                    raise GitError(f"Failed to continue rebase: {result.stderr}")
                     
         except Exception as e:
-            return {"error": f"Error continuing rebase: {e}"}
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error continuing rebase: {e}")
 
     def abort_rebase(self):
         """Abort the current rebase"""
-        if not self.repo.repo:
-            return {"error": "No Git repository available"}
-        
         try:
+            self._ensure_repo()
+            
             # Set up environment to prevent interactive editors
             env = os.environ.copy()
             env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
@@ -324,7 +338,9 @@ class GitRebaseOperations:
             if result.returncode == 0:
                 return {"success": True, "message": "Rebase aborted successfully"}
             else:
-                return {"error": f"Failed to abort rebase: {result.stderr}"}
+                raise GitError(f"Failed to abort rebase: {result.stderr}")
                 
         except Exception as e:
-            return {"error": f"Error aborting rebase: {e}"}
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error aborting rebase: {e}")

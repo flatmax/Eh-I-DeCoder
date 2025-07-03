@@ -21,6 +21,7 @@ try:
     from .lsp_server import start_lsp_server, cleanup_lsp_process
     from .port_utils import find_available_port
     from .server_config import ServerConfig
+    from .exceptions import ValidationError, ProcessError, WebappError, LSPError
 except ImportError:
     from io_wrapper import IOWrapper
     from coder_wrapper import CoderWrapper
@@ -30,6 +31,7 @@ except ImportError:
     from lsp_server import start_lsp_server, cleanup_lsp_process
     from port_utils import find_available_port
     from server_config import ServerConfig
+    from exceptions import ValidationError, ProcessError, WebappError, LSPError
 
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
@@ -165,10 +167,14 @@ async def main_starter_async():
     aider_thread.start()
     
     # Start webapp dev server asynchronously
-    webapp_task = asyncio.create_task(
-        asyncio.to_thread(start_npm_dev_server, config)
-    )
-    tasks.append(webapp_task)
+    try:
+        webapp_task = asyncio.create_task(
+            asyncio.to_thread(start_npm_dev_server, config)
+        )
+        tasks.append(webapp_task)
+    except (ProcessError, WebappError) as e:
+        print(f"Failed to start webapp: {e}")
+        return 1
     
     # Wait for coder initialization (with shorter timeout)
     print("Waiting for coder initialization...")
@@ -200,16 +206,23 @@ async def main_starter_async():
         
         print(f"JSON-RPC server running on port {server_port}")
         
+    except ValidationError as e:
+        print(f"Error initializing coder wrapper: {e}")
+        return 1
     except Exception as e:
         print(f"Error initializing components: {e}")
         return 1
     
     # Start LSP server if enabled (asynchronously)
     if config.is_lsp_enabled() and lsp_port:
-        lsp_task = asyncio.create_task(
-            asyncio.to_thread(start_lsp_server, config, repo)
-        )
-        tasks.append(lsp_task)
+        try:
+            lsp_task = asyncio.create_task(
+                asyncio.to_thread(start_lsp_server, config, repo)
+            )
+            tasks.append(lsp_task)
+        except (ProcessError, LSPError) as e:
+            print(f"Failed to start LSP server: {e}")
+            # LSP is optional, so we continue
     
     # Start JRPC server
     try:
@@ -217,14 +230,17 @@ async def main_starter_async():
         print("Server running. Press Ctrl+C to exit.")
         
         # Wait for webapp to be ready and open browser
-        dev_server_started = await webapp_task
-        if dev_server_started:
-            # Small delay for dev server readiness
-            await asyncio.sleep(0.5)  # Reduced from 2 seconds
-            # Open browser asynchronously
-            asyncio.create_task(asyncio.to_thread(open_browser, config))
-        else:
-            print("Warning: Failed to start webapp dev server")
+        try:
+            dev_server_started = await webapp_task
+            if dev_server_started:
+                # Small delay for dev server readiness
+                await asyncio.sleep(0.5)  # Reduced from 2 seconds
+                # Open browser asynchronously
+                asyncio.create_task(asyncio.to_thread(open_browser, config))
+            else:
+                print("Warning: Failed to start webapp dev server")
+        except (ProcessError, WebappError) as e:
+            print(f"Webapp error: {e}")
         
         # Check LSP server result if started
         if config.is_lsp_enabled() and lsp_port and len(tasks) > 1:

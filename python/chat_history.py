@@ -4,11 +4,11 @@ import asyncio
 try:
     from .base_wrapper import BaseWrapper
     from .logger import Logger
-    from .exceptions import FileOperationError
+    from .exceptions import FileOperationError, create_error_response
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
-    from exceptions import FileOperationError
+    from exceptions import FileOperationError, create_error_response
 
 class ChatHistory(BaseWrapper):
     """Handles chat history file operations for the webapp"""
@@ -50,7 +50,7 @@ class ChatHistory(BaseWrapper):
             return 0
         except Exception as e:
             Logger.error(f"Error getting file size: {e}")
-            raise FileOperationError(f"Error getting file size: {e}")
+            return create_error_response(FileOperationError(f"Error getting file size: {e}"))
     
     def load_chunk(self, start_pos=None, chunk_size=None):
         """Load a chunk of the chat history file from the end or a specific position
@@ -73,6 +73,9 @@ class ChatHistory(BaseWrapper):
                 }
             
             file_size = self.get_file_size()
+            # Check if get_file_size returned an error
+            if isinstance(file_size, dict) and 'error' in file_size:
+                return file_size
             
             if file_size == 0:
                 return {
@@ -116,7 +119,7 @@ class ChatHistory(BaseWrapper):
             Logger.error(f"Error loading chat history chunk: {e}")
             import traceback
             Logger.error(f"Traceback: {traceback.format_exc()}")
-            raise FileOperationError(f"Error loading chat history: {str(e)}")
+            return create_error_response(FileOperationError(f"Error loading chat history: {str(e)}"))
     
     def load_previous_chunk(self, current_start_pos, chunk_size=None):
         """Loa the previous chunk before the current start position
@@ -201,4 +204,4 @@ class ChatHistory(BaseWrapper):
             Logger.error(f"Error searching chat history: {e}")
             import traceback
             Logger.error(f"Traceback: {traceback.format_exc()}")
-            raise FileOperationError(f"Error searching chat history: {e}")
+            return create_error_response(FileOperationError(f"Error searching chat history: {e}"))
