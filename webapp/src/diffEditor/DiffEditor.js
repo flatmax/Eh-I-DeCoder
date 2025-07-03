@@ -133,6 +133,8 @@ export class DiffEditor extends JRPCClient {
             @cursor-position-changed=${this.navigationManager.handleCursorPositionChanged.bind(this.navigationManager)}
             @navigation-back=${this.navigationManager.handleNavigationBack.bind(this.navigationManager)}
             @navigation-forward=${this.navigationManager.handleNavigationForward.bind(this.navigationManager)}
+            @navigation-track-previous=${this.navigationManager.handleNavigationTrackPrevious.bind(this.navigationManager)}
+            @navigation-track-next=${this.navigationManager.handleNavigationTrackNext.bind(this.navigationManager)}
             @content-changed=${this.handleContentChanged}
           ></monaco-diff-editor>
         ` : html`

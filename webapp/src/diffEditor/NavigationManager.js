@@ -39,6 +39,28 @@ export class NavigationManager {
     }
   }
 
+  handleNavigationTrackPrevious(event) {
+    const previousTrackId = navigationHistory.switchToPreviousTrack();
+    console.log(`Switched to track ${previousTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.diffEditor.fileManager.loadFileContent(track.current.filePath, track.current.line, track.current.character);
+    }
+  }
+
+  handleNavigationTrackNext(event) {
+    const nextTrackId = navigationHistory.switchToNextTrack();
+    console.log(`Switched to track ${nextTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.diffEditor.fileManager.loadFileContent(track.current.filePath, track.current.line, track.current.character);
+    }
+  }
+
   recordFileSwitch(fromFile, fromLine, fromChar, toFile, toLine, toChar) {
     navigationHistory.recordFileSwitch(fromFile, fromLine, fromChar, toFile, toLine, toChar);
   }

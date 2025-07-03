@@ -22,6 +22,7 @@ export class NavigationHistory {
     
     this.maxSize = 50;
     this.isNavigating = false;
+    this.isSwitchingTracks = false; // Add flag for track switching
   }
 
   /**
@@ -67,6 +68,8 @@ export class NavigationHistory {
     const trackIds = Array.from(this.tracks.keys()).sort((a, b) => a - b);
     const currentIndex = trackIds.indexOf(this.currentTrackId);
     
+    this.isSwitchingTracks = true; // Set flag before switching
+    
     if (currentIndex < trackIds.length - 1) {
       this.currentTrackId = trackIds[currentIndex + 1];
     } else {
@@ -75,6 +78,12 @@ export class NavigationHistory {
     }
     
     this.emitUpdate();
+    
+    // Clear the flag after a short delay to allow the navigation to complete
+    setTimeout(() => {
+      this.isSwitchingTracks = false;
+    }, 100);
+    
     return this.currentTrackId;
   }
 
@@ -85,10 +94,17 @@ export class NavigationHistory {
     const trackIds = Array.from(this.tracks.keys()).sort((a, b) => a - b);
     const currentIndex = trackIds.indexOf(this.currentTrackId);
     
+    this.isSwitchingTracks = true; // Set flag before switching
+    
     if (currentIndex > 0) {
       this.currentTrackId = trackIds[currentIndex - 1];
       this.emitUpdate();
     }
+    
+    // Clear the flag after a short delay to allow the navigation to complete
+    setTimeout(() => {
+      this.isSwitchingTracks = false;
+    }, 100);
     
     return this.currentTrackId;
   }
@@ -151,8 +167,8 @@ export class NavigationHistory {
    * @param {number} toChar - Character position in the to file
    */
   recordFileSwitch(fromFile, fromLine, fromChar, toFile, toLine, toChar) {
-    // Don't record if we're currently navigating
-    if (this.isNavigating) {
+    // Don't record if we're currently navigating or switching tracks
+    if (this.isNavigating || this.isSwitchingTracks) {
       return;
     }
 
@@ -178,8 +194,11 @@ export class NavigationHistory {
     const existingNode = track.fileMap.get(toFile);
     
     if (existingNode) {
-      // File exists in history - move it to after current position
-      this.moveNodeAfterCurrent(track, existingNode);
+      // File exists in history - only move it if it's not already current
+      if (track.current !== existingNode) {
+        // Move it to after current position
+        this.moveNodeAfterCurrent(track, existingNode);
+      }
       
       // Update its position
       existingNode.line = toLine;
@@ -257,7 +276,7 @@ export class NavigationHistory {
    */
   updateCurrentPosition(line, character) {
     const track = this.getCurrentTrack();
-    if (track.current && !this.isNavigating) {
+    if (track.current && !this.isNavigating && !this.isSwitchingTracks) {
       track.current.line = line;
       track.current.character = character;
       track.current.timestamp = Date.now();
@@ -444,6 +463,7 @@ export class NavigationHistory {
     });
     
     this.isNavigating = false;
+    this.isSwitchingTracks = false;
     this.emitUpdate();
   }
 
