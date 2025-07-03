@@ -1,5 +1,61 @@
 # Changelog
 
+## [v1.6.0] - 2024-12-20
+
+### Added
+- **Navigation & Editor Enhancements**
+  - Track navigation with Alt+Up/Down keyboard shortcuts for switching between tracks
+  - Ctrl+Right-click handler to copy text in diff editor
+  - String content extraction for Monaco editor key bindings
+  - FileAnalyzer class for efficient file line counting and text file detection
+  - Custom exceptions for standardized error handling across application
+
+- **LSP & File Management**
+  - Enhanced LSP URI handling for external and workspace files
+  - Improved LSP completion suggestions with proper range handling
+  - Dynamic repository root usage in LSP server startup
+  - Centralized file content operations in FileContentService
+
+- **Search & UI Improvements**
+  - Enhanced find-in-files with auto-search and improved keyboard shortcut handling
+  - Optimized navigation history graph rendering and interaction
+
+### Changed
+- **Code Architecture & Refactoring**
+  - Modularized repo class by extracting specialized modules
+  - Centralized event dispatching using EventHelper utility
+  - Simplified git diff data management and error handling
+  - Improved async startup with concurrent port finding and service initialization
+  - Simplified process management with improved logging and error handling
+  - Improved error handling and exception management across modules
+
+- **Performance & Optimization**
+  - Prevented duplicate cleanup and simplified thread termination
+  - Avoided forcing model resets to preserve document location
+  - Improved server startup, cleanup, and error handling in aider server
+
+- **Event Handling**
+  - Changed document event listener to window for word-clicked events
+  - Removed find in files actions and related methods for cleaner architecture
+
+### Fixed
+- **Logging & Debug**
+  - Removed verbose console logging from LSP server
+  - Simplified logging and removed verbose console messages in GitDiffDataManager
+  - Silenced console.log in prompt drag handlers
+  - Reduced logging throughout the application
+  - Removed verbose logging and debug print statements
+
+### Removed
+- Unused CodeMirror dependencies from package.json
+- Verbose debug output and console logging across multiple components
+
+### Technical Improvements
+- Enhanced error handling with custom exception classes
+- Better file analysis capabilities with dedicated FileAnalyzer
+- Improved LSP integration with better URI and completion handling
+- Streamlined codebase with reduced verbosity and better organization
+
 ## [v1.5.0] - 2024-12-20
 
 ### Added
