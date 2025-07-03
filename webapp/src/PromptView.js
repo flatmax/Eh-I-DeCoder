@@ -82,8 +82,8 @@ export class PromptView extends MessageHandler {
     this.dialogStateManager.initialize();
     this.scrollManager.initialize();
     
-    // Listen for word-clicked events from MergeEditor
-    document.addEventListener('word-clicked', this.handleWordClicked);
+    // Listen for word-clicked events from file trees on window object
+    window.addEventListener('word-clicked', this.handleWordClicked);
     
     // Force initial state update
     this.updateComplete.then(() => {
@@ -98,11 +98,11 @@ export class PromptView extends MessageHandler {
     this.scrollManager.cleanup();
     
     // Remove event listener
-    document.removeEventListener('word-clicked', this.handleWordClicked);
+    window.removeEventListener('word-clicked', this.handleWordClicked);
   }
 
   /**
-   * Handle word-clicked events from MergeEditor
+   * Handle word-clicked events from file trees
    * @param {CustomEvent} event - The word-clicked event
    */
   handleWordClicked(event) {
