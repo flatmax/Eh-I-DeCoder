@@ -9,6 +9,9 @@ try:
     from .git_operations import GitOperations
     from .git_search import GitSearch
     from .file_analyzer import FileAnalyzer
+    from .repo_info import RepoInfo
+    from .repo_history import RepoHistory
+    from .repo_file_manager import RepoFileManager
     from .exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
 except ImportError:
     from base_wrapper import BaseWrapper
@@ -17,6 +20,9 @@ except ImportError:
     from git_operations import GitOperations
     from git_search import GitSearch
     from file_analyzer import FileAnalyzer
+    from repo_info import RepoInfo
+    from repo_history import RepoHistory
+    from repo_file_manager import RepoFileManager
     from exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
 
 
@@ -35,6 +41,9 @@ class Repo(BaseWrapper):
         self.git_operations = GitOperations(self)
         self.git_search = GitSearch(self)
         self.file_analyzer = FileAnalyzer(self)
+        self.repo_info = RepoInfo(self)
+        self.repo_history = RepoHistory(self)
+        self.repo_file_manager = RepoFileManager(self)
         
         self._initialize_repo()
     
@@ -58,90 +67,38 @@ class Repo(BaseWrapper):
         if not self.repo:
             raise GitRepositoryError("No Git repository available")
     
+    # Repository information methods - delegate to repo_info
     def get_repo_name(self):
         """Get the name of the repository (top-level directory name)"""
-        try:
-            self._ensure_repo()
-            
-            # Get the repository root directory path
-            repo_root = self.repo.working_tree_dir
-            if repo_root:
-                # Extract just the directory name (not the full path)
-                repo_name = os.path.basename(repo_root)
-                return repo_name
-            else:
-                raise GitError("Could not determine repository root")
-        except Exception as e:
-            return create_error_response(e)
+        return self.repo_info.get_repo_name()
     
     def get_repo_root(self):
         """Get the absolute path to the repository root directory"""
-        try:
-            self._ensure_repo()
-            
-            repo_root = self.repo.working_tree_dir
-            if repo_root:
-                return repo_root
-            else:
-                raise GitError("Could not determine repository root")
-        except Exception as e:
-            return create_error_response(e)
+        return self.repo_info.get_repo_root()
     
     def get_status(self):
         """Get the current status of the repository"""
-        try:
-            self._ensure_repo()
-            
-            # Get the branch name, handling detached HEAD state
-            try:
-                branch_name = self.repo.active_branch.name
-            except TypeError:
-                # Handle detached HEAD state (common during rebase)
-                try:
-                    # Try to get the current commit hash
-                    current_commit = self.repo.head.commit.hexsha
-                    branch_name = f"detached-{current_commit[:7]}"
-                except Exception as e:
-                    branch_name = "detached-HEAD"
-            
-            # Get repository status information
-            is_dirty = self.repo.is_dirty()
-            untracked_files = self.repo.untracked_files
-            
-            # Get modified and staged files, handling potential errors
-            try:
-                modified_files = [item.a_path for item in self.repo.index.diff(None)]
-            except Exception as e:
-                self.log(f"Error getting modified files: {e}")
-                modified_files = []
-            
-            try:
-                staged_files = [item.a_path for item in self.repo.index.diff("HEAD")]
-            except Exception as e:
-                self.log(f"Error getting staged files: {e}")
-                staged_files = []
-            
-            # Convert untracked files to relative paths (they should already be relative)
-            # but ensure they're normalized
-            normalized_untracked = []
-            for file_path in untracked_files:
-                # Normalize path separators and ensure it's relative
-                normalized_path = os.path.normpath(file_path).replace(os.sep, '/')
-                normalized_untracked.append(normalized_path)
-            
-            status = {
-                "branch": branch_name,
-                "is_dirty": is_dirty,
-                "untracked_files": normalized_untracked,
-                "modified_files": modified_files,
-                "staged_files": staged_files,
-                "repo_root": self.repo.working_tree_dir
-            }
-            
-            return status
-        except Exception as e:
-            return create_error_response(e)
+        return self.repo_info.get_status()
     
+    # History methods - delegate to repo_history
+    def get_commit_history(self, max_count=50, branch=None, skip=0):
+        """Get commit history with detailed information - optimized for performance with pagination support"""
+        return self.repo_history.get_commit_history(max_count, branch, skip)
+    
+    def get_changed_files(self, from_commit, to_commit):
+        """Get list of files changed between two commits"""
+        return self.repo_history.get_changed_files(from_commit, to_commit)
+    
+    # File management methods - delegate to repo_file_manager
+    def create_file(self, file_path, content=""):
+        """Create a new file in the repository and stage it"""
+        return self.repo_file_manager.create_file(file_path, content)
+    
+    def get_file_content(self, file_path, version='working'):
+        """Get the content of a file from either HEAD, working directory, or specific commit"""
+        return self.repo_file_manager.get_file_content(file_path, version)
+    
+    # File analysis methods - delegate to file_analyzer
     def get_file_line_counts(self, file_paths):
         """Get line counts for a list of files"""
         try:
@@ -149,154 +106,7 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
-    def create_file(self, file_path, content=""):
-        """Create a new file in the repository and stage it"""
-        try:
-            self._ensure_repo()
-            
-            # Get the absolute path within the repository
-            if os.path.isabs(file_path):
-                # If absolute path, make sure it's within the repo
-                repo_root = self.repo.working_tree_dir
-                if not file_path.startswith(repo_root):
-                    raise FileOperationError(f"File path {file_path} is outside repository")
-                abs_path = file_path
-            else:
-                # If relative path, make it relative to repo root
-                abs_path = os.path.join(self.repo.working_tree_dir, file_path)
-            
-            # Check if file already exists
-            if os.path.exists(abs_path):
-                raise FileOperationError(f"File {file_path} already exists")
-            
-            # Create directory structure if it doesn't exist
-            dir_path = os.path.dirname(abs_path)
-            if dir_path and not os.path.exists(dir_path):
-                os.makedirs(dir_path, exist_ok=True)
-            
-            # Create the file with the specified content
-            with open(abs_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            # Explicitly set file permissions to be writable
-            # This ensures the file is not read-only after creation
-            import stat
-            current_permissions = os.stat(abs_path).st_mode
-            # Add write permission for owner, group, and others
-            writable_permissions = current_permissions | stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
-            os.chmod(abs_path, writable_permissions)
-            
-            # Stage the newly created file
-            try:
-                self.repo.index.add([file_path])
-                return {"success": f"File {file_path} created and staged successfully"}
-            except Exception as stage_error:
-                return {"success": f"File {file_path} created successfully but failed to stage: {stage_error}"}
-            
-        except Exception as e:
-            return create_error_response(e)
-    
-    def get_commit_history(self, max_count=50, branch=None, skip=0):
-        """Get commit history with detailed information - optimized for performance with pagination support"""
-        try:
-            self._ensure_repo()
-            
-            commits = []
-            
-            # Use current branch if no branch specified - much faster than --all
-            if branch is None:
-                try:
-                    branch = self.repo.active_branch.name
-                except TypeError:
-                    # Fallback to HEAD if no active branch (detached HEAD)
-                    branch = 'HEAD'
-            
-            # Get commits from specified branch with skip and max_count for pagination
-            for commit in self.repo.iter_commits(branch, max_count=max_count, skip=skip):
-                commit_data = {
-                    'hash': commit.hexsha,
-                    'author': commit.author.name,
-                    'email': commit.author.email,
-                    'date': commit.committed_datetime.isoformat(),
-                    'message': commit.message.strip(),
-                    'branch': branch  # Use the branch we're iterating over
-                }
-                commits.append(commit_data)
-            
-            return commits
-            
-        except Exception as e:
-            return create_error_response(e)
-    
-    def get_changed_files(self, from_commit, to_commit):
-        """Get list of files changed between two commits"""
-        try:
-            self._ensure_repo()
-            
-            # Get the commit objects
-            from_commit_obj = self.repo.commit(from_commit)
-            to_commit_obj = self.repo.commit(to_commit)
-            
-            # Get the diff between the commits
-            diff = from_commit_obj.diff(to_commit_obj)
-            
-            # Extract file paths from the diff
-            changed_files = []
-            for diff_item in diff:
-                # Handle different types of changes (added, deleted, modified, renamed)
-                if diff_item.a_path:
-                    changed_files.append(diff_item.a_path)
-                if diff_item.b_path and diff_item.b_path != diff_item.a_path:
-                    changed_files.append(diff_item.b_path)
-            
-            # Remove duplicates and sort
-            changed_files = sorted(list(set(changed_files)))
-            
-            return changed_files
-            
-        except Exception as e:
-            return create_error_response(e)
-    
-    # Delegate methods to component modules
-    def get_file_content(self, file_path, version='working'):
-        """Get the content of a file from either HEAD, working directory, or specific commit"""
-        try:
-            self._ensure_repo()
-            
-            if version == 'HEAD':
-                # Get file content from HEAD commit
-                try:
-                    blob = self.repo.head.commit.tree[file_path]
-                    content = blob.data_stream.read().decode('utf-8')
-                    return content
-                except KeyError:
-                    # File doesn't exist in HEAD (new file)
-                    return ""
-            elif version == 'working':
-                # Get file content from working directory
-                full_path = os.path.join(self.repo.working_tree_dir, file_path)
-                if os.path.exists(full_path):
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    return content
-                else:
-                    return ""
-            else:
-                # Treat version as a commit hash
-                try:
-                    commit = self.repo.commit(version)
-                    blob = commit.tree[file_path]
-                    content = blob.data_stream.read().decode('utf-8')
-                    return content
-                except (KeyError, git.exc.BadName):
-                    # File doesn't exist in this commit
-                    return ""
-                
-        except UnicodeDecodeError as e:
-            return create_error_response(FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}"))
-        except Exception as e:
-            return create_error_response(e)
-            
+    # Git operations methods - delegate to git_operations
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
         return self.git_operations.save_file_content(file_path, content)
@@ -333,7 +143,7 @@ class Repo(BaseWrapper):
         """Get the raw git status output as it appears in the terminal"""
         return self.git_operations.get_raw_git_status()
 
-    # Interactive rebase methods - updated for webapp integration
+    # Interactive rebase methods - delegate to git_operations
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
         return self.git_operations.start_interactive_rebase(from_commit, to_commit)
@@ -373,7 +183,8 @@ class Repo(BaseWrapper):
     def abort_rebase(self):
         """Abort the current rebase"""
         return self.git_operations.abort_rebase()
-            
+    
+    # Search methods - delegate to git_search        
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files"""
         try:
@@ -381,6 +192,7 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
+    # Git monitoring methods - delegate to git_monitor
     def start_git_monitor(self, interval=None):
         """Start monitoring the git repository for changes"""
         try:
@@ -395,6 +207,7 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
+    # Notification methods
     def _notify_git_change(self):
         """Notify RepoTree component about git state changes"""
         try:
