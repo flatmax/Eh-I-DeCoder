@@ -2,8 +2,10 @@ import os
 import stat
 try:
     from .exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
+    from .repo_history import RepoHistory
 except ImportError:
     from exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
+    from repo_history import RepoHistory
 
 
 class RepoFileManager:
@@ -88,7 +90,6 @@ class RepoFileManager:
                     return ""
             else:
                 # Delegate to history module for specific commit
-                from .repo_history import RepoHistory
                 history = RepoHistory(self.repo)
                 return history.get_file_content_at_commit(file_path, version)
                 
