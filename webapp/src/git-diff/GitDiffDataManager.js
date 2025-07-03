@@ -9,7 +9,7 @@ export class GitDiffDataManager {
     if (!this.view.fromCommit || !this.view.toCommit) return;
     
     if (!this.view.call || !this.view.call['Repo.get_changed_files']) {
-      console.log('GitDiffView: JRPC not ready yet for loadChangedFiles');
+      console.log('GitDiffView: JRPC not ready for loadChangedFiles');
       return;
     }
     
@@ -17,7 +17,6 @@ export class GitDiffDataManager {
     this.view.error = null;
     
     try {
-      console.log(`GitDiffView: Loading changed files between ${this.view.fromCommit} and ${this.view.toCommit}`);
       const response = await this.view.call['Repo.get_changed_files'](
         this.view.fromCommit, 
         this.view.toCommit
@@ -26,7 +25,7 @@ export class GitDiffDataManager {
       // Extract the actual data from the JRPC response
       const changedFiles = extractResponseData(response, []);
       
-      console.log(`GitDiffView: Received ${changedFiles.length} changed files`);
+      console.log(`GitDiffView: Loaded ${changedFiles.length} changed files`);
       this.view.changedFiles = changedFiles;
       
       // Auto-select first file if none selected
@@ -51,11 +50,9 @@ export class GitDiffDataManager {
     if (!this.view.selectedFile || !this.view.fromCommit || !this.view.toCommit) return;
     
     if (!this.view.call || !this.view.call['Repo.get_file_content']) {
-      console.log('GitDiffView: JRPC not ready yet for loadFileContents');
+      console.log('GitDiffView: JRPC not ready for loadFileContents');
       return;
     }
-    
-    console.log(`GitDiffView: Loading file contents for ${this.view.selectedFile}`);
     
     try {
       // Load both versions in parallel
@@ -63,8 +60,6 @@ export class GitDiffDataManager {
         this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.fromCommit),
         this.view.call['Repo.get_file_content'](this.view.selectedFile, this.view.toCommit)
       ]);
-      
-      console.log('GitDiffView: Raw responses:', { fromResponse, toResponse });
       
       // Extract the actual content from JRPC responses
       let fromContent = '';
@@ -75,7 +70,6 @@ export class GitDiffDataManager {
       // Handle the response - it might be wrapped in a UUID object
       if (fromResponse) {
         const extracted = extractResponseData(fromResponse, null);
-        console.log('GitDiffView: Extracted from content:', extracted);
         
         // Handle different response formats
         if (typeof extracted === 'string') {
@@ -83,7 +77,7 @@ export class GitDiffDataManager {
         } else if (extracted && typeof extracted === 'object') {
           // Check for error response
           if ('error' in extracted) {
-            console.error('GitDiffView: Error in from content response:', extracted.error);
+            console.error(`GitDiffView: Error loading ${this.view.fromCommit}:`, extracted.error);
             hasError = true;
             errorMessage = `Error loading ${this.view.fromCommit} version: ${extracted.error}`;
             fromContent = '';
@@ -97,7 +91,6 @@ export class GitDiffDataManager {
       
       if (toResponse) {
         const extracted = extractResponseData(toResponse, null);
-        console.log('GitDiffView: Extracted to content:', extracted);
         
         // Handle different response formats
         if (typeof extracted === 'string') {
@@ -105,7 +98,7 @@ export class GitDiffDataManager {
         } else if (extracted && typeof extracted === 'object') {
           // Check for error response
           if ('error' in extracted) {
-            console.error('GitDiffView: Error in to content response:', extracted.error);
+            console.error(`GitDiffView: Error loading ${this.view.toCommit}:`, extracted.error);
             hasError = true;
             errorMessage = errorMessage ? `${errorMessage}\nError loading ${this.view.toCommit} version: ${extracted.error}` : `Error loading ${this.view.toCommit} version: ${extracted.error}`;
             toContent = '';
@@ -116,8 +109,6 @@ export class GitDiffDataManager {
           }
         }
       }
-      
-      console.log(`GitDiffView: Loaded file contents, from length: ${fromContent.length} to length: ${toContent.length}`);
       
       // Update the view with the loaded content
       this.view.fromContent = fromContent;
@@ -142,12 +133,11 @@ export class GitDiffDataManager {
     if (!this.view.selectedFile) return;
     
     if (!this.view.call || !this.view.call['Repo.get_conflict_content']) {
-      console.log('GitDiffView: JRPC not ready yet for loadConflictContent');
+      console.log('GitDiffView: JRPC not ready for loadConflictContent');
       return;
     }
     
     try {
-      console.log(`GitDiffView: Loading conflict content for ${this.view.selectedFile}`);
       const response = await this.view.call['Repo.get_conflict_content'](this.view.selectedFile);
       const conflictData = extractResponseData(response);
       
