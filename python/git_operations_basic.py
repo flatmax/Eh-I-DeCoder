@@ -1,5 +1,9 @@
 import os
 import subprocess
+try:
+    from .exceptions import GitError, GitRepositoryError, FileOperationError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError, FileOperationError
 
 class GitBasicOperations:
     """Handles basic Git operations like staging, committing, and file management"""
@@ -7,26 +11,24 @@ class GitBasicOperations:
     def __init__(self, repo_instance):
         self.repo = repo_instance
     
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
+    
     def get_file_content(self, file_path, version='working'):
         """Get the content of a file from either HEAD or working directory"""
-        self.repo.log(f"get_file_content called for {file_path}, version: {version}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"get_file_content returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             if version == 'HEAD':
                 # Get file content from HEAD commit
                 try:
                     blob = self.repo.repo.head.commit.tree[file_path]
                     content = blob.data_stream.read().decode('utf-8')
-                    self.repo.log(f"HEAD content loaded for {file_path}, length: {len(content)}")
                     return content
                 except KeyError:
                     # File doesn't exist in HEAD (new file)
-                    self.repo.log(f"File {file_path} not found in HEAD (new file)")
                     return ""
             elif version == 'working':
                 # Get file content from working directory
@@ -34,35 +36,24 @@ class GitBasicOperations:
                 if os.path.exists(full_path):
                     with open(full_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                    self.repo.log(f"Working content loaded for {file_path}, length: {len(content)}")
                     return content
                 else:
-                    self.repo.log(f"File {file_path} not found in working directory")
                     return ""
             else:
-                error_msg = {"error": f"Invalid version: {version}. Use 'HEAD' or 'working'"}
-                self.repo.log(f"get_file_content returning error: {error_msg}")
-                return error_msg
+                raise ValueError(f"Invalid version: {version}. Use 'HEAD' or 'working'")
                 
         except UnicodeDecodeError as e:
-            error_msg = {"error": f"File {file_path} contains binary data or invalid encoding: {e}"}
-            self.repo.log(f"get_file_content returning error: {error_msg}")
-            return error_msg
+            raise FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}")
         except Exception as e:
-            error_msg = {"error": f"Error reading file {file_path}: {e}"}
-            self.repo.log(f"get_file_content returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, FileOperationError)):
+                raise
+            raise FileOperationError(f"Error reading file {file_path}: {e}")
             
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
-        self.repo.log(f"save_file_content called for {file_path}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"save_file_content returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Construct the full path
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
@@ -73,185 +64,132 @@ class GitBasicOperations:
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            self.repo.log(f"File {file_path} saved successfully")
             return {"status": "success", "message": f"File {file_path} saved successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error saving file {file_path}: {e}"}
-            self.repo.log(f"save_file_content returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise FileOperationError(f"Error saving file {file_path}: {e}")
 
     def delete_file(self, file_path):
         """Delete a file from the working directory"""
-        self.repo.log(f"delete_file called for {file_path}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"delete_file returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Construct the full path
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
             # Check if file exists
             if not os.path.exists(full_path):
-                error_msg = {"error": f"File {file_path} does not exist"}
-                self.repo.log(f"delete_file returning error: {error_msg}")
-                return error_msg
+                raise FileOperationError(f"File {file_path} does not exist")
             
             # Check if it's actually a file (not a directory)
             if not os.path.isfile(full_path):
-                error_msg = {"error": f"Path {file_path} is not a file"}
-                self.repo.log(f"delete_file returning error: {error_msg}")
-                return error_msg
+                raise FileOperationError(f"Path {file_path} is not a file")
             
             # Delete the file
             os.remove(full_path)
             
-            self.repo.log(f"File {file_path} deleted successfully")
             return {"status": "success", "message": f"File {file_path} deleted successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error deleting file {file_path}: {e}"}
-            self.repo.log(f"delete_file returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, FileOperationError)):
+                raise
+            raise FileOperationError(f"Error deleting file {file_path}: {e}")
             
     def stage_file(self, file_path):
         """Stage a specific file in the repository"""
-        self.repo.log(f"stage_file called for {file_path}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"stage_file returning error: {error_msg}")
-            return error_msg
-            
         try:
+            self._ensure_repo()
+            
             # Construct the full path
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
             # Check if file exists
             if not os.path.exists(full_path):
-                error_msg = {"error": f"File {file_path} does not exist"}
-                self.repo.log(f"stage_file returning error: {error_msg}")
-                return error_msg
+                raise FileOperationError(f"File {file_path} does not exist")
                 
             # Stage the file
-            self.repo.log(f"Staging file: {file_path}")
             self.repo.repo.git.add(file_path)
             
-            self.repo.log(f"File {file_path} staged successfully")
             return {"status": "success", "message": f"File {file_path} staged successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error staging file {file_path}: {e}"}
-            self.repo.log(f"stage_file returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, FileOperationError)):
+                raise
+            raise GitError(f"Error staging file {file_path}: {e}")
     
     def unstage_file(self, file_path):
         """Unstage a specific file in the repository"""
-        self.repo.log(f"unstage_file called for {file_path}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"unstage_file returning error: {error_msg}")
-            return error_msg
-            
         try:
+            self._ensure_repo()
+            
             # Check if file is staged
             staged_files = [item.a_path for item in self.repo.repo.index.diff("HEAD")]
             if file_path not in staged_files:
-                error_msg = {"error": f"File {file_path} is not staged"}
-                self.repo.log(f"unstage_file returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"File {file_path} is not staged")
                 
             # Unstage the file (restore index)
-            self.repo.log(f"Unstaging file: {file_path}")
             self.repo.repo.git.restore('--staged', file_path)
             
-            self.repo.log(f"File {file_path} unstaged successfully")
             return {"status": "success", "message": f"File {file_path} unstaged successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error unstaging file {file_path}: {e}"}
-            self.repo.log(f"unstage_file returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error unstaging file {file_path}: {e}")
             
     def discard_changes(self, file_path):
         """Discard changes to a specific file in the repository by checking it out from HEAD"""
-        self.repo.log(f"discard_changes called for {file_path}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"discard_changes returning error: {error_msg}")
-            return error_msg
-            
         try:
+            self._ensure_repo()
+            
             # Check if file is modified
             modified_files = [item.a_path for item in self.repo.repo.index.diff(None)]
             if file_path not in modified_files:
-                error_msg = {"error": f"File {file_path} has no changes to discard"}
-                self.repo.log(f"discard_changes returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"File {file_path} has no changes to discard")
                 
             # Discard the changes by checking out from HEAD or index
-            self.repo.log(f"Discarding changes to file: {file_path}")
             # This will restore the file to its state in the index (if it's there) or HEAD
             self.repo.repo.git.restore(file_path)
             
-            self.repo.log(f"Changes to file {file_path} discarded successfully")
             return {"status": "success", "message": f"Changes to file {file_path} discarded successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error discarding changes to file {file_path}: {e}"}
-            self.repo.log(f"discard_changes returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error discarding changes to file {file_path}: {e}")
             
     def commit_file(self, file_path, commit_message):
         """Commit a specific file to the repository"""
-        self.repo.log(f"commit_file called for {file_path} with message: {commit_message}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"commit_file returning error: {error_msg}")
-            return error_msg
-            
         try:
+            self._ensure_repo()
+            
             # Construct the full path
             full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
             
             # Check if file exists
             if not os.path.exists(full_path):
-                error_msg = {"error": f"File {file_path} does not exist"}
-                self.repo.log(f"commit_file returning error: {error_msg}")
-                return error_msg
+                raise FileOperationError(f"File {file_path} does not exist")
                 
             # Stage the file
-            self.repo.log(f"Staging file: {file_path}")
             self.repo.repo.git.add(file_path)
             
             # Commit the staged changes
-            self.repo.log(f"Committing file with message: {commit_message}")
             commit_result = self.repo.repo.git.commit('-m', commit_message)
             
-            self.repo.log(f"File {file_path} committed successfully: {commit_result}")
             return {"status": "success", "message": f"File {file_path} committed successfully", "details": commit_result}
             
         except Exception as e:
-            error_msg = {"error": f"Error committing file {file_path}: {e}"}
-            self.repo.log(f"commit_file returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, FileOperationError)):
+                raise
+            raise GitError(f"Error committing file {file_path}: {e}")
 
     def commit_staged_changes(self, message="Rebase commit"):
         """Commit all staged changes"""
-        self.repo.log(f"commit_staged_changes called with message: {message}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"commit_staged_changes returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Set up environment to prevent interactive editors
             env = os.environ.copy()
             env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
@@ -263,28 +201,20 @@ class GitBasicOperations:
             ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
-                self.repo.log("Staged changes committed successfully")
                 return {"success": True, "message": "Staged changes committed successfully"}
             else:
-                error_msg = {"error": f"Failed to commit staged changes: {result.stderr}"}
-                self.repo.log(f"commit_staged_changes returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"Failed to commit staged changes: {result.stderr}")
                 
         except Exception as e:
-            error_msg = {"error": f"Error committing staged changes: {e}"}
-            self.repo.log(f"commit_staged_changes returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error committing staged changes: {e}")
 
     def commit_amend(self):
         """Amend the previous commit with staged changes"""
-        self.repo.log("commit_amend called")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"commit_amend returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Set up environment to prevent interactive editors
             env = os.environ.copy()
             env['GIT_EDITOR'] = 'true'  # Use 'true' command which does nothing
@@ -296,28 +226,20 @@ class GitBasicOperations:
             ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, env=env)
             
             if result.returncode == 0:
-                self.repo.log("Commit amended successfully")
                 return {"success": True, "message": "Commit amended successfully"}
             else:
-                error_msg = {"error": f"Failed to amend commit: {result.stderr}"}
-                self.repo.log(f"commit_amend returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"Failed to amend commit: {result.stderr}")
                 
         except Exception as e:
-            error_msg = {"error": f"Error amending commit: {e}"}
-            self.repo.log(f"commit_amend returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error amending commit: {e}")
 
     def get_raw_git_status(self):
         """Get the raw git status output as it appears in the terminal"""
-        self.repo.log("get_raw_git_status called")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"get_raw_git_status returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Run git status command to get the raw output
             result = subprocess.run([
                 'git', 'status'
@@ -325,14 +247,11 @@ class GitBasicOperations:
             
             if result.returncode == 0:
                 raw_status = result.stdout.strip()
-                self.repo.log(f"Raw git status output length: {len(raw_status)}")
                 return {"success": True, "raw_status": raw_status}
             else:
-                error_msg = {"error": f"Git status command failed: {result.stderr}"}
-                self.repo.log(f"get_raw_git_status returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"Git status command failed: {result.stderr}")
                 
         except Exception as e:
-            error_msg = {"error": f"Error getting raw git status: {e}"}
-            self.repo.log(f"get_raw_git_status returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error getting raw git status: {e}")

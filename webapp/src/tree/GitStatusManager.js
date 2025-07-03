@@ -8,27 +8,14 @@ export class GitStatusManager {
 
   loadGitStatus(statusResponse) {
     try {
-      console.log('Processing git status data');
-      console.log('Raw status response:', statusResponse);
-      
       let status = this.extractStatusFromResponse(statusResponse);
       
-      console.log('Processed status:', status);
       this.gitStatus = status;
       
       // Extract file arrays for easier access
       this.modifiedFiles = status.modified_files || [];
       this.stagedFiles = status.staged_files || [];
       this.untrackedFiles = status.untracked_files || [];
-      
-      console.log('Git status loaded:', {
-        branch: status.branch,
-        isDirty: status.is_dirty,
-        modified: this.modifiedFiles.length,
-        staged: this.stagedFiles.length,
-        untracked: this.untrackedFiles.length,
-        raw: status
-      });
       
       return true;
     } catch (error) {

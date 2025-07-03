@@ -189,6 +189,55 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
       event.preventDefault();
       this.navigateForward();
     }
+    
+    // Alt+Up Arrow to switch to previous track
+    if (event.altKey && event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.switchToPreviousTrack();
+    }
+    
+    // Alt+Down Arrow to switch to next track
+    if (event.altKey && event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.switchToNextTrack();
+    }
+  }
+
+  switchToPreviousTrack() {
+    const previousTrackId = navigationHistory.switchToPreviousTrack();
+    console.log(`Switched to track ${previousTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.navigateToTrackPosition(track.current);
+    }
+  }
+
+  switchToNextTrack() {
+    const nextTrackId = navigationHistory.switchToNextTrack();
+    console.log(`Switched to track ${nextTrackId}`);
+    
+    // If there's a current file in the new track, navigate to it
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      this.navigateToTrackPosition(track.current);
+    }
+  }
+
+  navigateToTrackPosition(position) {
+    // Switch to file explorer mode if we're in git history mode
+    if (this.gitHistoryMode) {
+      this.gitHistoryMode = false;
+    }
+    
+    // Find diff editor and navigate to the position
+    this.updateComplete.then(() => {
+      const diffEditor = this.shadowRoot.querySelector('diff-editor');
+      if (diffEditor) {
+        diffEditor.loadFileContent(position.filePath, position.line, position.character);
+      }
+    });
   }
 
   navigateBack() {
@@ -236,8 +285,8 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     console.log(`Switched to ${this.gitHistoryMode ? 'Git History' : 'File Explorer'} mode`);
   }
 
-  handleRequestFindInFiles(event) {
-    const selectedText = event.detail.selectedText || '';
+  handleRequestFindInFiles(event) {    
+    const selectedText = event.detail?.selectedText || '';
     
     // Switch to find-in-files tab (tab index 1)
     this.activeTabIndex = 1;
@@ -246,13 +295,22 @@ export class MainWindow extends ResizeMixin(KeyboardShortcutsMixin(ConnectionMix
     this.updateComplete.then(() => {
       const sidebar = this.shadowRoot.querySelector('app-sidebar');
       if (sidebar) {
+        // Update the sidebar's active tab index
+        sidebar.activeTabIndex = this.activeTabIndex;
+        sidebar.requestUpdate();
+        
         // Give the sidebar time to switch tabs and render the find-in-files component
         setTimeout(() => {
-          const findInFiles = sidebar.shadowRoot?.querySelector('fin d-in-files');
-          if (findInFiles) {
+          const findInFiles = sidebar.shadowRoot?.querySelector('find-in-files');
+          if (findInFiles && typeof findInFiles.focusSearchInput === 'function') {
             findInFiles.focusSearchInput(selectedText);
+          } else {
+            console.warn('MainWindow: FindInFiles component not found or focusSearchInput method not available');
+            console.log('Available elements in sidebar:', sidebar.shadowRoot ? Array.from(sidebar.shadowRoot.querySelectorAll('*')).map(el => el.tagName) : 'No shadow root');
           }
         }, 100);
+      } else {
+        console.warn('MainWindow: Sidebar not found');
       }
     });
   }

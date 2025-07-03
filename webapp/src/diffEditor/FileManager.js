@@ -1,5 +1,6 @@
 import { navigationHistory } from './NavigationHistory.js';
 import { EventHelper } from '../utils/EventHelper.js';
+import { FileContentService } from '../services/FileContentService.js';
 
 export class FileManager {
   constructor(diffEditor) {
@@ -75,7 +76,11 @@ export class FileManager {
       
       // Load the new content from disk
       try {
-        const { headContent, workingContent } = await this.fileLoader.loadFileContent(filePath);
+        const workingContent = await FileContentService.loadFile(
+          this.diffEditor, 
+          filePath, 
+          'working'
+        );
         
         // Only reload if the content has actually changed
         if (currentContent !== workingContent) {
@@ -83,6 +88,12 @@ export class FileManager {
           
           // Store current cursor position
           const cursorPosition = this.diffEditor.navigationManager.getLastCursorPosition();
+          
+          // Load both versions
+          const { headContent } = await FileContentService.loadFileVersions(
+            this.diffEditor, 
+            filePath
+          );
           
           // Update the content
           this.diffEditor.headContent = headContent;

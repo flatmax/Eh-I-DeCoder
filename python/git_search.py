@@ -1,12 +1,21 @@
 import os
 import re
 import git
+try:
+    from .exceptions import GitError, GitRepositoryError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError
 
 class GitSearch:
     """Handles searching for content in repository files"""
     
     def __init__(self, repo_instance):
         self.repo = repo_instance
+    
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
     
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files
@@ -19,31 +28,24 @@ class GitSearch:
             ignore_case (bool): If True, perform case-insensitive search
             
         Returns:
-            dict: A dictionary with results or error information
+            list: A list of search results
         """
-        self.repo.log(f"search_files called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"search_files returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             # Use the optimized git grep implementation for faster searches
             return self._search_with_git_grep(query, word, regex, respect_gitignore, ignore_case)
         except git.exc.GitCommandError as e:
             # If git grep fails, fall back to the Python implementation
-            self.repo.log(f"Git grep failed with error: {e}. Falling back to Python implementation.")
+            self.repo.log(f"Git grep failed: {e}. Using Python implementation.")
             return self._search_with_python(query, word, regex, respect_gitignore, ignore_case)
         except Exception as e:
-            error_msg = {"error": f"Error during search: {e}"}
-            self.repo.log(f"search_files returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error during search: {e}")
     
     def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files using Git's built-in grep command"""
-        self.repo.log(f"_search_with_git_grep called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
-        
         # Build git grep arguments
         git_args = ["-n"]  # -n to show line numbers
         
@@ -106,22 +108,17 @@ class GitSearch:
                         self.repo.log(f"Warning: Could not parse line number from git grep output: {line}")
             
             # Convert dict to list for final results
-            final_results = list(consolidated_results.values())
-            self.repo.log(f"_search_with_git_grep found {len(final_results)} files with matches")
-            return final_results
+            return list(consolidated_results.values())
             
         except git.exc.GitCommandError as e:
             # git grep returns exit code 1 if no matches found
             if e.status == 1:
-                self.repo.log("_search_with_git_grep: No matches found")
                 return []
             # For other errors, re-raise to fall back to Python implementation
             raise
     
     def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Fallback search implementation using Python when git grep fails"""
-        self.repo.log(f"_search_with_python called with query: '{query}', word: {word}, regex: {regex}, respect_gitignore: {respect_gitignore}, ignore_case: {ignore_case}")
-        
         try:
             results = []
             repo_root = self.repo.repo.working_tree_dir
@@ -135,7 +132,7 @@ class GitSearch:
                     else:
                         pattern = re.compile(query, re.IGNORECASE if ignore_case else 0)
                 except re.error as e:
-                    return {"error": f"Invalid regular expression: {e}"}
+                    raise ValueError(f"Invalid regular expression: {e}")
             else:
                 if word:
                     # For word-only search, prepare for whole word matching
@@ -163,7 +160,6 @@ class GitSearch:
                             # Use git's check-ignore command to see if file is ignored
                             self.repo.repo.git.check_ignore(rel_path)
                             # If we reach here, the file is ignored (command succeeded)
-                            self.repo.log(f"Skipping ignored file: {rel_path}")
                             continue
                         except git.exc.GitCommandError:
                             # File is not ignored (command failed)
@@ -174,6 +170,9 @@ class GitSearch:
                             lines = f.readlines()
                     except UnicodeDecodeError:
                         # Skip binary files that couldn't be decoded as utf-8
+                        continue
+                    except Exception:
+                        # Skip files we can't read
                         continue
                     
                     file_matches = []
@@ -207,10 +206,9 @@ class GitSearch:
                             "matches": file_matches
                         })
             
-            self.repo.log(f"_search_with_python found {len(results)} files with matches")
             return results
             
         except Exception as e:
-            error_msg = {"error": f"Error during Python search: {e}"}
-            self.repo.log(f"_search_with_python returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, ValueError):
+                raise GitError(str(e))
+            raise GitError(f"Error during Python search: {e}")

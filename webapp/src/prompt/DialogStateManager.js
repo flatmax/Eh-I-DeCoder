@@ -15,27 +15,20 @@ export class DialogStateManager {
     
     // Add document click listener
     document.addEventListener('click', this.handleDocumentClick, true);
-    
-    console.log('DialogStateManager initialized');
   }
   
   cleanup() {
     document.removeEventListener('click', this.handleDocumentClick, true);
     
-    console.log('DialogStateManager cleaned up');
   }
   
   handleHeaderClick(event) {
-    console.log('Header clicked, isDragging:', this.promptView.isDragging, '_wasDragging:', this.promptView._wasDragging);
-    
     // Only toggle if we weren't dragging
     if (!this.promptView.isDragging && !this.promptView._wasDragging) {
       // Toggle between minimized and maximized when header is clicked
       if (this.promptView.isMinimized) {
-        console.log('Maximizing from header click');
         this.maximize();
       } else {
-        console.log('Minimizing from header click');
         this.minimize();
       }
       // Prevent other click handlers from firing
@@ -64,7 +57,6 @@ export class DialogStateManager {
     
     // Only maximize on document click if we're minimized and click is inside
     if (isInsideDialog && this.promptView.isMinimized) {
-      console.log('Maximizing from document click inside dialog');
       this.maximize();
     }
   }
@@ -78,7 +70,6 @@ export class DialogStateManager {
     // Only maximize when dialog content (not header) is clicked and we're minimized
     const isHeaderClick = event.target.closest('.dialog-header');
     if (!isHeaderClick && this.promptView.isMinimized) {
-      console.log('Maximizing from dialog content click');
       this.maximize();
       // Stop propagation to prevent document click handler from running
       event.stopPropagation();
@@ -144,30 +135,25 @@ export class DialogStateManager {
       this.promptView.classList.add('dragging');
     }
     
-    console.log('Dialog classes updated:', this.promptView.className, 'isMinimized:', this.promptView.isMinimized);
   }
   
   maximize() {
-    console.log('maximize() called, current isMinimized:', this.promptView.isMinimized);
     if (this.promptView.isMinimized) {
       this.promptView.isMinimized = false;
       
       this.updateDialogClass();
       this.promptView.requestUpdate();
       
-      console.log('Dialog maximized, new isMinimized:', this.promptView.isMinimized);
     }
   }
   
   minimize() {
-    console.log('minimize() called, current isMinimized:', this.promptView.isMinimized);
     if (!this.promptView.isMinimized) {
       this.promptView.isMinimized = true;
       
       this.updateDialogClass();
       this.promptView.requestUpdate();
       
-      console.log('Dialog minimized, new isMinimized:', this.promptView.isMinimized);
     }
   }
 }

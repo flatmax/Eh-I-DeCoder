@@ -1,5 +1,9 @@
 import os
 import subprocess
+try:
+    from .exceptions import GitError, GitRepositoryError
+except ImportError:
+    from exceptions import GitError, GitRepositoryError
 
 class GitEditorOperations:
     """Handles Git editor operations and status detection"""
@@ -7,8 +11,15 @@ class GitEditorOperations:
     def __init__(self, repo_instance):
         self.repo = repo_instance
     
+    def _ensure_repo(self):
+        """Ensure repository is available, raise exception if not"""
+        if not self.repo.repo:
+            raise GitRepositoryError("No Git repository available")
+    
     def _is_git_operation_active(self):
         """Check if there's an active Git operation that would be waiting for editor input"""
+        self._ensure_repo()
+        
         git_dir = self.repo.repo.git_dir
         
         # Check for active rebase
@@ -44,20 +55,14 @@ class GitEditorOperations:
 
     def get_git_editor_status(self):
         """Get comprehensive Git editor status - detects what Git is waiting for"""
-        self.repo.log("get_git_editor_status called")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"get_git_editor_status returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             git_dir = self.repo.repo.git_dir
             working_dir = self.repo.repo.working_tree_dir
             
             # First check if there's actually an active Git operation
             if not self._is_git_operation_active():
-                self.repo.log("No active Git operation detected - ignoring editor files")
                 return {
                     'waiting_for_editor': False,
                     'primary_file': None,
@@ -112,8 +117,6 @@ class GitEditorOperations:
                             'description': 'Commit Message',
                             'instructions': 'Edit the commit message. Lines starting with # are comments and will be ignored.'
                         })
-                    else:
-                        self.repo.log("COMMIT_EDITMSG exists but no staged changes or active commit state - ignoring")
                         
                 except Exception as e:
                     self.repo.log(f"Error checking staged changes: {e}")
@@ -202,24 +205,18 @@ class GitEditorOperations:
                     'count': 0
                 }
             
-            self.repo.log(f"get_git_editor_status returning: waiting={result['waiting_for_editor']}, count={result['count']}")
             return result
             
         except Exception as e:
-            error_msg = {"error": f"Error getting Git editor status: {e}"}
-            self.repo.log(f"get_git_editor_status returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting Git editor status: {e}")
 
     def save_git_editor_file(self, file_type, content):
         """Save content to the appropriate Git editor file"""
-        self.repo.log(f"save_git_editor_file called for type: {file_type}")
-        
-        if not self.repo.repo:
-            error_msg = {"error": "No Git repository available"}
-            self.repo.log(f"save_git_editor_file returning error: {error_msg}")
-            return error_msg
-        
         try:
+            self._ensure_repo()
+            
             git_dir = self.repo.repo.git_dir
             
             # Map file types to actual file paths
@@ -233,23 +230,17 @@ class GitEditorOperations:
             }
             
             if file_type not in file_map:
-                error_msg = {"error": f"Unknown file type: {file_type}"}
-                self.repo.log(f"save_git_editor_file returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"Unknown file type: {file_type}")
             
             file_path = file_map[file_type]
             
             # Check if the file exists (should exist if Git is waiting for it)
             if not os.path.exists(file_path):
-                error_msg = {"error": f"Git editor file not found: {file_path}"}
-                self.repo.log(f"save_git_editor_file returning error: {error_msg}")
-                return error_msg
+                raise GitError(f"Git editor file not found: {file_path}")
             
             # Save the content
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
-            self.repo.log(f"Git editor file saved successfully: {file_path}")
             
             # For rebase todo, continue the rebase automatically
             if file_type == 'rebase_todo':
@@ -258,15 +249,13 @@ class GitEditorOperations:
             return {"success": True, "message": f"Git editor file saved successfully"}
             
         except Exception as e:
-            error_msg = {"error": f"Error saving Git editor file: {e}"}
-            self.repo.log(f"save_git_editor_file returning error: {error_msg}")
-            return error_msg
+            if isinstance(e, (GitRepositoryError, GitError)):
+                raise
+            raise GitError(f"Error saving Git editor file: {e}")
 
     def _continue_after_rebase_todo_save(self):
         """Continue rebase after saving todo file"""
         try:
-            self.repo.log("Attempting to continue rebase after saving todo file")
-            
             # Set up environment to prevent interactive editors
             env = os.environ.copy()
             env['GIT_EDITOR'] = 'true'
@@ -279,17 +268,11 @@ class GitEditorOperations:
             ], cwd=self.repo.repo.working_tree_dir, capture_output=True, text=True, 
               input='', timeout=30, env=env)
             
-            self.repo.log(f"Git rebase --continue result: returncode={result.returncode}")
-            self.repo.log(f"Git rebase --continue stdout: {result.stdout}")
-            self.repo.log(f"Git rebase --continue stderr: {result.stderr}")
-            
-            if result.returncode == 0:
-                self.repo.log("Rebase continued automatically after saving todo file")
-            else:
+            if result.returncode != 0:
                 self.repo.log(f"Rebase continue returned non-zero: {result.stderr}")
                 
         except subprocess.TimeoutExpired:
-            self.repo.log("Rebase continue timed out - this may be normal")
+            pass  # This may be normal
         except Exception as e:
             self.repo.log(f"Error continuing rebase after todo save: {e}")
         

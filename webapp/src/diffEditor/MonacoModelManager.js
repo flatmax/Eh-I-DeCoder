@@ -18,35 +18,56 @@ export class MonacoModelManager {
    * Check if content has changed and models need updating
    */
   hasContentChanged(originalContent, modifiedContent, filePath, language) {
-    return originalContent !== this.lastContent.original || 
-           modifiedContent !== this.lastContent.modified ||
-           filePath !== this.lastContent.filePath ||
-           language !== this.lastContent.language;
+    const normalizedOriginal = originalContent || '';
+    const normalizedModified = modifiedContent || '';
+    const normalizedLastOriginal = this.lastContent.original || '';
+    const normalizedLastModified = this.lastContent.modified || '';
+    
+    const hasChanged = normalizedOriginal !== normalizedLastOriginal || 
+                      normalizedModified !== normalizedLastModified ||
+                      filePath !== this.lastContent.filePath ||
+                      language !== this.lastContent.language;
+    
+    return hasChanged;
   }
 
   /**
-   * Update models with new content
+   * Update models with new content - simplified approach
    */
   updateModels(originalContent, modifiedContent, filePath, language) {
     if (!this.hasContentChanged(originalContent, modifiedContent, filePath, language)) {
       return this.currentModels;
     }
 
-    console.log(`MonacoModelManager: Updating models for file: ${filePath}`);
+    // Always create new models when content changes
+    // This is simpler and more reliable than trying to update existing models
+    this.createNewModels(originalContent, modifiedContent, filePath, language);
 
-    // Clean up existing models
+    // Update cache
+    this.lastContent = {
+      original: originalContent || '',
+      modified: modifiedContent || '',
+      filePath: filePath,
+      language: language
+    };
+
+    return this.currentModels;
+  }
+
+  /**
+   * Create new models
+   */
+  createNewModels(originalContent, modifiedContent, filePath, language) {
+    // Clean up existing models first
     this.disposeCurrentModels();
 
     // Create new models
     const models = this.createModels(originalContent, modifiedContent, filePath, language);
-
-    // Update cache
-    this.lastContent = {
-      original: originalContent,
-      modified: modifiedContent,
-      filePath: filePath,
-      language: language
-    };
+    
+    if (!models) {
+      console.error('MonacoModelManager: Failed to create new models');
+      return null;
+    }
 
     return models;
   }
@@ -64,8 +85,6 @@ export class MonacoModelManager {
       const modifiedUri = lspUriUtils.createMonacoUri(filePath, false);
       const originalUri = lspUriUtils.createMonacoUri(filePath, true);
 
-      console.log(`MonacoModelManager: Creating models with URIs - Modified: ${modifiedUri.toString()}, Original: ${originalUri.toString()}`);
-
       // Dispose any existing models with these URIs
       this.disposeExistingModels(originalUri, modifiedUri);
 
@@ -73,13 +92,17 @@ export class MonacoModelManager {
       const originalModel = monaco.editor.createModel(original, lang, originalUri);
       const modifiedModel = monaco.editor.createModel(modified, lang, modifiedUri);
 
+      // Validate models were created successfully
+      if (!originalModel || !modifiedModel) {
+        throw new Error('Failed to create Monaco models');
+      }
+
       // Store references
       this.currentModels = {
         original: originalModel,
         modified: modifiedModel
       };
 
-      console.log(`MonacoModelManager: Successfully created models for ${filePath} (${lang})`);
       return this.currentModels;
 
     } catch (error) {
@@ -93,8 +116,6 @@ export class MonacoModelManager {
    * Create models with unique URIs as fallback
    */
   createModelsWithUniqueUris(original, modified, language) {
-    console.log('MonacoModelManager: Creating models with unique URIs as fallback');
-
     try {
       const uniqueModifiedUri = lspUriUtils.createUniqueUri('inmemory://model/', '-modified');
       const uniqueOriginalUri = lspUriUtils.createUniqueUri('inmemory://model/', '-original');
@@ -102,12 +123,16 @@ export class MonacoModelManager {
       const originalModel = monaco.editor.createModel(original, language, uniqueOriginalUri);
       const modifiedModel = monaco.editor.createModel(modified, language, uniqueModifiedUri);
 
+      // Validate models were created successfully
+      if (!originalModel || !modifiedModel) {
+        throw new Error('Failed to create Monaco models with unique URIs');
+      }
+
       this.currentModels = {
         original: originalModel,
         modified: modifiedModel
       };
 
-      console.log('MonacoModelManager: Successfully created models with unique URIs');
       return this.currentModels;
 
     } catch (error) {
@@ -121,9 +146,10 @@ export class MonacoModelManager {
    */
   disposeCurrentModels() {
     if (this.currentModels.original) {
-      console.log(`MonacoModelManager: Disposing current original model: ${this.currentModels.original.uri.toString()}`);
       try {
-        this.currentModels.original.dispose();
+        if (!this.currentModels.original.isDisposed()) {
+          this.currentModels.original.dispose();
+        }
       } catch (error) {
         console.warn('MonacoModelManager: Error disposing original model:', error);
       }
@@ -131,9 +157,10 @@ export class MonacoModelManager {
     }
 
     if (this.currentModels.modified) {
-      console.log(`MonacoModelManager: Disposing current modified model: ${this.currentModels.modified.uri.toString()}`);
       try {
-        this.currentModels.modified.dispose();
+        if (!this.currentModels.modified.isDisposed()) {
+          this.currentModels.modified.dispose();
+        }
       } catch (error) {
         console.warn('MonacoModelManager: Error disposing modified model:', error);
       }
@@ -147,14 +174,12 @@ export class MonacoModelManager {
   disposeExistingModels(originalUri, modifiedUri) {
     try {
       const existingOriginal = monaco.editor.getModel(originalUri);
-      if (existingOriginal) {
-        console.log(`MonacoModelManager: Disposing existing original model with URI: ${originalUri.toString()}`);
+      if (existingOriginal && !existingOriginal.isDisposed()) {
         existingOriginal.dispose();
       }
 
       const existingModified = monaco.editor.getModel(modifiedUri);
-      if (existingModified) {
-        console.log(`MonacoModelManager: Disposing existing modified model with URI: ${modifiedUri.toString()}`);
+      if (existingModified && !existingModified.isDisposed()) {
         existingModified.dispose();
       }
     } catch (error) {
@@ -167,6 +192,13 @@ export class MonacoModelManager {
    */
   getCurrentModels() {
     return this.currentModels;
+  }
+
+  /**
+   * Check if models are currently available
+   */
+  hasModels() {
+    return this.currentModels.original !== null && this.currentModels.modified !== null;
   }
 
   /**

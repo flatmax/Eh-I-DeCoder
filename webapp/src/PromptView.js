@@ -16,6 +16,7 @@ import { ScrollManager } from './prompt/ScrollManager.js';
 import { EventHandler } from './prompt/EventHandler.js';
 import { promptViewStyles } from './prompt/PromptViewStyles.js';
 import { renderPromptView } from './prompt/PromptViewTemplate.js';
+import { EventHelper } from './utils/EventHelper.js';
 
 export class PromptView extends MessageHandler {
   static properties = {
@@ -81,8 +82,8 @@ export class PromptView extends MessageHandler {
     this.dialogStateManager.initialize();
     this.scrollManager.initialize();
     
-    // Listen for word-clicked events from MergeEditor
-    document.addEventListener('word-clicked', this.handleWordClicked);
+    // Listen for word-clicked events from file trees on window object
+    window.addEventListener('word-clicked', this.handleWordClicked);
     
     // Force initial state update
     this.updateComplete.then(() => {
@@ -97,11 +98,11 @@ export class PromptView extends MessageHandler {
     this.scrollManager.cleanup();
     
     // Remove event listener
-    document.removeEventListener('word-clicked', this.handleWordClicked);
+    window.removeEventListener('word-clicked', this.handleWordClicked);
   }
 
   /**
-   * Handle word-clicked events from MergeEditor
+   * Handle word-clicked events from file trees
    * @param {CustomEvent} event - The word-clicked event
    */
   handleWordClicked(event) {
@@ -171,10 +172,7 @@ export class PromptView extends MessageHandler {
 
   handleModeToggle(event) {
     event.stopPropagation(); // Prevent header click from triggering
-    this.dispatchEvent(new CustomEvent('mode-toggle', {
-      bubbles: true,
-      composed: true
-    }));
+    EventHelper.dispatchModeToggle(this);
   }
 
   handleTabClick(event, tabName) {

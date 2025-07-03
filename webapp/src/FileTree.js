@@ -7,6 +7,7 @@ import {FileTreeRenderer} from './tree/FileTreeRenderer.js';
 import {fileTreeStyles} from './tree/FileTreeStyles.js';
 import {extractResponseData} from './Utils.js';
 import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
+import {EventHelper} from './utils/EventHelper.js';
 
 export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   static properties = {
@@ -406,12 +407,8 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
       
-      // Emit word-clicked event with the filename
-      document.dispatchEvent(new CustomEvent('word-clicked', {
-        detail: { word: path },
-        bubbles: true,
-        composed: true
-      }));
+      // Emit word-clicked event with the filename using EventHelper
+      EventHelper.dispatchWindowEvent('word-clicked', { word: path });
       
       return;
     }

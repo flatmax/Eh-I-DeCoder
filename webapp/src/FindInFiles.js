@@ -3,6 +3,7 @@ import { JRPCClient } from '@flatmax/jrpc-oo';
 import { SearchForm } from './search/SearchForm.js';
 import { SearchResults } from './search/SearchResults.js';
 import { SearchState } from './search/SearchState.js';
+import { EventHelper } from './utils/EventHelper.js';
 
 // Import Material Design Web Components
 import '@material/web/progress/circular-progress.js';
@@ -40,6 +41,19 @@ export class FindInFiles extends JRPCClient {
       const searchForm = this.shadowRoot.querySelector('search-form');
       if (searchForm) {
         searchForm.focusInput(selectedText);
+        
+        // If selectedText is provided, automatically execute the search
+        if (selectedText && selectedText.trim()) {
+          // Small delay to ensure the input is focused and updated
+          setTimeout(() => {
+            this.handleSearch(selectedText.trim(), {
+              useWordMatch: this.searchState.useWordMatch,
+              useRegex: this.searchState.useRegex,
+              respectGitignore: this.searchState.respectGitignore,
+              caseSensitive: this.searchState.caseSensitive
+            });
+          }, 100);
+        }
       }
     });
   }
@@ -84,13 +98,8 @@ export class FindInFiles extends JRPCClient {
       }
     }
     
-    // Dispatch custom event to be handled by MainWindow
-    const event = new CustomEvent('open-file', {
-      bubbles: true,
-      composed: true,
-      detail: { filePath, lineNumber }
-    });
-    this.dispatchEvent(event);
+    // Use EventHelper for consistent event dispatching
+    EventHelper.dispatchOpenFile(this, filePath, lineNumber);
   }
   
   updateStateFromSearchState() {

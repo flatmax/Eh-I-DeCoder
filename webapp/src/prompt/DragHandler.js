@@ -41,8 +41,6 @@ export class DragHandler {
     document.addEventListener('mouseup', this._boundDragEndHandler);
     document.addEventListener('mousemove', this._boundResizeHandler);
     document.addEventListener('mouseup', this._boundResizeEndHandler);
-    
-    console.log('DragHandler initialized');
   }
   
   cleanup() {
@@ -50,8 +48,6 @@ export class DragHandler {
     document.removeEventListener('mouseup', this._boundDragEndHandler);
     document.removeEventListener('mousemove', this._boundResizeHandler);
     document.removeEventListener('mouseup', this._boundResizeEndHandler);
-    
-    console.log('DragHandler cleaned up');
   }
   
   handleDragStart(event) {
@@ -86,8 +82,6 @@ export class DragHandler {
     
     // Prevent default to avoid text selection
     event.preventDefault();
-    
-    console.log('Drag start initiated at:', this.promptView.position, 'with offset:', this.dragOffset);
   }
   
   handleResizeStart(event, resizeType) {
@@ -113,8 +107,6 @@ export class DragHandler {
     // Prevent default to avoid text selection
     event.preventDefault();
     event.stopPropagation(); // Prevent drag from starting
-    
-    console.log('Resize start:', resizeType, this.initialWidth);
   }
   
   handleDrag(event) {
@@ -199,8 +191,6 @@ export class DragHandler {
     
     // Prevent default behavior
     event.preventDefault();
-    
-    console.log('Resizing to width:', newWidth);
   }
   
   handleDragEnd(event) {
@@ -214,10 +204,8 @@ export class DragHandler {
     
     // If it was a small movement and quick, treat it as a click, not a drag
     if (totalDelta < this.dragThreshold && timeDelta < 200) {
-      console.log('Drag end: treating as click (small movement/quick)');
       this.promptView._wasDragging = false;
     } else {
-      console.log('Drag end: was actual drag');
       this.promptView._wasDragging = true;
     }
     
@@ -230,8 +218,6 @@ export class DragHandler {
     // Remove dragging class and ensure correct class is applied
     this.promptView.classList.remove('dragging');
     this.promptView.dialogStateManager.updateDialogClass();
-    
-    console.log('Drag ended at:', this.promptView.position?.x, this.promptView.position?.y, 'wasDragging:', this.promptView._wasDragging);
   }
   
   handleResizeEnd(event) {
@@ -246,7 +232,5 @@ export class DragHandler {
     
     // Remove resizing class
     this.promptView.classList.remove('resizing');
-    
-    console.log('Resize ended at width:', this.promptView.dialogWidth);
   }
 }

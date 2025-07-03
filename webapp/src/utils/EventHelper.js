@@ -199,12 +199,16 @@ export class EventHelper {
    * @param {string} currentFile - Current file path
    * @param {boolean} canGoBack - Can navigate back
    * @param {boolean} canGoForward - Can navigate forward
+   * @param {number} currentTrackId - Current track ID
+   * @param {number} trackCount - Total number of tracks
    */
-  static dispatchNavigationHistoryUpdate(currentFile, canGoBack, canGoForward) {
+  static dispatchNavigationHistoryUpdate(currentFile, canGoBack, canGoForward, currentTrackId = 0, trackCount = 1) {
     this.dispatchWindowEvent('navigation-history-updated', {
       currentFile,
       canGoBack,
-      canGoForward
+      canGoForward,
+      currentTrackId,
+      trackCount
     });
   }
 
@@ -215,5 +219,16 @@ export class EventHelper {
   static dispatchFileLoadedInEditor(filePath) {
     const event = this.createEvent('file-loaded-in-editor', { filePath });
     document.dispatchEvent(event);
+  }
+
+  /**
+   * Dispatch word clicked event (for copying text to PromptView)
+   * @param {HTMLElement} component - Component to dispatch from
+   * @param {string} word - Word or text that was clicked
+   */
+  static dispatchWordClicked(component, word) {
+    const event = this.createEvent('word-clicked', { word });
+    document.dispatchEvent(event);
+    return true;
   }
 }

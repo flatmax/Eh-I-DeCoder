@@ -59,5 +59,37 @@ export class EditorEventHandlers {
         EventHelper.dispatchNavigation(this.editorComponent, 'forward');
       }
     });
+
+    // Add switch to previous track action (Alt+Up)
+    modifiedEditor.addAction({
+      id: 'navigation-track-previous',
+      label: 'Switch to Previous Track',
+      keybindings: [
+        monaco.KeyMod.Alt | monaco.KeyCode.UpArrow
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.9,
+      run: () => {
+        EventHelper.dispatch(this.editorComponent, 'navigation-track-previous');
+      }
+    });
+
+    // Add switch to next track action (Alt+Down)
+    modifiedEditor.addAction({
+      id: 'navigation-track-next',
+      label: 'Switch to Next Track',
+      keybindings: [
+        monaco.KeyMod.Alt | monaco.KeyCode.DownArrow
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2.0,
+      run: () => {
+        EventHelper.dispatch(this.editorComponent, 'navigation-track-next');
+      }
+    });
   }
 }

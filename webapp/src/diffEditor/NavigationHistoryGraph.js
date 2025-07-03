@@ -5,12 +5,16 @@ import { EventHelper } from '../utils/EventHelper.js';
 
 export class NavigationHistoryGraph extends LitElement {
   static properties = {
-    currentFile: { type: String }
+    currentFile: { type: String },
+    currentTrackId: { type: Number },
+    trackCount: { type: Number }
   };
 
   constructor() {
     super();
     this.currentFile = null;
+    this.currentTrackId = 0;
+    this.trackCount = 1;
     this.svg = null;
     this.colorScale = null;
     this.lastHistoryState = null;
@@ -48,7 +52,7 @@ export class NavigationHistoryGraph extends LitElement {
       border-radius: 3px;
     }
 
-    .graph-container::-webkit-scrollbar-thumb:hover {
+    .graph-container::-webkit-scroll-thumb:hover {
       background: #4f4f4f;
     }
 
@@ -100,6 +104,41 @@ export class NavigationHistoryGraph extends LitElement {
       text-anchor: middle;
     }
 
+    .track-indicator {
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .track-indicator:hover {
+      filter: brightness(1.5);
+    }
+
+    .track-indicator.current {
+      fill: #007acc;
+    }
+
+    .track-indicator.inactive {
+      fill: #666;
+    }
+
+    .track-indicator.empty {
+      fill: #3e3e42;
+      stroke: #666;
+      stroke-width: 1px;
+    }
+
+    .track-label {
+      font-size: 11px;
+      fill: #969696;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    .track-label.current {
+      fill: #007acc;
+      font-weight: bold;
+    }
+
     .tooltip {
       position: absolute;
       padding: 6px 8px;
@@ -128,6 +167,12 @@ export class NavigationHistoryGraph extends LitElement {
     .tooltip .position {
       font-size: 10px;
       color: #969696;
+    }
+
+    .tooltip .track-info {
+      font-size: 10px;
+      color: #969696;
+      margin-top: 3px;
     }
   `;
 
@@ -172,56 +217,92 @@ export class NavigationHistoryGraph extends LitElement {
   handleNavigationUpdate(event) {
     // Update graph when navigation history changes
     this.currentFile = event.detail?.currentFile;
+    this.currentTrackId = event.detail?.currentTrackId || 0;
+    this.trackCount = event.detail?.trackCount || 1;
     this.updateGraph();
   }
 
   updateGraph() {
     if (!this.svg) return;
 
-    const historyArray = navigationHistory.toArray();
-    if (historyArray.length === 0) {
+    const allTracks = navigationHistory.getAllTracks();
+    if (allTracks.length === 0) {
       // Clear the graph when there's no history
       this.svg.selectAll('*').remove();
       return;
     }
 
     // Check if history has actually changed
-    const historyState = JSON.stringify(historyArray);
+    const historyState = JSON.stringify(allTracks);
     if (historyState === this.lastHistoryState) return;
     this.lastHistoryState = historyState;
 
     const container = this.shadowRoot.querySelector('.graph-container');
     const containerWidth = container.clientWidth;
-    const nodeRadius = 5;
-    const nodeSpacing = 50;
-    const labelOffset = 14;
+    const nodeRadius = 4;
+    const nodeSpacing = 40;
+    const trackIndicatorSize = 8;
+    const trackIndicatorSpacing = 20;
+    const labelOffset = 12;
     const margin = { top: 20, right: 15, bottom: 20, left: 15 };
     
-    // Calculate available height accounting for scrollbar
+    // Calculate dimensions
     const scrollbarHeight = 6;
     const containerHeight = container.clientHeight || 60;
-    const height = containerHeight - scrollbarHeight;
-
-    // Calculate required width
-    const requiredWidth = Math.max(containerWidth, (historyArray.length * nodeSpacing) + margin.left + margin.right);
+    
+    // Only show current track nodes
+    const currentTrack = allTracks.find(t => t.isCurrentTrack);
+    if (!currentTrack) return;
+    
+    const nodes = currentTrack.nodes;
+    const requiredWidth = Math.max(containerWidth, (nodes.length * nodeSpacing) + margin.left + margin.right + (allTracks.length * trackIndicatorSpacing) + 40);
+    const totalHeight = containerHeight - scrollbarHeight;
 
     // Update SVG dimensions
     this.svg
       .attr('width', requiredWidth)
-      .attr('height', height);
+      .attr('height', totalHeight);
 
     // Clear previous content
     this.svg.selectAll('*').remove();
 
-    // Create main group - center vertically
+    // Create main group
     const g = this.svg.append('g')
-      .attr('transform', `translate(${margin.left},${height / 2})`);
+      .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Prepare node data with positions
-    const nodes = historyArray.map((entry, i) => ({
+    // Draw track indicators on the left
+    const trackIndicatorY = totalHeight / 2 - margin.top;
+    
+    allTracks.forEach((track, index) => {
+      const indicatorX = index * trackIndicatorSpacing;
+      
+      // Track indicator circle
+      g.append('circle')
+        .attr('class', `track-indicator ${track.isCurrentTrack ? 'current' : 'inactive'} ${track.nodes.length === 0 ? 'empty' : ''}`)
+        .attr('cx', indicatorX)
+        .attr('cy', trackIndicatorY)
+        .attr('r', trackIndicatorSize)
+        .on('click', () => this.switchToTrack(track.trackId))
+        .on('mouseenter', (event) => this.showTrackTooltip(event, track))
+        .on('mouseleave', () => this.hideTooltip());
+      
+      // Track label
+      g.append('text')
+        .attr('class', `track-label ${track.isCurrentTrack ? 'current' : ''}`)
+        .attr('x', indicatorX)
+        .attr('y', trackIndicatorY + trackIndicatorSize + 10)
+        .text(`T${track.trackId}`);
+    });
+
+    // Offset for the main graph content
+    const graphOffset = (allTracks.length * trackIndicatorSpacing) + 30;
+
+    // Prepare node data with positions for current track only
+    const nodeData = nodes.map((entry, i) => ({
       ...entry,
-      x: i * nodeSpacing,
-      y: 0,
+      x: graphOffset + (i * nodeSpacing),
+      y: trackIndicatorY,
+      trackId: currentTrack.trackId,
       directory: this.getDirectory(entry.filePath),
       filename: this.getFilename(entry.filePath),
       labelAbove: i % 2 === 0  // Alternate label position
@@ -229,11 +310,11 @@ export class NavigationHistoryGraph extends LitElement {
 
     // Create links between consecutive nodes
     const links = [];
-    for (let i = 0; i < nodes.length - 1; i++) {
+    for (let i = 0; i < nodeData.length - 1; i++) {
       links.push({
-        source: nodes[i],
-        target: nodes[i + 1],
-        active: nodes[i].isCurrent || nodes[i + 1].isCurrent
+        source: nodeData[i],
+        target: nodeData[i + 1],
+        active: nodeData[i].isCurrent || nodeData[i + 1].isCurrent
       });
     }
 
@@ -249,7 +330,7 @@ export class NavigationHistoryGraph extends LitElement {
 
     // Draw nodes
     const nodeGroups = g.selectAll('.node-group')
-      .data(nodes)
+      .data(nodeData)
       .enter().append('g')
       .attr('class', 'node-group')
       .attr('transform', d => `translate(${d.x},${d.y})`);
@@ -262,7 +343,7 @@ export class NavigationHistoryGraph extends LitElement {
       .on('mouseenter', (event, d) => this.showTooltip(event, d))
       .on('mouseleave', () => this.hideTooltip());
 
-    // Add labels alternating above and below nodes
+    // Add labels
     nodeGroups.append('text')
       .attr('class', 'node-label')
       .attr('y', d => d.labelAbove ? -labelOffset : labelOffset + nodeRadius)
@@ -270,7 +351,7 @@ export class NavigationHistoryGraph extends LitElement {
       .text(d => d.filename);
 
     // Scroll to current node if needed
-    const currentNode = nodes.find(n => n.isCurrent);
+    const currentNode = nodeData.find(n => n.isCurrent);
     if (currentNode) {
       const scrollLeft = currentNode.x - (containerWidth / 2) + margin.left;
       container.scrollLeft = Math.max(0, scrollLeft);
@@ -286,9 +367,46 @@ export class NavigationHistoryGraph extends LitElement {
     return filePath.split('/').pop();
   }
 
+  switchToTrack(trackId) {
+    // Switch to the target track
+    while (navigationHistory.currentTrackId !== trackId) {
+      if (navigationHistory.currentTrackId < trackId) {
+        navigationHistory.switchToNextTrack();
+      } else {
+        navigationHistory.switchToPreviousTrack();
+      }
+    }
+    
+    // Navigate to current file in the track if it exists
+    const track = navigationHistory.getCurrentTrack();
+    if (track && track.current) {
+      EventHelper.dispatchNavigateToHistory(this, track.current.filePath, track.current.line, track.current.character);
+    }
+  }
+
   handleNodeClick(node) {
-    // Dispatch event to navigate to this file/position using EventHelper
+    // Navigate to the file/position
     EventHelper.dispatchNavigateToHistory(this, node.filePath, node.line, node.character);
+  }
+
+  showTrackTooltip(event, track) {
+    const tooltip = this.tooltip;
+    const rect = event.target.getBoundingClientRect();
+    const containerRect = this.shadowRoot.querySelector('.graph-container').getBoundingClientRect();
+    
+    const fileCount = track.nodes.length;
+    const currentFile = track.nodes.find(n => n.isCurrent)?.filePath || 'None';
+    
+    tooltip.html(`
+      <div class="track-info">Track ${track.trackId}${track.isCurrentTrack ? ' (current)' : ''}</div>
+      <div class="position">${fileCount} file${fileCount !== 1 ? 's' : ''}</div>
+      ${fileCount > 0 ? `<div class="file-path">Current: ${this.getFilename(currentFile)}</div>` : ''}
+    `);
+    
+    tooltip
+      .style('left', `${rect.left - containerRect.left + rect.width / 2}px`)
+      .style('top', `${rect.bottom - containerRect.top + 5}px`)
+      .classed('visible', true);
   }
 
   showTooltip(event, node) {

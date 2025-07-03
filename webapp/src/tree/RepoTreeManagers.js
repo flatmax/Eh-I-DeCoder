@@ -12,9 +12,7 @@ export class RepoTreeManagers {
 
   async fetchGitStatus() {
     try {
-      console.log('Calling Repo.get_status...');
       const statusResponse = await this.repoTree.call['Repo.get_status']();
-      console.log('Raw status response:', statusResponse);
       
       this.gitStatusManager.loadGitStatus(statusResponse);
       

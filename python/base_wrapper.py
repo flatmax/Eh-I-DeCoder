@@ -17,9 +17,8 @@ class BaseWrapper:
         self.main_loop = None
         try:
             self.main_loop = asyncio.get_running_loop()
-            Logger.info(f"Captured main event loop: {self.main_loop}")
         except RuntimeError:
-            Logger.info("No running event loop found during initialization")
+            pass
     
     def log(self, message):
         """Write a log message to the log file with timestamp (legacy method)"""
@@ -30,7 +29,6 @@ class BaseWrapper:
         try:
             # Use main_loop if available and not closed
             if self.main_loop and not self.main_loop.is_closed():
-                self.log("Using main_loop to schedule coroutine")
                 future = asyncio.run_coroutine_threadsafe(coro, self.main_loop)
                 return future
             else:
@@ -40,7 +38,6 @@ class BaseWrapper:
                 return asyncio.create_task(coro)
         except RuntimeError:
             # No event loop running, schedule it to run later
-            self.log("No event loop running, scheduling coroutine for later execution")
             try:
                 # Try to run in a new event loop in a thread
                 def run_in_thread():

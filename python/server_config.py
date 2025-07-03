@@ -207,24 +207,9 @@ Examples:
     
     def print_summary(self):
         """Print configuration summary"""
-        print("=== Server Configuration ===")
-        print(f"Repository root: {self.repo_root}")
-        print(f"Webapp directory: {self.webapp_dir}")
-        print()
-        print("=== Port Configuration ===")
-        print(f"Aider server: {self.actual_aider_port or self.aider_port}")
-        print(f"Webapp server: {self.actual_webapp_port or self.webapp_port}")
+        print(f"Starting servers on ports: Aider={self.actual_aider_port or self.aider_port}, Webapp={self.actual_webapp_port or self.webapp_port}", end="")
         if self.is_lsp_enabled():
-            lsp_port = self.actual_lsp_port or self.lsp_port or "auto-detect"
-            print(f"LSP server: {lsp_port}")
+            lsp_port = self.actual_lsp_port or self.lsp_port or "auto"
+            print(f", LSP={lsp_port}")
         else:
-            print("LSP server: disabled")
-        print()
-        print("=== Feature Configuration ===")
-        print(f"Open browser: {'no' if self.no_browser else 'yes'}")
-        print(f"LSP features: {'disabled' if self.no_lsp else 'enabled'}")
-        print()
-        if self.aider_args:
-            print("=== Aider Arguments ===")
-            print(" ".join(self.aider_args))
-            print()
+            print(" (LSP disabled)")

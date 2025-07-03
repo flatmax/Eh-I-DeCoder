@@ -10,9 +10,11 @@ import threading
 try:
     from .base_wrapper import BaseWrapper
     from .logger import Logger
+    from .exceptions import create_error_response
 except ImportError:
     from base_wrapper import BaseWrapper
     from logger import Logger
+    from exceptions import create_error_response
 
 # Enable tracemalloc for debugging
 tracemalloc.start()
@@ -112,8 +114,6 @@ class IOWrapper(BaseWrapper):
     
     def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
         """Intercept confirm_ask calls and send to webapp"""
-        self.log(f"confirm_ask_wrapper called with question: {question}")
-        
         question_id = (question, subject)
         if question_id in self.io.never_prompts:
             return False
@@ -135,7 +135,6 @@ class IOWrapper(BaseWrapper):
                     self.main_loop
                 )
                 response = future.result()  # No timeout - wait indefinitely
-                self.log(f"Received response from webapp: {response}")
                 if response == "d" and allow_never:
                     self.io.never_prompts.add(question_id)
                     hist = f"{question.strip()} {response}"
@@ -144,7 +143,6 @@ class IOWrapper(BaseWrapper):
 
                 return response
             else:
-                self.log("No main loop available, falling back to original method")
                 return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
                 
         except Exception as e:
@@ -153,7 +151,6 @@ class IOWrapper(BaseWrapper):
     
     async def _async_confirmation_request(self, confirmation_data):
         """Make the async RPC call to the webapp"""
-        self.log('Making RPC call to webapp')
         try:
             call_func = self.get_call()['MessageHandler.confirmation_request']
             response = await call_func(confirmation_data)  # No timeout - wait indefinitely
@@ -167,31 +164,18 @@ class IOWrapper(BaseWrapper):
             raise
 
     def assistant_output_wrapper(self, message, pretty=None):
-        # Log debug information
-        self.log(f"assistant_output_wrapper called with message type: {type(message)}")
-        self.log(f"message content (first 100 chars): {str(message)[:100]}")
-        
-        # Also print to console
-        print(f"IOWrapper: assistant_output_wrapper called with message type: {type(message)}")
-        print(f"IOWrapper: message content (first 100 chars): {str(message)[:100]}")
-        
         # Store the message for webapp
         self.last_response = message
         
         # Send to webapp if connected - fire and forget
-        self.log(f"Sending message to webapp")
         if self.is_connected:
             self._safe_create_task(self.send_to_webapp(message))
-        else:
-            self.log("No remote connections - skipping send_to_webapp")
         
         # Call original method to maintain console output
-        self.log(f"Calling original assistant_output method")
         return self.original_assistant_output(message, pretty)
     
     def get_mdstream_wrapper(self):
         """Intercept markdown stream creation for streaming responses"""
-        self.log(f"get_mdstream_wrapper called")
         mdstream = self.original_get_assistant_mdstream()
         
         # Store the original update method
@@ -199,25 +183,20 @@ class IOWrapper(BaseWrapper):
         
         # Replace with our wrapper
         def update_wrapper(content, final=False):
-            self.log(f"mdstream.update called with content (first 100 chars): {content[:100] if content else 'None'}, final: {final}")
-            
             # Send to webapp asynchronously - fire and forget
             self._safe_create_task(self.send_stream_update(content, final))
             
             # Call original method with error handling for Rich LiveError
-            self.log("Calling original mdstream.update")
             try:
                 return original_update(content, final)
             except Exception as e:
                 # Check if it's a Rich LiveError
                 if "Only one live display may be active at once" in str(e):
-                    self.log(f"Rich LiveError caught: {e}. Skipping original update to avoid conflict.")
                     # Don't call the original update to avoid the Rich conflict
                     # The webapp will handle the display instead
                     return None
                 else:
                     # Re-raise other exceptions
-                    self.log(f"Unexpected error in original mdstream.update: {e}")
                     raise
         
         mdstream.update = update_wrapper
@@ -226,8 +205,6 @@ class IOWrapper(BaseWrapper):
     # Command output wrapper methods
     def tool_output_wrapper(self, message='', **kwargs):
         """Intercept standard informational output"""
-        self.log(f"tool_output_wrapper called with message: {message}, kwargs: {kwargs}")
-        
         # Mark that we've seen command output
         self.has_command_output = True
         
@@ -239,8 +216,6 @@ class IOWrapper(BaseWrapper):
     
     def tool_error_wrapper(self, message='', **kwargs):
         """Intercept error messages"""
-        self.log(f"tool_error_wrapper called with message: {message}, kwargs: {kwargs}")
-        
         # Mark that we've seen command output
         self.has_command_output = True
         
@@ -252,8 +227,6 @@ class IOWrapper(BaseWrapper):
     
     def tool_warning_wrapper(self, message='', **kwargs):
         """Intercept warning messages"""
-        self.log(f"tool_warning_wrapper called with message: {message}, kwargs: {kwargs}")
-        
         # Mark that we've seen command output
         self.has_command_output = True
         
@@ -268,9 +241,6 @@ class IOWrapper(BaseWrapper):
         # Convert args to string message
         message = ' '.join(str(arg) for arg in args)
         
-        # Log debug information
-        self.log(f"print_wrapper called with message: {message}, kwargs: {kwargs}")
-        
         # Mark that we've seen command output
         self.has_command_output = True
         
@@ -282,69 +252,53 @@ class IOWrapper(BaseWrapper):
     
     def signal_command_complete(self):
         """Signal that command processing is complete"""
-        self.log("Signaling command completion to webapp")
-        if self.has_command_output:
-            # Reset the flag
-            self.has_command_output = False
-            # Send completion signal
-            self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
+        try:
+            if self.has_command_output:
+                # Reset the flag
+                self.has_command_output = False
+                # Send completion signal
+                self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
+        except Exception as e:
+            self.log(f"Error in signal_command_complete: {e}")
     
     async def send_to_webapp(self, message):
         """Send completed response to webapp - OPTIMIZED VERSION"""
-        self.log(f"send_to_webapp called with message length: {len(str(message))}")
-        print(f"IOWrapper: send_to_webapp called with message length: {len(str(message))}")
-        
         try:
             # Fire and forget - don't wait for response
-            self.log("About to call MessageHandler.streamWrite with role 'assistant'")
             self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](message, True, 'assistant'))
-            self.log("streamWrite call initiated with final=True and role='assistant'")
             
         except Exception as e:
             err_msg = f"Error sending to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}\n{e.__traceback__}")
-            print(err_msg)
             
             # Try to notify the webapp about the error - fire and forget
             try:
                 self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
-                self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
     
     async def send_stream_update(self, content, final):
         """Send streaming update to webapp - OPTIMIZED VERSION"""
-        current_time = time.time()
-        self.log(f"[TIME: {current_time:.6f}] send_stream_update called with content length: {len(content) if content else 0}, final: {final}")
-        
         if not self.is_connected:
-            self.log("No remote connections - skipping send_stream_update")
             return
             
         try:
-            self.log(f"[TIME: {current_time:.6f}] Calling MessageHandler.streamWrite with content, final param, and role 'assistant'")
             # Fire and forget - don't wait for response
             self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](content, final, 'assistant'))
-            self.log("streamWrite call initiated with role='assistant'")
             
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
-            print(err_msg)
             
             # Try to notify the webapp about the error - fire and forget
             try:
                 self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
-                self.log("Sent error notification to webapp")
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
                 
     async def send_to_webapp_command(self, msg_type, message):
         """Send command output to webapp using streamWrite with 'command' role"""
-        self.log(f"send_to_webapp_command called with type: {msg_type}, message: {message}")
-        
         if not self.is_connected:
-            self.log("No remote connections - skipping send_to_webapp_command")
             return
             
         try:
@@ -354,7 +308,6 @@ class IOWrapper(BaseWrapper):
             # Fire and forget - don't wait for response
             # Use streamWrite with 'command' role instead of displayCommandOutput
             self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](formatted_message, False, 'command'))
-            self.log("streamWrite call initiated with role='command'")
         except Exception as e:
             err_msg = f"Error sending command output to webapp (if you're exiting, ctl-c again please): {e}"
             self.log(f"{err_msg}\n{type(e)}")
