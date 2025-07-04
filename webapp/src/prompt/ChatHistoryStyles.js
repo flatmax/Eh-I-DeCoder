@@ -8,6 +8,7 @@ export class ChatHistoryStyles {
         flex-direction: column;
         height: 100%;
         width: 100%;
+        position: relative;
       }
 
       .chat-history-container {
@@ -79,6 +80,40 @@ export class ChatHistoryStyles {
         border-radius: 4px;
         font-size: 12px;
         font-family: monospace;
+      }
+
+      .scroll-to-bottom-fab {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        z-index: 10;
+      }
+
+      .scroll-to-bottom-fab:hover {
+        background-color: #1976D2;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+      }
+
+      .scroll-to-bottom-fab:active {
+        transform: translateY(0);
+      }
+
+      .scroll-to-bottom-fab svg {
+        width: 24px;
+        height: 24px;
       }
     `;
   }

@@ -25,7 +25,8 @@ export class ChatHistoryPanel extends JRPCClient {
     isLoadingMore: { type: Boolean, state: true },
     parsedMessages: { type: Array, state: true },
     isConnected: { type: Boolean, state: true },
-    hasInitiallyLoaded: { type: Boolean, state: true }
+    hasInitiallyLoaded: { type: Boolean, state: true },
+    showScrollToBottom: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -41,6 +42,7 @@ export class ChatHistoryPanel extends JRPCClient {
     this.parsedMessages = [];
     this.isConnected = false;
     this.hasInitiallyLoaded = false;
+    this.showScrollToBottom = false;
     
     this.messageParser = new MessageParser();
     this.scrollManager = new ChatScrollManager(this);
@@ -246,6 +248,21 @@ export class ChatHistoryPanel extends JRPCClient {
     }
   }
 
+  /**
+   * Update scroll button visibility
+   */
+  updateScrollButtonVisibility(show) {
+    this.showScrollToBottom = show;
+  }
+
+  /**
+   * Handle scroll to bottom button click
+   */
+  handleScrollToBottom() {
+    this.scrollManager.scrollToBottom();
+    this.showScrollToBottom = false;
+  }
+
   render() {
     if (this.loading) {
       return html`
@@ -302,6 +319,19 @@ export class ChatHistoryPanel extends JRPCClient {
           `}
         </div>
       </div>
+      
+      ${this.showScrollToBottom ? html`
+        <button 
+          class="scroll-to-bottom-fab"
+          @click=${this.handleScrollToBottom}
+          title="Scroll to bottom"
+          aria-label="Scroll to bottom"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 10l5 5 5-5z"/>
+          </svg>
+        </button>
+      ` : ''}
     `;
   }
 }

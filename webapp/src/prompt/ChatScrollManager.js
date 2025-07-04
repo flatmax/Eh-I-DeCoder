@@ -7,86 +7,120 @@ export class ChatScrollManager {
     this.scrollContainer = null;
     this.shouldScrollToBottom = true;
     this.hasUserScrolled = false;
-    this.handleScroll = this.handleScroll.bind(this);
+    this.scrollThreshold = 100; // pixels from bottom to consider "at bottom"
+    this.isScrolling = false;
+    this.scrollTimeout = null;
   }
 
+  /**
+   * Set up the scroll container reference
+   */
   setupScrollContainer() {
     if (!this.scrollContainer) {
-      this.scrollContainer = this.chatPanel.shadowRoot.querySelector('.chat-history-container');
+      this.scrollContainer = this.chatPanel.shadowRoot?.querySelector('.chat-history-container');
       if (this.scrollContainer) {
-        this.scrollContainer.addEventListener('scroll', this.handleScroll);
-        console.log('ChatScrollManager: Scroll listener added');
+        this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
       }
     }
   }
 
-  handleScroll(event) {
-    const container = event.target;
-    const { scrollTop, scrollHeight, clientHeight } = container;
+  /**
+   * Handle scroll events
+   */
+  handleScroll() {
+    if (!this.scrollContainer) return;
 
-    // Mark that user has scrolled
-    this.hasUserScrolled = true;
+    // Clear existing timeout
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout);
+    }
 
-    // Check if user scrolled near the top
-    if (scrollTop < 100 && this.chatPanel.hasMore && !this.chatPanel.isLoadingMore) {
-      console.log('ChatScrollManager: Scroll near top detected, loading more content');
+    // Set scrolling flag
+    this.isScrolling = true;
+
+    // Check if we're at the top and should load more
+    if (this.scrollContainer.scrollTop === 0 && this.chatPanel.hasMore && !this.chatPanel.isLoadingMore) {
       this.chatPanel.loadMoreContent();
     }
+
+    // Check if user has scrolled away from bottom
+    const isAtBottom = this.isScrolledToBottom();
+    this.hasUserScrolled = !isAtBottom;
+
+    // Update scroll button visibility
+    this.chatPanel.updateScrollButtonVisibility(!isAtBottom);
+
+    // Reset scrolling flag after a delay
+    this.scrollTimeout = setTimeout(() => {
+      this.isScrolling = false;
+    }, 150);
   }
 
-  scrollToBottomOnInitialLoad() {
-    if (this.shouldScrollToBottom) {
-      // Use setTimeout to ensure DOM is fully rendered
-      setTimeout(() => {
-        this.scrollToBottom();
-        this.shouldScrollToBottom = false; // Only scroll to bottom on initial load
-      }, 100);
-    }
-  }
-
-  scrollToBottom() {
-    // Try to find scroll container if we don't have it
-    if (!this.scrollContainer) {
-      this.scrollContainer = this.chatPanel.shadowRoot.querySelector('.chat-history-container');
-    }
+  /**
+   * Check if scrolled to bottom
+   */
+  isScrolledToBottom() {
+    if (!this.scrollContainer) return true;
     
-    if (this.scrollContainer) {
-      this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
-      console.log('ChatScrollManager: Scrolled to bottom');
-    } else {
-      console.warn('ChatScrollManager: Cannot scroll - no scroll container found');
-      // Try again after a short delay
-      setTimeout(() => {
-        this.scrollContainer = this.chatPanel.shadowRoot.querySelector('.chat-history-container');
-        if (this.scrollContainer) {
-          this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
-          console.log('ChatScrollManager: Scrolled to bottom (delayed)');
-        }
-      }, 200);
-    }
+    const { scrollTop, scrollHeight, clientHeight } = this.scrollContainer;
+    return Math.abs(scrollHeight - clientHeight - scrollTop) < this.scrollThreshold;
   }
 
+  /**
+   * Scroll to bottom of the container
+   */
+  scrollToBottom() {
+    if (!this.scrollContainer) return;
+    
+    this.scrollContainer.scrollTop = this.scrollContainer.scrollHeight;
+    this.hasUserScrolled = false;
+  }
+
+  /**
+   * Scroll to bottom on initial load
+   */
+  scrollToBottomOnInitialLoad() {
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      this.scrollToBottom();
+    });
+  }
+
+  /**
+   * Save current scroll state before content update
+   */
   saveScrollState() {
     if (!this.scrollContainer) return null;
     
-    const scrollTop = this.scrollContainer.scrollTop;
-    const scrollHeight = this.scrollContainer.scrollHeight;
-    console.log('ChatScrollManager: Current scroll position:', { scrollTop, scrollHeight });
-    
-    return { scrollTop, scrollHeight };
+    return {
+      scrollHeight: this.scrollContainer.scrollHeight,
+      scrollTop: this.scrollContainer.scrollTop,
+      clientHeight: this.scrollContainer.clientHeight
+    };
   }
 
-  restoreScrollState(scrollState) {
-    if (!scrollState || !this.scrollContainer) return;
+  /**
+   * Restore scroll position after content update
+   */
+  restoreScrollState(state) {
+    if (!state || !this.scrollContainer) return;
     
-    const newScrollHeight = this.scrollContainer.scrollHeight;
-    const heightDifference = newScrollHeight - scrollState.scrollHeight;
-    this.scrollContainer.scrollTop = scrollState.scrollTop + heightDifference;
+    // Calculate the height difference
+    const heightDiff = this.scrollContainer.scrollHeight - state.scrollHeight;
     
-    console.log('ChatScrollManager: Scroll position restored:', {
-      newScrollHeight,
-      heightDifference,
-      newScrollTop: this.scrollContainer.scrollTop
-    });
+    // Adjust scroll position to maintain visual position
+    this.scrollContainer.scrollTop = state.scrollTop + heightDiff;
+  }
+
+  /**
+   * Clean up event listeners
+   */
+  cleanup() {
+    if (this.scrollContainer) {
+      this.scrollContainer.removeEventListener('scroll', this.handleScroll.bind(this));
+    }
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout);
+    }
   }
 }
