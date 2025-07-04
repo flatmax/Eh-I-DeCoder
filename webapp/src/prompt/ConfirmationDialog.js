@@ -7,8 +7,7 @@ export class ConfirmationDialog extends LitElement {
     question: { type: String, state: true },
     defaultValue: { type: String, state: true },
     allowNever: { type: Boolean, state: true },
-    resolveCallback: { type: Function, state: true },
-    inputValue: { type: String, state: true }
+    resolveCallback: { type: Function, state: true }
   };
 
   static styles = css`
@@ -90,6 +89,7 @@ export class ConfirmationDialog extends LitElement {
       margin-bottom: 16px;
       color: #555;
       line-height: 1.5;
+      font-size: 16px;
     }
 
     .default-info {
@@ -97,25 +97,6 @@ export class ConfirmationDialog extends LitElement {
       color: #666;
       margin-bottom: 16px;
       font-style: italic;
-    }
-
-    .input-container {
-      margin-bottom: 20px;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-      box-sizing: border-box;
-      transition: border-color 0.2s;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: #2196F3;
     }
 
     .dialog-footer {
@@ -128,13 +109,14 @@ export class ConfirmationDialog extends LitElement {
     }
 
     button {
-      padding: 8px 16px;
+      padding: 10px 20px;
       border: none;
       border-radius: 4px;
       font-size: 14px;
       cursor: pointer;
       transition: all 0.2s;
       font-weight: 500;
+      min-width: 80px;
     }
 
     button:focus {
@@ -170,6 +152,14 @@ export class ConfirmationDialog extends LitElement {
       background: #45a049;
     }
 
+    .btn-yes.default {
+      box-shadow: 0 0 0 2px #4CAF50;
+    }
+
+    .btn-no.default {
+      box-shadow: 0 0 0 2px #ff5252;
+    }
+
     .btn-never {
       background: #FF9800;
       color: white;
@@ -182,7 +172,8 @@ export class ConfirmationDialog extends LitElement {
     .keyboard-hint {
       font-size: 12px;
       color: #999;
-      margin-top: 8px;
+      margin-top: 16px;
+      text-align: center;
     }
   `;
 
@@ -194,7 +185,6 @@ export class ConfirmationDialog extends LitElement {
     this.defaultValue = null;
     this.allowNever = false;
     this.resolveCallback = null;
-    this.inputValue = '';
     this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
@@ -214,9 +204,25 @@ export class ConfirmationDialog extends LitElement {
     if (e.key === 'Escape') {
       e.preventDefault();
       this.handleCancel();
-    } else if (e.key === 'Enter' && !e.shiftKey) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      this.handleSubmit();
+      // Enter key uses the default value
+      if (this.defaultValue === true) {
+        this.handleYes();
+      } else if (this.defaultValue === false) {
+        this.handleNo();
+      } else {
+        this.handleCancel();
+      }
+    } else if (e.key === 'y' || e.key === 'Y') {
+      e.preventDefault();
+      this.handleYes();
+    } else if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      this.handleNo();
+    } else if (this.allowNever && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault();
+      this.handleNever();
     }
   }
 
@@ -225,17 +231,6 @@ export class ConfirmationDialog extends LitElement {
     this.question = data.question || 'Confirm action?';
     this.defaultValue = data.default;
     this.allowNever = data.allow_never || false;
-    
-    // Set initial input value based on default
-    if (this.defaultValue === true) {
-      this.inputValue = 'yes';
-    } else if (this.defaultValue === false) {
-      this.inputValue = 'no';
-    } else if (this.defaultValue !== null && this.defaultValue !== undefined) {
-      this.inputValue = String(this.defaultValue);
-    } else {
-      this.inputValue = '';
-    }
 
     this.isOpen = true;
     this.setAttribute('open', '');
@@ -244,12 +239,18 @@ export class ConfirmationDialog extends LitElement {
     return new Promise((resolve) => {
       this.resolveCallback = resolve;
       
-      // Focus the input after render
+      // Focus the default button after render
       this.updateComplete.then(() => {
-        const input = this.shadowRoot.querySelector('input');
-        if (input) {
-          input.focus();
-          input.select();
+        let buttonToFocus;
+        if (this.defaultValue === true) {
+          buttonToFocus = this.shadowRoot.querySelector('.btn-yes');
+        } else if (this.defaultValue === false) {
+          buttonToFocus = this.shadowRoot.querySelector('.btn-no');
+        } else {
+          buttonToFocus = this.shadowRoot.querySelector('.btn-cancel');
+        }
+        if (buttonToFocus) {
+          buttonToFocus.focus();
         }
       });
     });
@@ -290,44 +291,6 @@ export class ConfirmationDialog extends LitElement {
     this.hide();
   }
 
-  handleSubmit() {
-    const response = this.inputValue.toLowerCase().trim();
-    
-    if (this.allowNever && (response === 'd' || response === "don't")) {
-      this.handleNever();
-      return;
-    }
-    
-    // Check for yes/true responses
-    if (response === 'yes' || response === 'y' || response === 'true' || response === '1') {
-      this.handleYes();
-      return;
-    }
-    
-    // Check for no/false responses
-    if (response === 'n' || response === 'no' || response === 'false' || response === '0') {
-      this.handleNo();
-      return;
-    }
-    
-    // If empty response, use default
-    if (response === '') {
-      this.handleCancel();
-      return;
-    }
-    
-    // For any other response, treat based on default
-    if (this.defaultValue === true) {
-      this.handleYes();
-    } else {
-      this.handleNo();
-    }
-  }
-
-  handleInputChange(e) {
-    this.inputValue = e.target.value;
-  }
-
   render() {
     if (!this.isOpen) return html``;
 
@@ -358,18 +321,8 @@ export class ConfirmationDialog extends LitElement {
               <div class="default-info">${defaultText}</div>
             ` : ''}
             
-            <div class="input-container">
-              <input 
-                type="text" 
-                .value=${this.inputValue}
-                @input=${this.handleInputChange}
-                @keydown=${(e) => e.stopPropagation()}
-                placeholder="Enter yes/no${this.allowNever ? " or don't" : ''}"
-              />
-            </div>
-            
             <div class="keyboard-hint">
-              Press Enter to submit, Escape to cancel
+              Press Y for Yes, N for No${this.allowNever ? ', D for Don\'t Ask Again' : ''}, Enter for default, Escape to cancel
             </div>
           </div>
           
@@ -378,8 +331,18 @@ export class ConfirmationDialog extends LitElement {
             ${this.allowNever ? html`
               <button class="btn-never" @click=${this.handleNever}>Don't Ask Again</button>
             ` : ''}
-            <button class="btn-no" @click=${this.handleNo}>No</button>
-            <button class="btn-yes" @click=${this.handleYes}>Yes</button>
+            <button 
+              class="btn-no ${this.defaultValue === false ? 'default' : ''}" 
+              @click=${this.handleNo}
+            >
+              No
+            </button>
+            <button 
+              class="btn-yes ${this.defaultValue === true ? 'default' : ''}" 
+              @click=${this.handleYes}
+            >
+              Yes
+            </button>
           </div>
         </div>
       </div>
