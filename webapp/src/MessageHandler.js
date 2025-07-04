@@ -2,6 +2,7 @@
  * MessageHandler class that manages message history, streaming, and backend communication
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
+import './prompt/ConfirmationDialog.js';
 
 export class MessageHandler extends JRPCClient {
   static properties = {
@@ -22,11 +23,25 @@ export class MessageHandler extends JRPCClient {
     this._pendingUpdate = false;
     this._updateTimer = null;
     this.isConnected = false;
+    this._confirmationDialog = null;
   }
 
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    
+    // Create confirmation dialog if it doesn't exist
+    this._ensureConfirmationDialog();
+  }
+  
+  /**
+   * Ensure confirmation dialog exists
+   */
+  _ensureConfirmationDialog() {
+    if (!this._confirmationDialog) {
+      this._confirmationDialog = document.createElement('confirmation-dialog');
+      document.body.appendChild(this._confirmationDialog);
+    }
   }
   
   /**
@@ -63,73 +78,22 @@ export class MessageHandler extends JRPCClient {
    * Handle confirmation request from IOWrapper
    * This method is called via JRPC and returns the user's response
    */
-  confirmation_request(data) {
+  async confirmation_request(data) {
     console.log('Confirmation request received:', data);
     
-    // Build the prompt message
-    let promptMessage = '';
-    if (data.subject) {
-      promptMessage += `${data.subject}\n\n`;
-    }
-    promptMessage += data.question || 'Confirm action?';
+    // Ensure dialog exists
+    this._ensureConfirmationDialog();
     
-    // Add default information to the prompt
-    let defaultText = '';
-    let defaultValue = '';
-    if (data.default !== null) {
-      if (data.default === true) {
-        defaultText = ' (default: Yes)';
-        defaultValue = 'yes';
-      } else if (data.default === false) {
-        defaultText = ' (default: No)';
-        defaultValue = 'no';
-      } else {
-        defaultText = ` (default: ${data.default})`;
-        defaultValue = String(data.default);
-      }
-    }
-    
-    promptMessage += defaultText;
-    
-    // Show window.prompt with the message and default value
-    const userInput = window.prompt(promptMessage, defaultValue);
-    console.log('userInput', userInput);
-    
-    // Handle the response
-    if (userInput === null) {
-      // User cancelled - use default or false
+    try {
+      // Show the confirmation dialog and wait for user response
+      const response = await this._confirmationDialog.show(data);
+      console.log('User response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error showing confirmation dialog:', error);
+      // Fallback to default or false if dialog fails
       return data.default !== null ? data.default : false;
     }
-    
-    // Parse the user's response
-    const response = userInput.toLowerCase().trim();
-    
-    if (data.allow_never && (response === 'd' || response === "don't")) {
-      console.log('returning never');
-      return 'd';
-    }
-    
-    // Check for yes/true responses
-    if (response === 'yes' || response === 'y' || response === 'true' || response === '1') {
-      console.log('returning true');
-      return true;
-    }
-    
-    // Check for no/false responses
-    if (response === 'n' || response === 'no' || response === 'false' || response === '0') {
-      console.log('returning false');
-      return false;
-    }
-    
-    // If empty response, use default
-    if (response === '') {
-      console.log('returning ""');
-      return data.default !== null ? data.default : false;
-    }
-    console.log('returning final');
-    
-    // For any other response, treat as false unless default is true
-    return data.default === true ? true : false;
   }
 
   /**
@@ -371,6 +335,12 @@ export class MessageHandler extends JRPCClient {
         cancelAnimationFrame(this._updateTimer);
       }
       this._updateTimer = null;
+    }
+    
+    // Remove confirmation dialog if it exists
+    if (this._confirmationDialog && this._confirmationDialog.parentNode) {
+      this._confirmationDialog.parentNode.removeChild(this._confirmationDialog);
+      this._confirmationDialog = null;
     }
   }
 }
