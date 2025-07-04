@@ -28,3 +28,27 @@ The return value is an object of {remote UUID : return data, ... }. utils.js fun
 
 webapp js :
 customElements.define are separated from their classes - customElements.define calls are put in the `webapp` directory and the class implementation in the `webapp/src` directory or its sub-directories as required.
+
+LitElement components combine standard custom element lifecycle methods with Lit's reactive update cycle for efficient DOM updates.
+
+Key Lifecycle Methods:
+
+constructor(): Called when the element is created; initializes properties and requests an update.
+
+connectedCallback(): Invoked when the component is added to the DOM; initiates the first update cycle and establishes the renderRoot.
+
+disconnectedCallback(): Called when the component is removed from the DOM; pauses updates and is the place to clean up event listeners.
+
+shouldUpdate(changedProperties): Determines if an update should proceed based on changed properties (return true by default).
+
+update(changedProperties): Reflects property values and calls render() to update the DOM.
+
+render(): Returns the template result (e.g., html template literal) to update the component's DOM.
+
+firstUpdated(changedProperties): Called once after the component's initial DOM update.
+
+updated(changedProperties): Invoked after every completed component update.
+
+updateComplete: A promise that resolves when the element has finished its current update cycle.
+
+The reactive update cycle is asynchronous, batching property changes before the browser's next paint, ensuring efficient rendering.
