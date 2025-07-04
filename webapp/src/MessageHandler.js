@@ -18,6 +18,8 @@ export class MessageHandler extends JRPCClient {
     this.isProcessing = false;
     this.serverURI = "";  // Will be set from parent component
     this.messageHistory = [];
+    this._pendingUpdate = false;
+    this._updateTimer = null;
   }
 
   connectedCallback() {
@@ -156,6 +158,27 @@ export class MessageHandler extends JRPCClient {
   }
   
   /**
+   * Batch update mechanism to prevent excessive re-renders
+   */
+  _scheduleBatchUpdate() {
+    if (this._pendingUpdate) return;
+    
+    this._pendingUpdate = true;
+    
+    // Clear any existing timer
+    if (this._updateTimer) {
+      clearTimeout(this._updateTimer);
+    }
+    
+    // Schedule update for next frame
+    this._updateTimer = requestAnimationFrame(() => {
+      this._pendingUpdate = false;
+      this._updateTimer = null;
+      this.requestUpdate();
+    });
+  }
+  
+  /**
    * Handle streaming chunks from Aider - OPTIMIZED VERSION with role parameter
    * Called by IOWrapper.send_stream_update and send_to_webapp via RPC
    * Returns immediately to avoid blocking Python, processes asynchronously
@@ -178,38 +201,39 @@ export class MessageHandler extends JRPCClient {
 
     this._handleChunk(chunk, final, role);
 
-    // Request an immediate update
-    this.requestUpdate();
+    // Use batch update mechanism instead of immediate update
+    this._scheduleBatchUpdate();
     
     // Call hook for subclasses
     this.onStreamChunk?.(chunk, final, role);
   }
   
   /**
-   * Handle message chunks
+   * Handle message chunks - OPTIMIZED to avoid array recreation
    */
   _handleChunk(chunk, final, role) {
     // If there's no role message yet, create one
     if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
-      this.addMessageToHistory(role, '');
+      this.messageHistory.push({ role, content: '' });
     }
     
-    // Append the chunk to the last message
-    const lastIndex = this.messageHistory.length - 1;
+    // Get reference to the last message object
+    const lastMessage = this.messageHistory[this.messageHistory.length - 1];
+    
     if (role === 'command') {
       // For command role, append to content (with newline if not empty)
-      if (this.messageHistory[lastIndex].content) {
-        this.messageHistory[lastIndex].content += '\n' + chunk;
+      if (lastMessage.content) {
+        lastMessage.content += '\n' + chunk;
       } else {
-        this.messageHistory[lastIndex].content = chunk;
+        lastMessage.content = chunk;
       }
     } else {
       // For other roles, just update the content
-      this.messageHistory[lastIndex].content = chunk;
+      lastMessage.content = chunk;
     }
     
-    // Force a re-render by creating a new array
-    this.messageHistory = [...this.messageHistory];
+    // No need to recreate the array - just mutate the existing message
+    // This avoids unnecessary re-renders
   }
   
   /**
@@ -229,9 +253,11 @@ export class MessageHandler extends JRPCClient {
   async _processStreamComplete() {
     // Mark processing as complete
     this.isProcessing = false;
-    this.requestUpdate();
     
-    // Force the update to be processed immediately
+    // Force final update
+    this._scheduleBatchUpdate();
+    
+    // Wait for the update to be processed
     await this.updateComplete;
     
     // Call hook for subclasses
@@ -258,14 +284,14 @@ export class MessageHandler extends JRPCClient {
     // Add error to message history or update last assistant message
     if (this.messageHistory.length > 0 && this.messageHistory[this.messageHistory.length - 1].role === 'assistant') {
       // Update the existing assistant message
-      const lastIndex = this.messageHistory.length - 1;
-      this.messageHistory[lastIndex].content += `\n\nError: ${errorMessage}`;
+      const lastMessage = this.messageHistory[this.messageHistory.length - 1];
+      lastMessage.content += `\n\nError: ${errorMessage}`;
     } else {
       // Add a new error message
       this.addMessageToHistory('assistant', `Error: ${errorMessage}`);
     }
     
-    this.requestUpdate();
+    this._scheduleBatchUpdate();
     
     // Call hook for subclasses
     this.onStreamError?.(errorMessage);
@@ -293,6 +319,23 @@ export class MessageHandler extends JRPCClient {
       console.log('Stop signal sent successfully');
     } catch (error) {
       console.error('Error sending stop signal:', error);
+    }
+  }
+  
+  /**
+   * Clean up timers on disconnect
+   */
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    
+    // Clear any pending update timers
+    if (this._updateTimer) {
+      if (typeof this._updateTimer === 'number') {
+        clearTimeout(this._updateTimer);
+      } else {
+        cancelAnimationFrame(this._updateTimer);
+      }
+      this._updateTimer = null;
     }
   }
 }

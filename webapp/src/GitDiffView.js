@@ -76,6 +76,11 @@ export class GitDiffView extends JRPCClient {
     this.rebaseManager = new GitDiffRebaseManager(this);
     this.renderer = new GitDiffRenderer(this);
     this.languageDetector = new LanguageDetector();
+    
+    // Batch update mechanism
+    this._pendingUpdates = new Map();
+    this._updateScheduled = false;
+    this._updateTimer = null;
   }
 
   static styles = GitDiffStyles.styles;
@@ -88,6 +93,50 @@ export class GitDiffView extends JRPCClient {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.viewManager.cleanup();
+    
+    // Clean up any pending update timers
+    if (this._updateTimer) {
+      cancelAnimationFrame(this._updateTimer);
+      this._updateTimer = null;
+    }
+  }
+
+  /**
+   * Batch state updates to prevent multiple re-renders during rebase operations
+   */
+  _batchUpdate(updates) {
+    // Store all pending updates
+    Object.entries(updates).forEach(([key, value]) => {
+      this._pendingUpdates.set(key, value);
+    });
+    
+    // Schedule a single update
+    if (!this._updateScheduled) {
+      this._updateScheduled = true;
+      
+      // Cancel any existing timer
+      if (this._updateTimer) {
+        cancelAnimationFrame(this._updateTimer);
+      }
+      
+      // Use requestAnimationFrame for optimal timing
+      this._updateTimer = requestAnimationFrame(() => {
+        // Apply all pending updates at once
+        this._pendingUpdates.forEach((value, key) => {
+          if (this[key] !== value) {
+            this[key] = value;
+          }
+        });
+        
+        // Clear pending updates
+        this._pendingUpdates.clear();
+        this._updateScheduled = false;
+        this._updateTimer = null;
+        
+        // Request a single update
+        this.requestUpdate();
+      });
+    }
   }
 
   setupDone() {
@@ -102,25 +151,43 @@ export class GitDiffView extends JRPCClient {
   updated(changedProperties) {
     super.updated(changedProperties);
     
+    // Batch updates for commit changes
     if (changedProperties.has('fromCommit') || changedProperties.has('toCommit')) {
       if (this.fromCommit && this.toCommit && this.call && !this.gitEditorMode && !this.rebaseCompleting) {
-        this.dataManager.loadChangedFiles();
+        // Delay loading to avoid rapid updates
+        if (this._loadFilesTimer) {
+          clearTimeout(this._loadFilesTimer);
+        }
+        this._loadFilesTimer = setTimeout(() => {
+          this.dataManager.loadChangedFiles();
+        }, 100);
       }
     }
     
+    // Batch updates for content changes
     if (changedProperties.has('selectedFile') || 
         changedProperties.has('fromContent') || 
         changedProperties.has('toContent') ||
         changedProperties.has('gitEditorMode')) {
       if (this.selectedFile && (this.fromContent !== undefined || this.toContent !== undefined)) {
-        setTimeout(() => this.viewManager.updateDiffView(), 100);
+        // Delay view update to batch multiple changes
+        if (this._viewUpdateTimer) {
+          clearTimeout(this._viewUpdateTimer);
+        }
+        this._viewUpdateTimer = setTimeout(() => {
+          this.viewManager.updateDiffView();
+        }, 50);
       }
     }
   }
 
   async selectFile(filePath) {
     if (filePath === this.selectedFile) return;
-    this.selectedFile = filePath;
+    
+    // Batch update for file selection
+    this._batchUpdate({
+      selectedFile: filePath
+    });
     
     if (this.hasConflicts && this.conflictFiles.includes(filePath)) {
       await this.dataManager.loadConflictContent();
@@ -193,6 +260,32 @@ export class GitDiffView extends JRPCClient {
     }
     
     return monacoEditor.getSelectedText() || '';
+  }
+
+  /**
+   * Optimized method to update rebase state without multiple re-renders
+   */
+  updateRebaseState(stateUpdates) {
+    this._batchUpdate(stateUpdates);
+  }
+
+  /**
+   * Optimized method to reset rebase state
+   */
+  resetRebaseState() {
+    this._batchUpdate({
+      rebaseMode: false,
+      rebasePlan: [],
+      rebaseInProgress: false,
+      hasConflicts: false,
+      conflictFiles: [],
+      currentRebaseStep: 0,
+      rebaseCompleting: false,
+      rebaseMessage: '',
+      gitEditorMode: false,
+      gitEditorFile: null,
+      showRawGitStatus: false
+    });
   }
 
   render() {

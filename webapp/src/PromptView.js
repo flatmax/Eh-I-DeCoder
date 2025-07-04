@@ -70,6 +70,10 @@ export class PromptView extends MessageHandler {
     this.handleModeToggle = this.handleModeToggle.bind(this);
     this.handleTabClick = this.handleTabClick.bind(this);
     this.handleWordClicked = this.handleWordClicked.bind(this);
+    
+    // Batch update mechanism
+    this._pendingUpdates = new Map();
+    this._updateScheduled = false;
   }
 
   static styles = promptViewStyles;
@@ -102,6 +106,36 @@ export class PromptView extends MessageHandler {
   }
 
   /**
+   * Batch state updates to prevent multiple re-renders
+   */
+  _batchUpdate(updates) {
+    // Store all pending updates
+    Object.entries(updates).forEach(([key, value]) => {
+      this._pendingUpdates.set(key, value);
+    });
+    
+    // Schedule a single update
+    if (!this._updateScheduled) {
+      this._updateScheduled = true;
+      
+      // Use requestAnimationFrame for optimal timing
+      requestAnimationFrame(() => {
+        // Apply all pending updates at once
+        this._pendingUpdates.forEach((value, key) => {
+          this[key] = value;
+        });
+        
+        // Clear pending updates
+        this._pendingUpdates.clear();
+        this._updateScheduled = false;
+        
+        // Request a single update
+        this.requestUpdate();
+      });
+    }
+  }
+
+  /**
    * Handle word-clicked events from file trees
    * @param {CustomEvent} event - The word-clicked event
    */
@@ -113,8 +147,11 @@ export class PromptView extends MessageHandler {
     const currentValue = this.inputValue || '';
     const newValue = currentValue ? `${currentValue} ${word} ` : `${word} `;
     
-    this.inputValue = newValue;
-    this.requestUpdate();
+    // Batch update input value and minimize state
+    this._batchUpdate({
+      inputValue: newValue,
+      isMinimized: false
+    });
     
     // Focus the input field and position cursor at the end
     this.updateComplete.then(() => {
@@ -130,11 +167,6 @@ export class PromptView extends MessageHandler {
         }, 10);
       }
     });
-    
-    // If the prompt view is minimized, maximize it to show the updated input
-    if (this.isMinimized) {
-      this.maximize();
-    }
   }
   
   // Delegate methods to managers

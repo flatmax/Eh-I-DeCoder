@@ -44,12 +44,13 @@ export class GitDiffRebaseManager {
             await this.checkForRebaseConflicts();
             if (!this.view.hasConflicts) {
               console.log('GitDiffView: Rebase waiting for user action');
-              this.view.rebaseCompleting = true;
-              this.view.rebaseInProgress = true;
-              this.view.rebaseMessage = "Rebase is paused and waiting for user action. Use the controls below to continue.";
-              
-              // Show raw git status by default when rebase is waiting
-              this.view.showRawGitStatus = true;
+              // Batch update rebase state
+              this.view.updateRebaseState({
+                rebaseCompleting: true,
+                rebaseInProgress: true,
+                rebaseMessage: "Rebase is paused and waiting for user action. Use the controls below to continue.",
+                showRawGitStatus: true
+              });
             }
           }
         }
@@ -130,42 +131,39 @@ export class GitDiffRebaseManager {
     
     console.log('GitDiffView: Git is waiting for editor file:', primaryFile);
     
-    // Switch to git editor mode
+    // Switch to git editor mode with batched updates
     if (!this.view.gitEditorMode || this.view.gitEditorFile?.type !== primaryFile.type) {
-      this.view.gitEditorMode = true;
-      this.view.gitEditorFile = primaryFile;
-      this.view.selectedFile = primaryFile.file;
-      this.view.fromContent = '';
-      this.view.toContent = primaryFile.content;
-      this.view.unifiedView = true;
-      
-      // Clear other modes
-      this.view.rebaseCompleting = false;
-      this.view.hasConflicts = false;
-      this.view.conflictFiles = [];
-      this.view.changedFiles = [];
-      this.view.rebaseInProgress = true;
-      
-      // Show raw git status by default in git editor mode
-      this.view.showRawGitStatus = true;
+      this.view.updateRebaseState({
+        gitEditorMode: true,
+        gitEditorFile: primaryFile,
+        selectedFile: primaryFile.file,
+        fromContent: '',
+        toContent: primaryFile.content,
+        unifiedView: true,
+        rebaseCompleting: false,
+        hasConflicts: false,
+        conflictFiles: [],
+        changedFiles: [],
+        rebaseInProgress: true,
+        showRawGitStatus: true
+      });
       
       console.log(`GitDiffView: Switched to Git editor mode for ${primaryFile.type}: ${primaryFile.file}`);
-      this.view.requestUpdate();
     }
   }
 
   exitGitEditorMode() {
     if (this.view.gitEditorMode) {
       console.log('GitDiffView: Exiting Git editor mode');
-      this.view.gitEditorMode = false;
-      this.view.gitEditorFile = null;
+      this.view.updateRebaseState({
+        gitEditorMode: false,
+        gitEditorFile: null
+      });
       
       // Return to normal diff view if we have commits selected
       if (this.view.fromCommit && this.view.toCommit) {
         this.view.dataManager.loadChangedFiles();
       }
-      
-      this.view.requestUpdate();
     }
   }
 
@@ -218,9 +216,12 @@ export class GitDiffRebaseManager {
       
       if (statusData && statusData.modified_files) {
         if (statusData.modified_files.length > 0) {
-          this.view.hasConflicts = true;
-          this.view.conflictFiles = statusData.modified_files;
-          this.view.rebaseCompleting = false;
+          // Batch update conflict state
+          this.view.updateRebaseState({
+            hasConflicts: true,
+            conflictFiles: statusData.modified_files,
+            rebaseCompleting: false
+          });
           
           if (this.view.conflictFiles.length > 0) {
             this.view.selectedFile = this.view.conflictFiles[0];
@@ -256,10 +257,13 @@ export class GitDiffRebaseManager {
       console.log('GitDiffView: Extracted data:', data);
       
       if (data && (data.success === true || (data.success === undefined && data.commits))) {
-        this.view.rebaseMode = true;
-        this.view.rebasePlan = data.commits || [];
-        this.view.rebaseInProgress = false;
-        this.view.currentRebaseStep = 0;
+        // Batch update rebase state
+        this.view.updateRebaseState({
+          rebaseMode: true,
+          rebasePlan: data.commits || [],
+          rebaseInProgress: false,
+          currentRebaseStep: 0
+        });
         console.log('GitDiffView: Rebase plan loaded with', this.view.rebasePlan.length, 'commits');
       } else if (data && data.success === false) {
         this.view.error = data.error || 'Failed to start interactive rebase';
@@ -321,9 +325,12 @@ export class GitDiffRebaseManager {
       
       if (data && (data.success === true || (data.success === undefined && !data.error))) {
         if (data.conflicts && data.conflicts.length > 0) {
-          this.view.hasConflicts = true;
-          this.view.conflictFiles = data.conflicts;
-          this.view.currentRebaseStep = data.currentStep || 0;
+          // Batch update conflict state
+          this.view.updateRebaseState({
+            hasConflicts: true,
+            conflictFiles: data.conflicts,
+            currentRebaseStep: data.currentStep || 0
+          });
           
           if (this.view.conflictFiles.length > 0) {
             this.view.selectedFile = this.view.conflictFiles[0];
@@ -408,10 +415,13 @@ export class GitDiffRebaseManager {
       
       if (data && (data.success === true || (data.success === undefined && !data.error))) {
         if (data.conflicts && data.conflicts.length > 0) {
-          this.view.hasConflicts = true;
-          this.view.conflictFiles = data.conflicts;
-          this.view.currentRebaseStep = data.currentStep || this.view.currentRebaseStep + 1;
-          this.view.rebaseCompleting = false;
+          // Batch update conflict state
+          this.view.updateRebaseState({
+            hasConflicts: true,
+            conflictFiles: data.conflicts,
+            currentRebaseStep: data.currentStep || this.view.currentRebaseStep + 1,
+            rebaseCompleting: false
+          });
           
           if (this.view.conflictFiles.length > 0) {
             this.view.selectedFile = this.view.conflictFiles[0];
@@ -532,17 +542,7 @@ export class GitDiffRebaseManager {
   }
 
   resetRebaseState() {
-    this.view.rebaseMode = false;
-    this.view.rebasePlan = [];
-    this.view.rebaseInProgress = false;
-    this.view.hasConflicts = false;
-    this.view.conflictFiles = [];
-    this.view.currentRebaseStep = 0;
-    this.view.rebaseCompleting = false;
-    this.view.rebaseMessage = '';
-    this.view.gitEditorMode = false;
-    this.view.gitEditorFile = null;
-    this.view.showRawGitStatus = false;
-    this.view.requestUpdate();
+    // Use the optimized resetRebaseState method from GitDiffView
+    this.view.resetRebaseState();
   }
 }

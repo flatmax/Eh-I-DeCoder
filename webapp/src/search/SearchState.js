@@ -26,12 +26,21 @@ export class SearchState {
     this.caseSensitive = false; // Default to case-insensitive search
     this.expandedFiles = new Set();
     this.allExpanded = false;
+    this._updateScheduled = false;
   }
 
   _notifyUpdate() {
-    if (this.updateCallback) {
-      this.updateCallback();
-    }
+    if (this._updateScheduled) return;
+    
+    this._updateScheduled = true;
+    
+    // Use requestAnimationFrame for batching updates
+    requestAnimationFrame(() => {
+      this._updateScheduled = false;
+      if (this.updateCallback) {
+        this.updateCallback();
+      }
+    });
   }
 
   startSearch() {
@@ -65,22 +74,29 @@ export class SearchState {
 
   expandAll() {
     this.allExpanded = true;
+    // Create new Set to trigger change detection
     this.expandedFiles = new Set(this.searchResults.map(result => result.file));
     this._notifyUpdate();
   }
 
   collapseAll() {
     this.allExpanded = false;
+    // Create new Set to trigger change detection
     this.expandedFiles = new Set();
     this._notifyUpdate();
   }
 
   toggleFileExpansion(filePath) {
-    if (this.expandedFiles.has(filePath)) {
-      this.expandedFiles.delete(filePath);
+    // Create new Set for immutability
+    const newExpandedFiles = new Set(this.expandedFiles);
+    
+    if (newExpandedFiles.has(filePath)) {
+      newExpandedFiles.delete(filePath);
     } else {
-      this.expandedFiles.add(filePath);
+      newExpandedFiles.add(filePath);
     }
+    
+    this.expandedFiles = newExpandedFiles;
     
     // Update allExpanded state based on current expansion
     this.allExpanded = this.expandedFiles.size === this.searchResults.length;

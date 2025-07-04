@@ -27,6 +27,8 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     super();
     this.initializeProperties();
     this.initializeManagers();
+    this._updateScheduled = false;
+    this._pendingUpdates = new Set();
   }
   
   initializeProperties() {
@@ -67,16 +69,39 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     // Base class has no cleanup
   }
   
+  /**
+   * Batch update mechanism to prevent excessive re-renders
+   */
+  _scheduleBatchUpdate(updateType = 'general') {
+    this._pendingUpdates.add(updateType);
+    
+    if (this._updateScheduled) return;
+    
+    this._updateScheduled = true;
+    
+    // Use requestAnimationFrame for batching
+    requestAnimationFrame(() => {
+      this._updateScheduled = false;
+      const updates = new Set(this._pendingUpdates);
+      this._pendingUpdates.clear();
+      
+      // Only request update once for all pending updates
+      this.requestUpdate();
+      
+      // Handle specific update types if needed
+      if (updates.has('scroll')) {
+        this.updateComplete.then(() => {
+          this.scrollToCurrentFile();
+        });
+      }
+    });
+  }
+  
   handleFileLoadedInEditor(event) {
     const filePath = event.detail.filePath;
     if (filePath !== this.currentFile) {
       this.currentFile = filePath;
-      this.requestUpdate();
-      
-      // Scroll to the highlighted file after the update
-      this.updateComplete.then(() => {
-        this.scrollToCurrentFile();
-      });
+      this._scheduleBatchUpdate('scroll');
     }
   }
   
@@ -189,7 +214,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       await this.loadLineCounts();
     }
     
-    this.requestUpdate();
+    this._scheduleBatchUpdate();
   }
   
   async loadLineCounts() {
@@ -203,7 +228,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       console.log('Extracted line counts:', extractedData);
       
       this.lineCounts = extractedData || {};
-      this.requestUpdate();
+      this._scheduleBatchUpdate();
     } catch (error) {
       console.error('Error loading line counts:', error);
       this.lineCounts = {};
@@ -213,7 +238,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   expandAll() {
     this.treeExpansion.reset();
     this.treeExpansion.setAllExpandedState(this.treeData, true);
-    this.requestUpdate();
+    this._scheduleBatchUpdate();
     
     this.updateComplete.then(() => {
       const details = this.shadowRoot.querySelectorAll('details.directory-details');
@@ -226,7 +251,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   collapseAll() {
     this.treeExpansion.reset();
     this.treeExpansion.setAllExpandedState(this.treeData, false);
-    this.requestUpdate();
+    this._scheduleBatchUpdate();
     
     this.updateComplete.then(() => {
       const details = this.shadowRoot.querySelectorAll('details.directory-details');
@@ -252,6 +277,8 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       await this.performAdditionalLoading();
       
       const fileData = await this.fileTreeManager.loadFileData();
+      
+      // Batch all state updates
       this.addedFiles = fileData.addedFiles;
       this.files = fileData.allFiles;
       this.treeData = fileData.treeData;
@@ -269,7 +296,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       this.error = `Failed to load file tree: ${error.message}`;
     } finally {
       this.loading = false;
-      this.requestUpdate();
+      this._scheduleBatchUpdate();
       this.restoreScrollPosition(scrollPosition);
     }
   }
@@ -374,7 +401,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     if (!this.addedFiles.includes(filePath)) {
       this.addedFiles = [...this.addedFiles, filePath];
       this.treeExpansion.expandPathToFile(filePath);
-      this.requestUpdate();
+      this._scheduleBatchUpdate();
     }
   }
   
@@ -383,7 +410,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     
     if (this.addedFiles.includes(filePath)) {
       this.addedFiles = this.addedFiles.filter(f => f !== filePath);
-      this.requestUpdate();
+      this._scheduleBatchUpdate();
     }
   }
   
