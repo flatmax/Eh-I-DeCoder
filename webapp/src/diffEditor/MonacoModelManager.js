@@ -32,15 +32,30 @@ export class MonacoModelManager {
   }
 
   /**
-   * Update models with new content - simplified approach
+   * Update models with new content - tries to update existing models first
    */
   updateModels(originalContent, modifiedContent, filePath, language) {
     if (!this.hasContentChanged(originalContent, modifiedContent, filePath, language)) {
       return this.currentModels;
     }
 
-    // Always create new models when content changes
-    // This is simpler and more reliable than trying to update existing models
+    // Check if we can update existing models (same file path and language)
+    if (this.canUpdateExistingModels(filePath, language)) {
+      // Update existing models' content
+      const updated = this.updateExistingModelsContent(originalContent, modifiedContent);
+      if (updated) {
+        // Update cache
+        this.lastContent = {
+          original: originalContent || '',
+          modified: modifiedContent || '',
+          filePath: filePath,
+          language: language
+        };
+        return this.currentModels;
+      }
+    }
+
+    // Create new models if we can't update existing ones
     this.createNewModels(originalContent, modifiedContent, filePath, language);
 
     // Update cache
@@ -52,6 +67,73 @@ export class MonacoModelManager {
     };
 
     return this.currentModels;
+  }
+
+  /**
+   * Check if we can update existing models instead of creating new ones
+   */
+  canUpdateExistingModels(filePath, language) {
+    // Can only update if models exist and file path/language haven't changed
+    return this.hasModels() &&
+           this.lastContent.filePath === filePath &&
+           this.lastContent.language === language &&
+           !this.currentModels.original.isDisposed() &&
+           !this.currentModels.modified.isDisposed();
+  }
+
+  /**
+   * Update existing models' content without recreating them
+   */
+  updateExistingModelsContent(originalContent, modifiedContent) {
+    try {
+      const normalizedOriginal = originalContent || '';
+      const normalizedModified = modifiedContent || '';
+
+      // Update original model
+      if (this.currentModels.original.getValue() !== normalizedOriginal) {
+        this.currentModels.original.setValue(normalizedOriginal);
+      }
+
+      // Update modified model
+      if (this.currentModels.modified.getValue() !== normalizedModified) {
+        this.currentModels.modified.setValue(normalizedModified);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('MonacoModelManager: Error updating existing models:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update only the modified model's content without recreating models
+   */
+  updateModifiedContent(newContent) {
+    if (this.currentModels.modified && !this.currentModels.modified.isDisposed()) {
+      const currentValue = this.currentModels.modified.getValue();
+      if (currentValue !== newContent) {
+        this.currentModels.modified.setValue(newContent);
+      }
+      this.lastContent.modified = newContent;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Update only the original model's content without recreating models
+   */
+  updateOriginalContent(newContent) {
+    if (this.currentModels.original && !this.currentModels.original.isDisposed()) {
+      const currentValue = this.currentModels.original.getValue();
+      if (currentValue !== newContent) {
+        this.currentModels.original.setValue(newContent);
+      }
+      this.lastContent.original = newContent;
+      return true;
+    }
+    return false;
   }
 
   /**

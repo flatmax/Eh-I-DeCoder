@@ -112,6 +112,7 @@ class MonacoDiffEditor extends LitElement {
     if (!this.diffEditor || !this._isInitialized) return;
 
     // Use model manager to handle model lifecycle
+    // This will update existing models if possible, or create new ones if needed
     const models = this.modelManager.updateModels(
       this.originalContent,
       this.modifiedContent,
@@ -121,9 +122,10 @@ class MonacoDiffEditor extends LitElement {
 
     if (models) {
       // Only set models in diff editor if they're new (not incremental updates)
-      const needsModelSet = !this.diffEditor.getModel() || 
-                           this.diffEditor.getModel().original !== models.original ||
-                           this.diffEditor.getModel().modified !== models.modified;
+      const currentModel = this.diffEditor.getModel();
+      const needsModelSet = !currentModel || 
+                           currentModel.original !== models.original ||
+                           currentModel.modified !== models.modified;
 
       if (needsModelSet) {
         // Set the models in the diff editor
@@ -158,6 +160,63 @@ class MonacoDiffEditor extends LitElement {
     
     const modifiedEditor = this.diffEditor.getModifiedEditor();
     modifiedEditor.updateOptions({ readOnly: this.readOnly });
+  }
+
+  /**
+   * Update only the modified content without recreating models
+   */
+  updateModifiedContentOnly(newContent) {
+    if (this.modelManager && this.modelManager.updateModifiedContent(newContent)) {
+      // Content updated successfully without recreating models
+      // Update the property to keep it in sync
+      this.modifiedContent = newContent;
+      return true;
+    }
+    // Fall back to full update if needed
+    this.modifiedContent = newContent;
+    return false;
+  }
+
+  /**
+   * Update only the original content without recreating models
+   */
+  updateOriginalContentOnly(newContent) {
+    if (this.modelManager && this.modelManager.updateOriginalContent(newContent)) {
+      // Content updated successfully without recreating models
+      // Update the property to keep it in sync
+      this.originalContent = newContent;
+      return true;
+    }
+    // Fall back to full update if needed
+    this.originalContent = newContent;
+    return false;
+  }
+
+  /**
+   * Update both contents without recreating models if possible
+   */
+  updateContentWithoutRecreatingModels(originalContent, modifiedContent) {
+    // Check if we can update without recreating models
+    if (this.modelManager && 
+        this.modelManager.canUpdateExistingModels(this.filePath, this.language)) {
+      
+      const updated = this.modelManager.updateExistingModelsContent(originalContent, modifiedContent);
+      if (updated) {
+        // Update properties to keep them in sync
+        this.originalContent = originalContent;
+        this.modifiedContent = modifiedContent;
+        
+        // Update the model manager's cache
+        this.modelManager.lastContent.original = originalContent || '';
+        this.modelManager.lastContent.modified = modifiedContent || '';
+        
+        return true;
+      }
+    }
+    
+    // Fall back to normal update which may recreate models
+    this.updateContent(originalContent, modifiedContent, this.language, this.filePath);
+    return false;
   }
 
   // Public API
