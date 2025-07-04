@@ -31,7 +31,7 @@ export function renderPromptView(component) {
             </button>
           </div>
           <button 
-            class="mode-toggle" 
+            class="mode-toggle"
             @click=${component.handleModeToggle} 
             title="Toggle between File Explorer and Git History modes (Ctrl+G)"
           >
@@ -119,7 +119,10 @@ export function renderPromptView(component) {
         
         <!-- Chat History Tab -->
         <div class="tab-panel ${component.activeTab === 'history' ? 'active' : ''}">
-          <chat-history-panel .serverURI=${component.serverURI}></chat-history-panel>
+          <chat-history-panel 
+            .serverURI=${component.serverURI}
+            id="chatHistoryPanel"
+          ></chat-history-panel>
         </div>
       </div>
     </div>

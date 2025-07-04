@@ -24,7 +24,8 @@ export class ChatHistoryPanel extends JRPCClient {
     fileSize: { type: Number, state: true },
     isLoadingMore: { type: Boolean, state: true },
     parsedMessages: { type: Array, state: true },
-    isConnected: { type: Boolean, state: true }
+    isConnected: { type: Boolean, state: true },
+    hasInitiallyLoaded: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -39,6 +40,7 @@ export class ChatHistoryPanel extends JRPCClient {
     this.remoteTimeout = 300;
     this.parsedMessages = [];
     this.isConnected = false;
+    this.hasInitiallyLoaded = false;
     
     this.messageParser = new MessageParser();
     this.scrollManager = new ChatScrollManager(this);
@@ -158,6 +160,7 @@ export class ChatHistoryPanel extends JRPCClient {
       }
 
       this.loading = false;
+      this.hasInitiallyLoaded = true;
 
       // Scroll to bottom after content loads and DOM updates
       await this.updateComplete;
@@ -230,6 +233,17 @@ export class ChatHistoryPanel extends JRPCClient {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  /**
+   * Public method to scroll to bottom when tab becomes visible
+   */
+  scrollToBottomIfNeeded() {
+    console.log('ChatHistoryPanel::scrollToBottomIfNeeded called');
+    // Only scroll to bottom if we've loaded content and haven't scrolled yet
+    if (this.hasInitiallyLoaded && !this.scrollManager.hasUserScrolled) {
+      this.scrollManager.scrollToBottom();
+    }
   }
 
   render() {

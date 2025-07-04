@@ -209,7 +209,21 @@ export class PromptView extends MessageHandler {
 
   handleTabClick(event, tabName) {
     event.stopPropagation(); // Prevent header click from triggering
+    const previousTab = this.activeTab;
     this.activeTab = tabName;
+    
+    // If switching to history tab for the first time, ensure it scrolls to bottom
+    if (tabName === 'history' && previousTab !== 'history') {
+      // Wait for the tab to be rendered and visible
+      this.updateComplete.then(() => {
+        setTimeout(() => {
+          const chatHistoryPanel = this.shadowRoot.querySelector('#chatHistoryPanel');
+          if (chatHistoryPanel) {
+            chatHistoryPanel.scrollToBottomIfNeeded();
+          }
+        }, 100);
+      });
+    }
   }
 
   // Delegate to EventHandler

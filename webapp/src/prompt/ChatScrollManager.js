@@ -6,6 +6,7 @@ export class ChatScrollManager {
     this.chatPanel = chatPanel;
     this.scrollContainer = null;
     this.shouldScrollToBottom = true;
+    this.hasUserScrolled = false;
     this.handleScroll = this.handleScroll.bind(this);
   }
 
@@ -22,6 +23,9 @@ export class ChatScrollManager {
   handleScroll(event) {
     const container = event.target;
     const { scrollTop, scrollHeight, clientHeight } = container;
+
+    // Mark that user has scrolled
+    this.hasUserScrolled = true;
 
     // Check if user scrolled near the top
     if (scrollTop < 100 && this.chatPanel.hasMore && !this.chatPanel.isLoadingMore) {
