@@ -20,7 +20,8 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     showLineCounts: { type: Boolean, state: true },
     lineCounts: { type: Object, state: true },
     currentFile: { type: String, state: true },
-    fuzzySearchVisible: { type: Boolean, state: true }
+    fuzzySearchVisible: { type: Boolean, state: true },
+    isConnected: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -29,6 +30,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     this.initializeManagers();
     this._updateScheduled = false;
     this._pendingUpdates = new Set();
+    this.isConnected = false;
   }
   
   initializeProperties() {
@@ -67,6 +69,33 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   
   cleanup() {
     // Base class has no cleanup
+  }
+  
+  /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log(`${this.constructor.name}::setupDone - Connection ready`);
+    this.isConnected = true;
+    this.loadFileTree();
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log(`${this.constructor.name}::remoteIsUp - Remote connected`);
+    // Don't load data yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log(`${this.constructor.name}::remoteDisconnected`);
+    this.isConnected = false;
+    this.error = 'Connection lost. Waiting for reconnection...';
+    this._scheduleBatchUpdate();
   }
   
   /**
@@ -201,12 +230,12 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     return pathParts.join('/');
   }
   
-  setupDone() {
-    console.log(`${this.constructor.name}::setupDone`);
-    this.loadFileTree();
-  }
-  
   async toggleLineCounts() {
+    if (!this.isConnected) {
+      console.warn('Cannot toggle line counts - not connected');
+      return;
+    }
+    
     this.showLineCounts = !this.showLineCounts;
     
     if (this.showLineCounts && Object.keys(this.lineCounts).length === 0) {
@@ -218,6 +247,11 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   }
   
   async loadLineCounts() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load line counts - not connected');
+      return;
+    }
+    
     try {
       console.log('Loading line counts for files...');
       const response = await this.call['Repo.get_file_line_counts'](this.files);
@@ -262,6 +296,11 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   }
   
   async uncheckAll() {
+    if (!this.isConnected) {
+      console.warn('Cannot uncheck all - not connected');
+      return;
+    }
+    
     try {
       await this.fileTreeManager.removeAllFiles(this.addedFiles);
     } catch (error) {
@@ -270,6 +309,13 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   }
   
   async loadFileTree(scrollPosition = 0) {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load file tree - not connected');
+      this.error = 'Waiting for connection...';
+      this._scheduleBatchUpdate();
+      return;
+    }
+    
     try {
       this.loading = true;
       this.error = null;
@@ -336,6 +382,11 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   async handleCheckboxClick(event, path) {
     event.stopPropagation();
     
+    if (!this.isConnected) {
+      console.warn('Cannot modify files - not connected');
+      return;
+    }
+    
     try {
       const isAdded = this.addedFiles.includes(path);
       
@@ -352,6 +403,11 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   async handleDirectoryCheckboxClick(event, node) {
     event.stopPropagation();
     event.preventDefault();
+    
+    if (!this.isConnected) {
+      console.warn('Cannot modify files - not connected');
+      return;
+    }
     
     try {
       const allFiles = this.getAllFilesInDirectory(node);

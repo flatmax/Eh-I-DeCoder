@@ -7,7 +7,8 @@ export class MessageHandler extends JRPCClient {
   static properties = {
     messageHistory: { type: Array, state: true },
     isProcessing: { type: Boolean, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    isConnected: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -20,6 +21,7 @@ export class MessageHandler extends JRPCClient {
     this.messageHistory = [];
     this._pendingUpdate = false;
     this._updateTimer = null;
+    this.isConnected = false;
   }
 
   connectedCallback() {
@@ -31,10 +33,31 @@ export class MessageHandler extends JRPCClient {
    * Called when server is ready to use
    */
   setupDone() {
-    console.log('MessageHandler setupDone: Ready to interact with Aider');
+    console.log('MessageHandler::setupDone - Ready to interact with Aider');
+    this.isConnected = true;
     this.requestUpdate();
   }
-
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('MessageHandler::remoteIsUp - Remote connected');
+    // Don't perform operations yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('MessageHandler::remoteDisconnected');
+    this.isConnected = false;
+    // If we were processing, mark as not processing
+    if (this.isProcessing) {
+      this.isProcessing = false;
+      this.requestUpdate();
+    }
+  }
 
   /**
    * Handle confirmation request from IOWrapper
@@ -114,6 +137,13 @@ export class MessageHandler extends JRPCClient {
    */
   async sendPrompt(message, onMaximize) {
     if (!message || this.isProcessing) return;
+    
+    // Check if connected
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot send prompt - not connected');
+      this.addMessageToHistory('assistant', 'Error: Not connected to server. Please wait for connection to be established.');
+      return;
+    }
     
     // Maximize dialog when sending a prompt
     if (onMaximize) {
@@ -313,6 +343,11 @@ export class MessageHandler extends JRPCClient {
    * Stop the current running process by sending a KeyboardInterrupt
    */
   async stopRunning() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot stop running - not connected');
+      return;
+    }
+    
     try {
       console.log('Sending stop signal to CoderWrapper...');
       await this.call['CoderWrapper.stop']();

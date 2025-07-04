@@ -68,7 +68,10 @@ export class RepoTree extends FileTree {
   }
   
   async performAdditionalLoading() {
-    await this.repoManagers.fetchGitStatus();
+    // Only fetch git status if connected
+    if (this.isConnected) {
+      await this.repoManagers.fetchGitStatus();
+    }
   }
   
   async performPostLoadingActions() {

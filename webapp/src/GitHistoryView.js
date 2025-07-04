@@ -24,7 +24,8 @@ export class GitHistoryView extends JRPCClient {
     pageSize: { type: Number, state: true },
     totalCommitsLoaded: { type: Number, state: true },
     leftPanelHovered: { type: Boolean, state: true },
-    rightPanelHovered: { type: Boolean, state: true }
+    rightPanelHovered: { type: Boolean, state: true },
+    isConnected: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -45,6 +46,7 @@ export class GitHistoryView extends JRPCClient {
     this.totalCommitsLoaded = 0;
     this.leftPanelHovered = false;
     this.rightPanelHovered = false;
+    this.isConnected = false;
 
     // Initialize managers
     this.commitDataManager = new CommitDataManager(this);
@@ -64,17 +66,39 @@ export class GitHistoryView extends JRPCClient {
     this.resizeHandler.cleanup();
   }
 
+  /**
+   * Called when JRPC connection is established and ready
+   */
   setupDone() {
+    console.log('GitHistoryView::setupDone - Connection ready');
+    this.isConnected = true;
     super.setupDone?.();
     this.commitDataManager.loadCommits();
   }
   
+  /**
+   * Called when remote is up but not yet ready
+   */
   remoteIsUp() {
+    console.log('GitHistoryView::remoteIsUp - Remote connected');
     if (super.remoteIsUp) super.remoteIsUp();
-    setTimeout(() => this.commitDataManager.loadCommits(), 500);
+    // Don't load commits yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('GitHistoryView::remoteDisconnected');
+    this.isConnected = false;
+    this.error = 'Connection lost. Waiting for reconnection...';
   }
 
   handleCommitListScroll(event) {
+    if (!this.isConnected) {
+      console.warn('Cannot load more commits - not connected');
+      return;
+    }
     this.commitDataManager.handleScroll(event);
   }
 
@@ -258,7 +282,7 @@ export class GitHistoryView extends JRPCClient {
           <p><strong>Only one commit available: ${commit.hash?.substring(0, 7) || 'Unknown'}</strong></p>
           <p>${commit.message || 'No message'} (${commit.author || 'Unknown author'})</p>
           <p>This is showing the contents of the initial commit. Make more commits to see change comparisons.</p>
-          <button @click=${() => this.commitDataManager.loadGitLogManually()} class="manual-refresh-button">
+          <button @click=${() => this.isConnected ? this.commitDataManager.loadGitLogManually() : null} class="manual-refresh-button" ?disabled=${!this.isConnected}>
             Refresh Git History
           </button>
         </div>

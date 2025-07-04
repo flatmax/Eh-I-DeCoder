@@ -40,7 +40,8 @@ export class GitDiffView extends JRPCClient {
     gitStatus: { type: Object, state: true },
     // Raw git status display
     rawGitStatus: { type: String, state: true },
-    showRawGitStatus: { type: Boolean, state: true }
+    showRawGitStatus: { type: Boolean, state: true },
+    isConnected: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -69,6 +70,7 @@ export class GitDiffView extends JRPCClient {
     this.gitStatus = null;
     this.rawGitStatus = null;
     this.showRawGitStatus = false;
+    this.isConnected = false;
     
     // Initialize managers
     this.dataManager = new GitDiffDataManager(this);
@@ -99,6 +101,37 @@ export class GitDiffView extends JRPCClient {
       cancelAnimationFrame(this._updateTimer);
       this._updateTimer = null;
     }
+  }
+
+  /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log('GitDiffView::setupDone - Connection ready');
+    this.isConnected = true;
+    super.setupDone?.();
+    this.rebaseManager.checkRebaseStatus();
+    
+    if (this.fromCommit && this.toCommit && !this.gitEditorMode && !this.rebaseCompleting) {
+      this.dataManager.loadChangedFiles();
+    }
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('GitDiffView::remoteIsUp - Remote connected');
+    // Don't load data yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('GitDiffView::remoteDisconnected');
+    this.isConnected = false;
+    this.error = 'Connection lost. Waiting for reconnection...';
   }
 
   /**
@@ -139,21 +172,12 @@ export class GitDiffView extends JRPCClient {
     }
   }
 
-  setupDone() {
-    super.setupDone?.();
-    this.rebaseManager.checkRebaseStatus();
-    
-    if (this.fromCommit && this.toCommit && !this.gitEditorMode && !this.rebaseCompleting) {
-      this.dataManager.loadChangedFiles();
-    }
-  }
-
   updated(changedProperties) {
     super.updated(changedProperties);
     
     // Batch updates for commit changes
     if (changedProperties.has('fromCommit') || changedProperties.has('toCommit')) {
-      if (this.fromCommit && this.toCommit && this.call && !this.gitEditorMode && !this.rebaseCompleting) {
+      if (this.fromCommit && this.toCommit && this.call && !this.gitEditorMode && !this.rebaseCompleting && this.isConnected) {
         // Delay loading to avoid rapid updates
         if (this._loadFilesTimer) {
           clearTimeout(this._loadFilesTimer);
@@ -182,6 +206,11 @@ export class GitDiffView extends JRPCClient {
   }
 
   async selectFile(filePath) {
+    if (!this.isConnected) {
+      console.warn('Cannot select file - not connected');
+      return;
+    }
+    
     if (filePath === this.selectedFile) return;
     
     // Batch update for file selection
@@ -207,12 +236,16 @@ export class GitDiffView extends JRPCClient {
     this.showRawGitStatus = !this.showRawGitStatus;
     
     // If showing and we don't have raw status, refresh it
-    if (this.showRawGitStatus && !this.rawGitStatus) {
+    if (this.showRawGitStatus && !this.rawGitStatus && this.isConnected) {
       this.rebaseManager.loadRawGitStatus();
     }
   }
 
   async refreshRawGitStatus() {
+    if (!this.isConnected) {
+      console.warn('Cannot refresh git status - not connected');
+      return;
+    }
     await this.rebaseManager.loadRawGitStatus();
   }
 
@@ -225,6 +258,10 @@ export class GitDiffView extends JRPCClient {
   }
 
   async refreshRebaseStatus() {
+    if (!this.isConnected) {
+      console.warn('Cannot refresh rebase status - not connected');
+      return;
+    }
     await this.rebaseManager.checkRebaseStatus();
   }
 
@@ -235,6 +272,11 @@ export class GitDiffView extends JRPCClient {
   }
 
   handleSaveFile(event) {
+    if (!this.isConnected) {
+      console.warn('Cannot save file - not connected');
+      return;
+    }
+    
     // For git editor mode, save the file
     if (this.gitEditorMode) {
       this.rebaseManager.saveGitEditorFile();

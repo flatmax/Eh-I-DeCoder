@@ -11,13 +11,15 @@ import '@material/web/progress/circular-progress.js';
 export class FindInFiles extends JRPCClient {
   static properties = {
     ...SearchState.properties,
-    serverURI: { type: String }
+    serverURI: { type: String },
+    isConnected: { type: Boolean, state: true }
   };
 
   constructor() {
     super();
     this.searchState = new SearchState(() => this.updateStateFromSearchState());
     this.initializeProperties();
+    this.isConnected = false;
   }
   
   initializeProperties() {
@@ -33,6 +35,33 @@ export class FindInFiles extends JRPCClient {
   }
   
   /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log('FindInFiles::setupDone - Connection ready');
+    this.isConnected = true;
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('FindInFiles::remoteIsUp - Remote connected');
+    // Don't perform searches yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('FindInFiles::remoteDisconnected');
+    this.isConnected = false;
+    if (this.isSearching) {
+      this.searchState.handleSearchError(new Error('Connection lost during search'));
+    }
+  }
+  
+  /**
    * Focus the search input field and optionally set the search query
    * @param {string} [selectedText] - Optional text to set as the search query
    */
@@ -43,7 +72,7 @@ export class FindInFiles extends JRPCClient {
         searchForm.focusInput(selectedText);
         
         // If selectedText is provided, automatically execute the search
-        if (selectedText && selectedText.trim()) {
+        if (selectedText && selectedText.trim() && this.isConnected) {
           // Small delay to ensure the input is focused and updated
           setTimeout(() => {
             this.handleSearch(selectedText.trim(), {
@@ -59,6 +88,12 @@ export class FindInFiles extends JRPCClient {
   }
   
   async handleSearch(query, options) {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot search - not connected');
+      this.searchState.handleSearchError(new Error('Not connected to server'));
+      return;
+    }
+    
     this.searchState.startSearch();
     
     try {
@@ -118,7 +153,7 @@ export class FindInFiles extends JRPCClient {
       <div class="search-container">
         <search-form
           .searchState=${this.searchState}
-          @search=${e => this.handleSearch(e.detail.query, e.detail.options)}
+          @search=${e => this.isConnected ? this.handleSearch(e.detail.query, e.detail.options) : null}
         ></search-form>
       </div>
       

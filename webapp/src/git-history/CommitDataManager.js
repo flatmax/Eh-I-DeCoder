@@ -4,8 +4,8 @@ export class CommitDataManager {
   }
 
   async loadCommits() {
-    if (!this.view.call) {
-      console.log('GitHistoryView: JRPC not ready yet, will retry when connection is established');
+    if (!this.view.isConnected || !this.view.call) {
+      console.log('GitHistoryView: Not connected yet, will load commits when connection is established');
       return;
     }
 
@@ -74,6 +74,11 @@ export class CommitDataManager {
   }
 
   async loadMoreCommits() {
+    if (!this.view.isConnected || !this.view.call) {
+      console.warn('Cannot load more commits - not connected');
+      return;
+    }
+    
     this.view.loadingMore = true;
     
     try {
@@ -108,7 +113,7 @@ export class CommitDataManager {
   }
 
   handleScroll(event) {
-    if (this.view.loading || this.view.loadingMore || !this.view.hasMoreCommits) return;
+    if (this.view.loading || this.view.loadingMore || !this.view.hasMoreCommits || !this.view.isConnected) return;
     
     const { distanceFromBottom } = event.detail;
     
@@ -118,6 +123,11 @@ export class CommitDataManager {
   }
 
   async loadGitLogManually() {
+    if (!this.view.isConnected || !this.view.call) {
+      console.warn('Cannot load git log - not connected');
+      return;
+    }
+    
     this.view.loading = true;
     
     try {

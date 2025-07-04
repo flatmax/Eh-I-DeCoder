@@ -19,7 +19,8 @@ export class DiffEditor extends JRPCClient {
     isLoading: { type: Boolean, state: true },
     headContent: { type: String, state: true },
     workingContent: { type: String, state: true },
-    isSaving: { type: Boolean, state: true }
+    isSaving: { type: Boolean, state: true },
+    isConnected: { type: Boolean, state: true }
   };
 
   static styles = DiffEditorStyles.styles;
@@ -37,6 +38,7 @@ export class DiffEditor extends JRPCClient {
     this.navigationManager = new NavigationManager(this);
     this.fileManager = new FileManager(this);
     this.lspManager = new LSPManager(this);
+    this.isConnected = false;
   }
 
   async connectedCallback() {
@@ -64,14 +66,31 @@ export class DiffEditor extends JRPCClient {
     }
   }
 
-  async remoteIsUp() {
-    console.log('DiffEditor: Remote is up');
+  /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log('DiffEditor::setupDone - Connection ready');
+    this.isConnected = true;
     this.fileLoader = new FileContentLoader(this);
     this.fileManager.setFileLoader(this.fileLoader);
   }
-
-  async setupDone() {
-    console.log('DiffEditor: Setup done');
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('DiffEditor::remoteIsUp - Remote connected');
+    // Don't initialize file loader yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('DiffEditor::remoteDisconnected');
+    this.isConnected = false;
+    this.fileLoader = null;
   }
 
   render() {
@@ -147,7 +166,7 @@ export class DiffEditor extends JRPCClient {
   handleOpenFile(event) {
     const filePath = event.detail.filePath;
     const lineNumber = event.detail.lineNumber || null;
-    if (filePath) {
+    if (filePath && this.isConnected) {
       this.fileManager.loadFileContent(filePath, lineNumber);
     }
   }
@@ -167,6 +186,12 @@ export class DiffEditor extends JRPCClient {
   async handleSaveFile(event) {
     if (!this.currentFile) {
       console.error('No file currently open to save');
+      return;
+    }
+
+    if (!this.isConnected) {
+      console.warn('Cannot save file - not connected');
+      alert('Cannot save file - not connected to server');
       return;
     }
 
@@ -210,6 +235,11 @@ export class DiffEditor extends JRPCClient {
 
   // Public API method - delegates to fileManager
   async loadFileContent(filePath, lineNumber = null, characterNumber = null) {
+    if (!this.isConnected) {
+      console.warn('Cannot load file - not connected');
+      return;
+    }
+
     // If a file is currently open in the LSP, notify the server that it's being closed.
     if (this.lspManager.isConnected && this.currentFile) {
       const oldUri = `file://${this.currentFile}`;
@@ -229,7 +259,9 @@ export class DiffEditor extends JRPCClient {
   }
 
   async reloadIfCurrentFile(data) {
-    await this.fileManager.reloadIfCurrentFile(data);
+    if (this.isConnected) {
+      await this.fileManager.reloadIfCurrentFile(data);
+    }
   }
 
   disconnectedCallback() {

@@ -23,7 +23,8 @@ export class ChatHistoryPanel extends JRPCClient {
     currentStartPos: { type: Number, state: true },
     fileSize: { type: Number, state: true },
     isLoadingMore: { type: Boolean, state: true },
-    parsedMessages: { type: Array, state: true }
+    parsedMessages: { type: Array, state: true },
+    isConnected: { type: Boolean, state: true }
   };
 
   constructor() {
@@ -37,6 +38,7 @@ export class ChatHistoryPanel extends JRPCClient {
     this.isLoadingMore = false;
     this.remoteTimeout = 300;
     this.parsedMessages = [];
+    this.isConnected = false;
     
     this.messageParser = new MessageParser();
     this.scrollManager = new ChatScrollManager(this);
@@ -81,19 +83,42 @@ export class ChatHistoryPanel extends JRPCClient {
     console.log('ChatHistoryPanel::adoptedCallback')
   }
   
+  /**
+   * Called when JRPC connection is established and ready
+   */
   setupDone() {
-    console.log('ChatHistoryPanel::setupDone')
+    console.log('ChatHistoryPanel::setupDone - Connection ready')
+    this.isConnected = true;
     this.loadInitialContent();
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('ChatHistoryPanel::remoteIsUp - Remote connected');
+    // Don't load content yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('ChatHistoryPanel::remoteDisconnected');
+    this.isConnected = false;
+    this.error = 'Connection lost. Waiting for reconnection...';
+    this.loading = false;
   }
 
   async loadInitialContent() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load initial content - not connected');
+      return;
+    }
+    
     try {
       this.loading = true;
       this.error = null;
-      
-      if (!this.call) {
-        throw new Error('JRPC call object not available');
-      }
       
       if (!this.call['ChatHistory.get_latest_content']) {
         console.error('ChatHistoryPanel: Available methods:', Object.keys(this.call));
@@ -146,6 +171,11 @@ export class ChatHistoryPanel extends JRPCClient {
   }
 
   async loadMoreContent() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load more content - not connected');
+      return;
+    }
+    
     if (this.isLoadingMore || !this.hasMore) {
       return;
     }

@@ -15,7 +15,8 @@ export class CommandsButtons extends JRPCClient {
     commands: { type: Array, state: true },
     loading: { type: Boolean, state: true },
     error: { type: String, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    isConnected: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -24,6 +25,7 @@ export class CommandsButtons extends JRPCClient {
     this.loading = false;
     this.error = null;
     this.serverURI = "";  // Will be set from parent component
+    this.isConnected = false;
   }
 
   static styles = css`
@@ -73,15 +75,38 @@ export class CommandsButtons extends JRPCClient {
   }
   
   /**
-   * Called when remote server is up
+   * Called when remote server is up and ready
    */
   setupDone() {
-    console.log('CommandsButtons::setupDone');
-    // Add a timeout before loading commands to ensure connection is fully established
+    console.log('CommandsButtons::setupDone - Connection ready');
+    this.isConnected = true;
     this.loadCommands();
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('CommandsButtons::remoteIsUp - Remote connected');
+    // Don't load commands yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('CommandsButtons::remoteDisconnected');
+    this.isConnected = false;
+    this.error = 'Connection lost. Waiting for reconnection...';
+    this.requestUpdate();
   }
 
   async loadCommands() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load commands - not connected');
+      return;
+    }
+    
     try {
       this.loading = true;
       this.error = null;
@@ -150,6 +175,11 @@ export class CommandsButtons extends JRPCClient {
   }
 
   async handleCommandClick(command) {
+    if (!this.isConnected) {
+      console.warn('Cannot execute command - not connected');
+      return;
+    }
+    
     console.log(`Command clicked: ${command.name}`);
     
     try {
@@ -219,6 +249,7 @@ export class CommandsButtons extends JRPCClient {
                 <md-assist-chip 
                   label="${command.name}"
                   @click=${() => this.handleCommandClick(command)}
+                  ?disabled=${!this.isConnected}
                 ></md-assist-chip>
               `
             )}

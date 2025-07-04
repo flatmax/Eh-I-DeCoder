@@ -8,7 +8,8 @@ export class Commands extends JRPCClient {
   static properties = {
     commandOutput: { type: Array, state: true },
     showOutput: { type: Boolean, state: true },
-    serverURI: { type: String }
+    serverURI: { type: String },
+    isConnected: { type: Boolean, state: true }
   };
   
   constructor() {
@@ -16,6 +17,7 @@ export class Commands extends JRPCClient {
     this.commandOutput = [];
     this.showOutput = true; // Show output by default
     this.serverURI = "";  // Will be set from parent component
+    this.isConnected = false;
   }
   
   connectedCallback() {
@@ -23,6 +25,29 @@ export class Commands extends JRPCClient {
     this.addClass?.(this);
   }
   
+  /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log('Commands::setupDone - Connection ready');
+    this.isConnected = true;
+  }
+  
+  /**
+   * Called when remote is up but not yet ready
+   */
+  remoteIsUp() {
+    console.log('Commands::remoteIsUp - Remote connected');
+    // Don't perform operations yet - wait for setupDone
+  }
+  
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log('Commands::remoteDisconnected');
+    this.isConnected = false;
+  }
 
   /**
    * Method to display command output received from the CommandsWrapper
