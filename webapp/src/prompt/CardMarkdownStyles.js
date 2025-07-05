@@ -21,6 +21,7 @@ export class CardMarkdownStyles {
         max-width: 85%;
         box-sizing: border-box;
         display: inline-block;
+        position: relative;
       }
 
       .card.user {
@@ -57,11 +58,53 @@ export class CardMarkdownStyles {
       }
 
       .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         font-size: 11px;
         color: #666;
         margin-bottom: 4px;
         text-transform: uppercase;
         font-weight: 500;
+      }
+
+      .role-label {
+        flex: 1;
+      }
+
+      .copy-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        color: #666;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.7;
+        margin-left: 8px;
+      }
+
+      .copy-button:hover {
+        background: rgba(0, 0, 0, 0.1);
+        opacity: 1;
+        color: #333;
+      }
+
+      .copy-button:active {
+        transform: scale(0.95);
+      }
+
+      .copy-button.success {
+        color: #4CAF50;
+        opacity: 1;
+      }
+
+      .copy-button svg {
+        width: 16px;
+        height: 16px;
       }
 
       .card-content {
