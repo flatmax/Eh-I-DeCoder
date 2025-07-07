@@ -619,6 +619,12 @@ export class LSPManager {
             return;
         }
 
+        // Validate that content is not undefined or null
+        if (content === undefined || content === null) {
+            console.warn('LSP: Cannot update document - content is undefined or null');
+            return;
+        }
+
         console.log(`LSP: Updating document ${uri} (version ${version})`);
 
         const message = {
@@ -630,7 +636,7 @@ export class LSPManager {
                     version: version
                 },
                 contentChanges: [{
-                    text: content
+                    text: String(content) // Ensure content is a string
                 }]
             }
         };
