@@ -1,5 +1,42 @@
 # Changelog
 
+## [v1.7.0] - 2024-12-21
+
+### Added
+- **Enhanced User Experience**
+  - Copy to prompt functionality for card messages with success indicators
+  - Copy to clipboard functionality with visual success feedback
+  - Scroll to bottom button with dynamic visibility based on scroll position
+  - File path tooltips in search result file headers for better context
+  - Custom confirmation dialog with enhanced UX and async handling
+  - Connection state tracking to improve error handling and user experience
+
+- **Chat & Navigation Improvements**
+  - Improved chat history tab scrolling and loading behavior
+  - Enhanced keyboard navigation in confirmation dialogs
+
+### Changed
+- **Performance & Architecture**
+  - Optimized Monaco diff editor model management and content updates
+  - Optimized rendering with batch update mechanisms for better performance
+  - Simplified confirmation dialog implementation with improved user interaction
+
+- **Documentation**
+  - Updated README.md with comprehensive screenshots and feature descriptions
+  - Corrected image captions and simplified markdown formatting
+  - Added context checkbox image with proper descriptions
+
+### Fixed
+- **LSP Integration**
+  - Added content validation and string conversion in LSP document updates
+  - Improved error handling for document synchronization
+
+### Technical Improvements
+- Enhanced batch rendering mechanisms for improved performance
+- Better connection state management across components
+- Improved async handling in dialog components
+- Updated development conventions documentation
+
 ## [v1.6.0] - 2024-12-20
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "eh-i-decoder-webapp",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Eh-I-DeCoder Web Application",
   "main": "index.js",
   "repository": {
