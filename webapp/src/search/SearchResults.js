@@ -81,7 +81,9 @@ export class SearchResults extends LitElement {
           const isExpanded = this.expandedFiles.has(result.file);
           return html`
             <div class="file-result">
-              <div class="file-header" @click=${() => this.handleFileHeaderClick(result.file)}>
+              <div class="file-header" 
+                   @click=${() => this.handleFileHeaderClick(result.file)}
+                   title=${result.file}>
                 <md-icon class="material-symbols-outlined expand-icon">
                   ${isExpanded ? 'expand_less' : 'expand_more'}
                 </md-icon>
