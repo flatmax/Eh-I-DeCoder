@@ -13,6 +13,7 @@ export class CardMarkdown extends LitElement {
     content: { type: String },
     role: { type: String, reflect: true }, // 'user', 'assistant', or 'command'
     showCopySuccess: { type: Boolean, state: true },
+    showCopyToPromptSuccess: { type: Boolean, state: true },
   };
 
   constructor() {
@@ -20,6 +21,7 @@ export class CardMarkdown extends LitElement {
     this.content = '';
     this.role = 'assistant'; // default
     this.showCopySuccess = false;
+    this.showCopyToPromptSuccess = false;
     this.setupMarked();
   }
 
@@ -109,6 +111,21 @@ export class CardMarkdown extends LitElement {
     }
   }
 
+  copyToPrompt() {
+    // Dispatch a custom event that the PromptView can listen to
+    this.dispatchEvent(new CustomEvent('copy-to-prompt', {
+      detail: { content: this.content },
+      bubbles: true,
+      composed: true
+    }));
+
+    // Show success indicator
+    this.showCopyToPromptSuccess = true;
+    setTimeout(() => {
+      this.showCopyToPromptSuccess = false;
+    }, 2000);
+  }
+
   updated() {
     // After the component updates, manually highlight any code blocks that might not have been highlighted
     // Only do this for assistant messages that use markdown
@@ -144,22 +161,40 @@ export class CardMarkdown extends LitElement {
       <div class=${classMap(classes)}>
         <div class="card-header">
           <span class="role-label">${this.role}</span>
-          <button 
-            class="copy-button ${this.showCopySuccess ? 'success' : ''}"
-            @click=${this.copyToClipboard}
-            title="Copy to clipboard"
-            aria-label="Copy message content to clipboard"
-          >
-            ${this.showCopySuccess ? html`
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
-            ` : html`
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-              </svg>
-            `}
-          </button>
+          <div class="card-actions">
+            <button 
+              class="copy-to-prompt-button ${this.showCopyToPromptSuccess ? 'success' : ''}"
+              @click=${this.copyToPrompt}
+              title="Copy to prompt input"
+              aria-label="Copy message content to prompt input"
+            >
+              ${this.showCopyToPromptSuccess ? html`
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              ` : html`
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+              `}
+            </button>
+            <button 
+              class="copy-button ${this.showCopySuccess ? 'success' : ''}"
+              @click=${this.copyToClipboard}
+              title="Copy to clipboard"
+              aria-label="Copy message content to clipboard"
+            >
+              ${this.showCopySuccess ? html`
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              ` : html`
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+              `}
+            </button>
+          </div>
         </div>
         <div class="card-content">
           ${this.role === 'command' 

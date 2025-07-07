@@ -70,6 +70,7 @@ export class PromptView extends MessageHandler {
     this.handleModeToggle = this.handleModeToggle.bind(this);
     this.handleTabClick = this.handleTabClick.bind(this);
     this.handleWordClicked = this.handleWordClicked.bind(this);
+    this.handleCopyToPrompt = this.handleCopyToPrompt.bind(this);
     
     // Batch update mechanism
     this._pendingUpdates = new Map();
@@ -89,6 +90,9 @@ export class PromptView extends MessageHandler {
     // Listen for word-clicked events from file trees on window object
     window.addEventListener('word-clicked', this.handleWordClicked);
     
+    // Listen for copy-to-prompt events from cards
+    this.addEventListener('copy-to-prompt', this.handleCopyToPrompt);
+    
     // Force initial state update
     this.updateComplete.then(() => {
       this.dialogStateManager.updateDialogClass();
@@ -101,8 +105,43 @@ export class PromptView extends MessageHandler {
     this.dialogStateManager.cleanup();
     this.scrollManager.cleanup();
     
-    // Remove event listener
+    // Remove event listeners
     window.removeEventListener('word-clicked', this.handleWordClicked);
+    this.removeEventListener('copy-to-prompt', this.handleCopyToPrompt);
+  }
+
+  /**
+   * Handle copy-to-prompt events from cards
+   * @param {CustomEvent} event - The copy-to-prompt event
+   */
+  handleCopyToPrompt(event) {
+    const { content } = event.detail;
+    if (!content) return;
+    
+    // Add the content to the current input value
+    const currentValue = this.inputValue || '';
+    const newValue = currentValue ? `${currentValue}\n\n${content}` : content;
+    
+    // Batch update input value and minimize state
+    this._batchUpdate({
+      inputValue: newValue,
+      isMinimized: false
+    });
+    
+    // Focus the input field and position cursor at the end
+    this.updateComplete.then(() => {
+      const textField = this.shadowRoot.querySelector('md-filled-text-field');
+      if (textField) {
+        textField.focus();
+        // Set cursor to end of text
+        setTimeout(() => {
+          const input = textField.shadowRoot?.querySelector('textarea') || textField.shadowRoot?.querySelector('input');
+          if (input) {
+            input.setSelectionRange(newValue.length, newValue.length);
+          }
+        }, 10);
+      }
+    });
   }
 
   /**

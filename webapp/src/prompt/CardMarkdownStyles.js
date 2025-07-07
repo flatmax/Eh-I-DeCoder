@@ -72,7 +72,14 @@ export class CardMarkdownStyles {
         flex: 1;
       }
 
-      .copy-button {
+      .card-actions {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+
+      .copy-button,
+      .copy-to-prompt-button {
         background: none;
         border: none;
         cursor: pointer;
@@ -84,16 +91,17 @@ export class CardMarkdownStyles {
         align-items: center;
         justify-content: center;
         opacity: 0.7;
-        margin-left: 8px;
       }
 
-      .copy-button:hover {
+      .copy-button:hover,
+      .copy-to-prompt-button:hover {
         background: rgba(0, 0, 0, 0.1);
         opacity: 1;
         color: #333;
       }
 
-      .copy-button:active {
+      .copy-button:active,
+      .copy-to-prompt-button:active {
         transform: scale(0.95);
       }
 
@@ -102,7 +110,13 @@ export class CardMarkdownStyles {
         opacity: 1;
       }
 
-      .copy-button svg {
+      .copy-to-prompt-button.success {
+        color: #2196F3;
+        opacity: 1;
+      }
+
+      .copy-button svg,
+      .copy-to-prompt-button svg {
         width: 16px;
         height: 16px;
       }
