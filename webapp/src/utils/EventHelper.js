@@ -5,7 +5,155 @@
  * across all components, reducing code duplication and ensuring proper
  * event configuration.
  */
+
+/**
+ * EventBus - Centralized event management with automatic cleanup
+ */
+class EventBus {
+  constructor() {
+    this.listeners = new Map();
+    this.componentListeners = new WeakMap();
+    this.delegatedListeners = new Map();
+  }
+  
+  /**
+   * Connect event bus to a component for automatic cleanup
+   * @param {HTMLElement} component - Component to track
+   */
+  connectToComponent(component) {
+    if (!this.componentListeners.has(component)) {
+      this.componentListeners.set(component, new Set());
+      
+      // Override disconnectedCallback to auto-cleanup
+      const originalDisconnected = component.disconnectedCallback;
+      component.disconnectedCallback = function() {
+        eventBus.cleanupComponent(component);
+        if (originalDisconnected) {
+          originalDisconnected.call(this);
+        }
+      };
+    }
+  }
+  
+  /**
+   * Add event listener with automatic cleanup
+   * @param {HTMLElement} component - Component that owns the listener
+   * @param {EventTarget} target - Target element or object
+   * @param {string} eventName - Event name
+   * @param {Function} handler - Event handler
+   * @param {Object} options - Event listener options
+   */
+  addEventListener(component, target, eventName, handler, options = {}) {
+    this.connectToComponent(component);
+    
+    // Create listener info
+    const listenerInfo = {
+      target,
+      eventName,
+      handler,
+      options,
+      remove: () => target.removeEventListener(eventName, handler, options)
+    };
+    
+    // Track listener for this component
+    const componentListeners = this.componentListeners.get(component);
+    componentListeners.add(listenerInfo);
+    
+    // Add the actual listener
+    target.addEventListener(eventName, handler, options);
+    
+    return listenerInfo;
+  }
+  
+  /**
+   * Add delegated event listener
+   * @param {HTMLElement} component - Component that owns the listener
+   * @param {EventTarget} container - Container element
+   * @param {string} eventName - Event name
+   * @param {string} selector - CSS selector for delegation
+   * @param {Function} handler - Event handler
+   * @param {Object} options - Event listener options
+   */
+  addDelegatedListener(component, container, eventName, selector, handler, options = {}) {
+    this.connectToComponent(component);
+    
+    // Create delegated handler
+    const delegatedHandler = (event) => {
+      const target = event.target.closest(selector);
+      if (target && container.contains(target)) {
+        handler.call(target, event);
+      }
+    };
+    
+    // Add as regular listener
+    return this.addEventListener(component, container, eventName, delegatedHandler, options);
+  }
+  
+  /**
+   * Emit custom event
+   * @param {EventTarget} target - Target to emit from
+   * @param {string} eventName - Event name
+   * @param {Object} detail - Event detail
+   * @param {Object} options - Event options
+   */
+  emit(target, eventName, detail = {}, options = {}) {
+    const event = EventHelper.createEvent(eventName, detail, options);
+    return target.dispatchEvent(event);
+  }
+  
+  /**
+   * Subscribe to events with automatic cleanup
+   * @param {HTMLElement} component - Component that owns the subscription
+   * @param {string} eventName - Event name
+   * @param {Function} handler - Event handler
+   * @param {EventTarget} target - Target to listen on (default: window)
+   */
+  subscribe(component, eventName, handler, target = window) {
+    return this.addEventListener(component, target, eventName, handler);
+  }
+  
+  /**
+   * Cleanup all listeners for a component
+   * @param {HTMLElement} component - Component to cleanup
+   */
+  cleanupComponent(component) {
+    const listeners = this.componentListeners.get(component);
+    if (listeners) {
+      listeners.forEach(listener => listener.remove());
+      listeners.clear();
+    }
+    this.componentListeners.delete(component);
+  }
+  
+  /**
+   * Create a scoped event emitter for a component
+   * @param {HTMLElement} component - Component to create emitter for
+   * @returns {Object} Scoped emitter
+   */
+  createComponentEmitter(component) {
+    this.connectToComponent(component);
+    
+    return {
+      emit: (eventName, detail, options) => this.emit(component, eventName, detail, options),
+      subscribe: (eventName, handler, target) => this.subscribe(component, eventName, handler, target),
+      on: (target, eventName, handler, options) => this.addEventListener(component, target, eventName, handler, options),
+      delegate: (container, eventName, selector, handler, options) => 
+        this.addDelegatedListener(component, container, eventName, selector, handler, options)
+    };
+  }
+}
+
+// Create singleton event bus
+const eventBus = new EventBus();
+
 export class EventHelper {
+  /**
+   * Get the event bus instance
+   */
+  static get bus() {
+    return eventBus;
+  }
+  
   /**
    * Create a custom event with standard configuration
    * @param {string} eventName - Name of the event
@@ -38,6 +186,63 @@ export class EventHelper {
   static dispatch(component, eventName, detail = {}, options = {}) {
     const event = this.createEvent(eventName, detail, options);
     return component.dispatchEvent(event);
+  }
+
+  /**
+   * Create a component-scoped event helper
+   * @param {HTMLElement} component - Component to scope to
+   * @returns {Object} Scoped event helper
+   */
+  static forComponent(component) {
+    const emitter = eventBus.createComponentEmitter(component);
+    
+    return {
+      // Event bus methods
+      ...emitter,
+      
+      // Original static methods bound to component
+      dispatch: (eventName, detail, options) => 
+        EventHelper.dispatch(component, eventName, detail, options),
+      
+      dispatchOpenFile: (filePath, lineNumber, characterNumber) =>
+        EventHelper.dispatchOpenFile(component, filePath, lineNumber, characterNumber),
+      
+      dispatchNavigateToHistory: (filePath, line, character) =>
+        EventHelper.dispatchNavigateToHistory(component, filePath, line, character),
+      
+      dispatchSaveFile: (content, filePath) =>
+        EventHelper.dispatchSaveFile(component, content, filePath),
+      
+      dispatchContentChanged: (content, version, changes) =>
+        EventHelper.dispatchContentChanged(component, content, version, changes),
+      
+      dispatchCursorPositionChanged: (line, character) =>
+        EventHelper.dispatchCursorPositionChanged(component, line, character),
+      
+      dispatchRequestFindInFiles: (selectedText) =>
+        EventHelper.dispatchRequestFindInFiles(component, selectedText),
+      
+      dispatchLspStatusChange: (connected) =>
+        EventHelper.dispatchLspStatusChange(component, connected),
+      
+      dispatchNavigation: (direction) =>
+        EventHelper.dispatchNavigation(component, direction),
+      
+      dispatchModeToggle: (mode) =>
+        EventHelper.dispatchModeToggle(component, mode),
+      
+      dispatchTabChange: (activeTabIndex) =>
+        EventHelper.dispatchTabChange(component, activeTabIndex),
+      
+      dispatchUpdateServerURI: (newServerURI) =>
+        EventHelper.dispatchUpdateServerURI(component, newServerURI),
+      
+      dispatchToggleExpanded: (expanded) =>
+        EventHelper.dispatchToggleExpanded(component, expanded),
+      
+      dispatchWordClicked: (word) =>
+        EventHelper.dispatchWordClicked(component, word)
+    };
   }
 
   /**
