@@ -23,6 +23,7 @@ export class CardMarkdown extends LitElement {
     this.showCopySuccess = false;
     this.showCopyToPromptSuccess = false;
     this.setupMarked();
+    this.setupContentProcessors();
   }
 
   setupMarked() {
@@ -43,37 +44,40 @@ export class CardMarkdown extends LitElement {
     });
   }
 
+  setupContentProcessors() {
+    // Strategy pattern for content processing based on role
+    this.contentProcessors = {
+      command: (content) => content,
+      user: (content) => this.escapeHtml(content).replace(/\n/g, '<br>'),
+      assistant: (content) => this.processMarkdown(content)
+    };
+  }
+
+  escapeHtml(content) {
+    return content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  processMarkdown(content) {
+    try {
+      return marked(content);
+    } catch (e) {
+      console.error('Markdown parsing error:', e);
+      return content;
+    }
+  }
+
   static styles = CardMarkdownStyles.styles;
 
   processContent() {
     if (!this.content) return '';
     
-    // For command role, return raw content
-    if (this.role === 'command') {
-      return this.content;
-    }
-    
-    // For user role, escape HTML but preserve formatting
-    if (this.role === 'user') {
-      // Escape HTML to prevent XSS
-      const escaped = this.content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-      
-      // Convert newlines to <br> tags to preserve formatting
-      return escaped.replace(/\n/g, '<br>');
-    }
-    
-    // Process as markdown only for assistant role
-    try {
-      return marked(this.content);
-    } catch (e) {
-      console.error('Markdown parsing error:', e);
-      return this.content;
-    }
+    const processor = this.contentProcessors[this.role] || this.contentProcessors.assistant;
+    return processor(this.content);
   }
 
   async copyToClipboard() {
