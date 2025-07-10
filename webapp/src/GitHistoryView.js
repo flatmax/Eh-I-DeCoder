@@ -3,6 +3,9 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {GitHistoryStyles} from './git-history/GitHistoryStyles.js';
 import {CommitDataManager} from './git-history/CommitDataManager.js';
 import {ResizeHandler} from './git-history/ResizeHandler.js';
+import {BranchManager} from './git-history/BranchManager.js';
+import {SelectionValidator} from './git-history/SelectionValidator.js';
+import {PanelRenderer} from './git-history/PanelRenderer.js';
 import './CommitList.js';
 import './GitDiffView.js';
 
@@ -61,6 +64,9 @@ export class GitHistoryView extends JRPCClient {
     // Initialize managers
     this.commitDataManager = new CommitDataManager(this);
     this.resizeHandler = new ResizeHandler(this);
+    this.branchManager = new BranchManager(this);
+    this.selectionValidator = new SelectionValidator(this);
+    this.panelRenderer = new PanelRenderer(this);
   }
 
   static styles = [
@@ -217,7 +223,7 @@ export class GitHistoryView extends JRPCClient {
     this.isConnected = true;
     super.setupDone?.();
     this.commitDataManager.loadCommits();
-    this.loadBranches();
+    this.branchManager.loadBranches();
   }
   
   /**
@@ -236,72 +242,6 @@ export class GitHistoryView extends JRPCClient {
     console.log('GitHistoryView::remoteDisconnected');
     this.isConnected = false;
     this.error = 'Connection lost. Waiting for reconnection...';
-  }
-
-  async loadBranches() {
-    if (!this.isConnected || !this.call) {
-      console.warn('Cannot load branches - not connected');
-      return;
-    }
-
-    try {
-      console.log('GitHistoryView: Loading branches...');
-      
-      // Try different possible method names
-      const methodsList = ['Repo.get_branches', 'Git.get_branches', 'Git.branches', 'Repo.list_branches'];
-      let methodToCall = null;
-      
-      for (const method of methodsList) {
-        if (this.call[method]) {
-          methodToCall = method;
-          console.log(`Found git branches method: ${methodToCall}`);
-          break;
-        }
-      }
-      
-      if (!methodToCall) {
-        console.warn('No git branches method found. Branch selection will not be available.');
-        return;
-      }
-
-      const response = await this.call[methodToCall]();
-      const branches = this.extractBranchesFromResponse(response);
-      
-      console.log(`GitHistoryView: Loaded ${branches.length} branches`);
-      this.branches = branches;
-      
-    } catch (error) {
-      console.error('Error loading branches:', error);
-      // Don't show error to user - branch selection is optional
-    }
-  }
-
-  extractBranchesFromResponse(response) {
-    if (!response) return [];
-    
-    // Handle direct array response
-    if (Array.isArray(response)) {
-      return response;
-    }
-    
-    // Handle wrapped response
-    if (typeof response === 'object') {
-      const keys = Object.keys(response);
-      
-      // Check for common property names
-      for (const propName of ['branches', 'data', 'results', 'list']) {
-        if (response[propName] && Array.isArray(response[propName])) {
-          return response[propName];
-        }
-      }
-      
-      // Check for UUID-wrapped response
-      if (keys.length === 1 && Array.isArray(response[keys[0]])) {
-        return response[keys[0]];
-      }
-    }
-    
-    return [];
   }
 
   toggleLeftPanelMode() {
@@ -326,7 +266,7 @@ export class GitHistoryView extends JRPCClient {
     const selectedHash = event.detail.commitHash;
     
     // Check if this commit is allowed (not newer than the toCommit)
-    if (this.toCommit && !this.isCommitAllowedForFrom(selectedHash)) {
+    if (this.toCommit && !this.selectionValidator.isCommitAllowedForFrom(selectedHash)) {
       console.log('Cannot select commit newer than the "to" commit');
       return;
     }
@@ -340,7 +280,7 @@ export class GitHistoryView extends JRPCClient {
     const selectedHash = event.detail.commitHash;
     
     // Check if this commit is allowed (not older than the fromCommit)
-    if (this.fromCommit && !this.isCommitAllowedForTo(selectedHash)) {
+    if (this.fromCommit && !this.selectionValidator.isCommitAllowedForTo(selectedHash)) {
       console.log('Cannot select commit older than the "from" commit');
       return;
     }
@@ -349,203 +289,11 @@ export class GitHistoryView extends JRPCClient {
     this.toBranch = ''; // Clear branch selection when commit is selected
     
     // If the current fromCommit is now newer than the new toCommit, clear it
-    if (this.fromCommit && !this.isCommitAllowedForFrom(this.fromCommit)) {
+    if (this.fromCommit && !this.selectionValidator.isCommitAllowedForFrom(this.fromCommit)) {
       this.fromCommit = '';
     }
     
     this.requestUpdate();
-  }
-
-  async handleFromBranchSelect(branch) {
-    if (!branch || !branch.name) return;
-    
-    // Check if this branch's commit is allowed
-    if (this.toCommit && branch.commit && !this.isCommitAllowedForFrom(branch.commit)) {
-      console.log('Cannot select branch newer than the "to" commit');
-      return;
-    }
-    
-    this.fromBranch = branch.name;
-    this.fromCommit = branch.commit || await this.resolveBranchToCommit(branch.name);
-    this.requestUpdate();
-  }
-
-  async handleToBranchSelect(branch) {
-    if (!branch || !branch.name) return;
-    
-    // Check if this branch's commit is allowed
-    if (this.fromCommit && branch.commit && !this.isCommitAllowedForTo(branch.commit)) {
-      console.log('Cannot select branch older than the "from" commit');
-      return;
-    }
-    
-    this.toBranch = branch.name;
-    this.toCommit = branch.commit || await this.resolveBranchToCommit(branch.name);
-    
-    // If the current fromCommit is now newer than the new toCommit, clear it
-    if (this.fromCommit && !this.isCommitAllowedForFrom(this.fromCommit)) {
-      this.fromCommit = '';
-      this.fromBranch = '';
-    }
-    
-    this.requestUpdate();
-  }
-
-  async resolveBranchToCommit(branchName) {
-    if (!this.isConnected || !this.call) {
-      console.warn('Cannot resolve branch - not connected');
-      return null;
-    }
-
-    try {
-      // Try to find a method to resolve branch to commit
-      const methodsList = ['Repo.get_branch_commit', 'Git.rev_parse', 'Repo.resolve_ref'];
-      let methodToCall = null;
-      
-      for (const method of methodsList) {
-        if (this.call[method]) {
-          methodToCall = method;
-          break;
-        }
-      }
-      
-      if (!methodToCall) {
-        console.warn('No method found to resolve branch to commit');
-        return null;
-      }
-
-      const response = await this.call[methodToCall](branchName);
-      
-      // Extract commit hash from response
-      if (typeof response === 'string') {
-        return response.trim();
-      } else if (response && typeof response === 'object') {
-        // Check for common property names
-        for (const prop of ['commit', 'hash', 'sha', 'oid']) {
-          if (response[prop]) {
-            return response[prop];
-          }
-        }
-        // Check for UUID-wrapped response
-        const keys = Object.keys(response);
-        if (keys.length === 1 && typeof response[keys[0]] === 'string') {
-          return response[keys[0]].trim();
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error resolving branch to commit:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Check if a commit is allowed to be selected as the "from" commit
-   * A commit is allowed if it's older than or equal to the selected "to" commit
-   */
-  isCommitAllowedForFrom(commitHash) {
-    if (!this.toCommit || !commitHash) return true;
-    
-    const fromIndex = this.commits.findIndex(c => c.hash === commitHash);
-    const toIndex = this.commits.findIndex(c => c.hash === this.toCommit);
-    
-    // If either commit is not found, allow it (fallback)
-    if (fromIndex === -1 || toIndex === -1) return true;
-    
-    // In git history, newer commits have lower indices (they appear first)
-    // So fromCommit should have a higher or equal index than toCommit
-    return fromIndex >= toIndex;
-  }
-
-  /**
-   * Check if a commit is allowed to be selected as the "to" commit
-   * A commit is allowed if it's newer than or equal to the selected "from" commit
-   */
-  isCommitAllowedForTo(commitHash) {
-    if (!this.fromCommit || !commitHash) return true;
-    
-    const toIndex = this.commits.findIndex(c => c.hash === commitHash);
-    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
-    
-    // If either commit is not found, allow it (fallback)
-    if (toIndex === -1 || fromIndex === -1) return true;
-    
-    // In git history, newer commits have lower indices (they appear first)
-    // So toCommit should have a lower or equal index than fromCommit
-    return toIndex <= fromIndex;
-  }
-
-  /**
-   * Get disabled commits for the left panel (from commits)
-   */
-  getDisabledCommitsForFrom() {
-    if (!this.toCommit) return new Set();
-    
-    const toIndex = this.commits.findIndex(c => c.hash === this.toCommit);
-    if (toIndex === -1) return new Set();
-    
-    const disabledCommits = new Set();
-    
-    // Disable all commits that are newer (have lower index) than the toCommit
-    for (let i = 0; i < toIndex; i++) {
-      disabledCommits.add(this.commits[i].hash);
-    }
-    
-    return disabledCommits;
-  }
-
-  /**
-   * Get disabled commits for the right panel (to commits)
-   */
-  getDisabledCommitsForTo() {
-    if (!this.fromCommit) return new Set();
-    
-    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
-    if (fromIndex === -1) return new Set();
-    
-    const disabledCommits = new Set();
-    
-    // Disable all commits that are older (have higher index) than the fromCommit
-    for (let i = fromIndex + 1; i < this.commits.length; i++) {
-      disabledCommits.add(this.commits[i].hash);
-    }
-    
-    return disabledCommits;
-  }
-
-  /**
-   * Get disabled branches for the left panel
-   */
-  getDisabledBranchesForFrom() {
-    if (!this.toCommit) return new Set();
-    
-    const disabledBranches = new Set();
-    
-    for (const branch of this.branches) {
-      if (branch.commit && !this.isCommitAllowedForFrom(branch.commit)) {
-        disabledBranches.add(branch.name);
-      }
-    }
-    
-    return disabledBranches;
-  }
-
-  /**
-   * Get disabled branches for the right panel
-   */
-  getDisabledBranchesForTo() {
-    if (!this.fromCommit) return new Set();
-    
-    const disabledBranches = new Set();
-    
-    for (const branch of this.branches) {
-      if (branch.commit && !this.isCommitAllowedForTo(branch.commit)) {
-        disabledBranches.add(branch.name);
-      }
-    }
-    
-    return disabledBranches;
   }
 
   handleLeftPanelMouseEnter() {
@@ -574,136 +322,6 @@ export class GitHistoryView extends JRPCClient {
     return this.rightPanelHovered ? this.rightPanelWidth : 60;
   }
 
-  renderBranchList(branches, selectedBranch, disabledBranches, isLeft = true) {
-    return html`
-      <div class="branch-list">
-        ${branches.map(branch => {
-          const isDisabled = disabledBranches.has(branch.name);
-          const isSelected = selectedBranch === branch.name;
-          const disabledMessage = isLeft ? 
-            'Cannot select branch newer than "To" selection' : 
-            'Cannot select branch older than "From" selection';
-          
-          return html`
-            <div 
-              class="branch-item ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}"
-              @click=${isDisabled ? null : () => isLeft ? this.handleFromBranchSelect(branch) : this.handleToBranchSelect(branch)}
-              title="${isDisabled ? disabledMessage : `${branch.name}${branch.commit ? ' (' + branch.commit.substring(0, 7) + ')' : ''}`}"
-            >
-              <span class="branch-icon">🌿</span>
-              <span class="branch-name">${branch.name}</span>
-              ${branch.commit ? html`<span class="branch-commit">${branch.commit.substring(0, 7)}</span>` : ''}
-            </div>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  renderCollapsedBranches(selectedBranch, isLeft = true) {
-    if (!this.branches || this.branches.length === 0) return '';
-    
-    const disabledBranches = isLeft ? this.getDisabledBranchesForFrom() : this.getDisabledBranchesForTo();
-    
-    return html`
-      <div class="collapsed-branches">
-        ${this.branches.map(branch => {
-          const isDisabled = disabledBranches.has(branch.name);
-          const isSelected = selectedBranch === branch.name;
-          const disabledMessage = isLeft ? 
-            'Cannot select branch newer than "To" selection' : 
-            'Cannot select branch older than "From" selection';
-          
-          return html`
-            <div 
-              class="collapsed-branch ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}"
-              @click=${isDisabled ? null : () => isLeft ? this.handleFromBranchSelect(branch) : this.handleToBranchSelect(branch)}
-              title="${isDisabled ? disabledMessage : branch.name}"
-            >
-              🌿 ${branch.name}
-            </div>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  renderCollapsedCommitHashes(selectedCommit, isLeft = true) {
-    if (!this.commits || this.commits.length === 0) return '';
-    
-    const disabledCommits = isLeft ? this.getDisabledCommitsForFrom() : this.getDisabledCommitsForTo();
-    
-    return html`
-      <div class="collapsed-commit-hashes">
-        ${this.commits.map(commit => {
-          const isDisabled = disabledCommits.has(commit.hash);
-          const disabledMessage = isLeft ? 
-            'Cannot select newer commit than "To" commit' : 
-            'Cannot select older commit than "From" commit';
-          
-          return html`
-            <div 
-              class="collapsed-hash ${selectedCommit === commit.hash ? 'active' : ''} ${isDisabled ? 'disabled' : ''}"
-              @click=${isDisabled ? null : () => isLeft ? this.handleFromCommitSelect({detail: {commitHash: commit.hash}}) : this.handleToCommitSelect({detail: {commitHash: commit.hash}})}
-              title="${isDisabled ? disabledMessage : `${commit.hash} - ${commit.message || 'No message'}`}"
-              style="${isDisabled ? 'cursor: not-allowed; opacity: 0.5;' : ''}"
-            >
-              ${commit.hash?.substring(0, 7) || '???????'}
-            </div>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  renderEmptyState() {
-    if (this.commits.length === 0) {
-      return html`
-        <div class="empty-state">
-          <p>No commits found in this repository.</p>
-          <p>Make your first commit to see history.</p>
-        </div>
-      `;
-    }
-    return null;
-  }
-  
-  renderSingleCommitWarning() {
-    if (this.commits.length === 1) {
-      const commit = this.commits[0];
-      return html`
-        <div class="notification-banner">
-          <p><strong>Only one commit available: ${commit.hash?.substring(0, 7) || 'Unknown'}</strong></p>
-          <p>${commit.message || 'No message'} (${commit.author || 'Unknown author'})</p>
-          <p>This is showing the contents of the initial commit. Make more commits to see change comparisons.</p>
-          <button @click=${() => this.isConnected ? this.commitDataManager.loadGitLogManually() : null} class="manual-refresh-button" ?disabled=${!this.isConnected}>
-            Refresh Git History
-          </button>
-        </div>
-      `;
-    }
-    return null;
-  }
-
-  renderSelectedCommits() {
-    if (!this.fromCommit || !this.toCommit) return '';
-    
-    const fromCommitObj = this.commits.find(c => c.hash === this.fromCommit);
-    const toCommitObj = this.commits.find(c => c.hash === this.toCommit);
-    
-    return html`
-      <div class="selected-commits">
-        Comparing: 
-        ${this.fromBranch ? html`<strong>${this.fromBranch}</strong> ` : ''}
-        ${fromCommitObj?.hash?.substring(0, 7) || 'Unknown'} 
-        → 
-        ${this.toBranch ? html`<strong>${this.toBranch}</strong> ` : ''}
-        ${toCommitObj?.hash?.substring(0, 7) || 'Unknown'}
-        (${this.totalCommitsLoaded} commits loaded)
-      </div>
-    `;
-  }
-
   render() {
     if (this.loading) {
       return html`<div class="loading">Loading commit history...</div>`;
@@ -713,7 +331,7 @@ export class GitHistoryView extends JRPCClient {
       return html`<div class="error">${this.error}</div>`;
     }
 
-    const emptyState = this.renderEmptyState();
+    const emptyState = this.panelRenderer.renderEmptyState();
     if (emptyState) return emptyState;
     
     if (!this.fromCommit || !this.toCommit) {
@@ -750,12 +368,12 @@ export class GitHistoryView extends JRPCClient {
           ` : ''}
           ${this.leftPanelHovered ? (
             this.leftPanelMode === 'branches' ? 
-              this.renderBranchList(this.branches, this.fromBranch, this.getDisabledBranchesForFrom(), true) :
+              this.panelRenderer.renderBranchList(this.branches, this.fromBranch, this.branchManager.getDisabledBranchesForFrom(), true) :
               html`
                 <commit-list
                   .commits=${this.commits}
                   .selectedCommit=${this.fromCommit}
-                  .disabledCommits=${this.getDisabledCommitsForFrom()}
+                  .disabledCommits=${this.selectionValidator.getDisabledCommitsForFrom()}
                   .serverURI=${this.serverURI}
                   @commit-select=${this.handleFromCommitSelect}
                   @commit-list-scroll=${this.handleCommitListScroll}
@@ -763,8 +381,8 @@ export class GitHistoryView extends JRPCClient {
               `
           ) : (
             this.leftPanelMode === 'branches' && this.branches.length > 0 ? 
-              this.renderCollapsedBranches(this.fromBranch, true) :
-              this.renderCollapsedCommitHashes(this.fromCommit, true)
+              this.panelRenderer.renderCollapsedBranches(this.fromBranch, true) :
+              this.panelRenderer.renderCollapsedCommitHashes(this.fromCommit, true)
           )}
           ${this.loadingMore && this.leftPanelMode === 'commits' ? html`
             <div class="loading-more">
@@ -782,8 +400,8 @@ export class GitHistoryView extends JRPCClient {
 
         <!-- Center Panel -->
         <div class="center-panel">
-          ${this.renderSingleCommitWarning()}
-          ${this.renderSelectedCommits()}
+          ${this.panelRenderer.renderSingleCommitWarning()}
+          ${this.panelRenderer.renderSelectedCommits()}
           <git-diff-view
             .serverURI=${this.serverURI}
             .fromCommit=${this.fromCommit}
@@ -826,12 +444,12 @@ export class GitHistoryView extends JRPCClient {
           ` : ''}
           ${this.rightPanelHovered ? (
             this.rightPanelMode === 'branches' ? 
-              this.renderBranchList(this.branches, this.toBranch, this.getDisabledBranchesForTo(), false) :
+              this.panelRenderer.renderBranchList(this.branches, this.toBranch, this.branchManager.getDisabledBranchesForTo(), false) :
               html`
                 <commit-list
                   .commits=${this.commits}
                   .selectedCommit=${this.toCommit}
-                  .disabledCommits=${this.getDisabledCommitsForTo()}
+                  .disabledCommits=${this.selectionValidator.getDisabledCommitsForTo()}
                   .serverURI=${this.serverURI}
                   @commit-select=${this.handleToCommitSelect}
                   @commit-list-scroll=${this.handleCommitListScroll}
@@ -839,8 +457,8 @@ export class GitHistoryView extends JRPCClient {
               `
           ) : (
             this.rightPanelMode === 'branches' && this.branches.length > 0 ? 
-              this.renderCollapsedBranches(this.toBranch, false) :
-              this.renderCollapsedCommitHashes(this.toCommit, false)
+              this.panelRenderer.renderCollapsedBranches(this.toBranch, false) :
+              this.panelRenderer.renderCollapsedCommitHashes(this.toCommit, false)
           )}
           ${this.loadingMore && this.rightPanelMode === 'commits' ? html`
             <div class="loading-more">
