@@ -4,6 +4,7 @@ import { SearchForm } from './search/SearchForm.js';
 import { SearchResults } from './search/SearchResults.js';
 import { SearchState } from './search/SearchState.js';
 import { EventHelper } from './utils/EventHelper.js';
+import { extractResponseData } from './Utils.js';
 
 // Import Material Design Web Components
 import '@material/web/progress/circular-progress.js';
@@ -12,7 +13,8 @@ export class FindInFiles extends JRPCClient {
   static properties = {
     ...SearchState.properties,
     serverURI: { type: String },
-    isConnected: { type: Boolean, state: true }
+    isConnected: { type: Boolean, state: true },
+    checkedFiles: { type: Set, state: true }
   };
 
   constructor() {
@@ -20,6 +22,7 @@ export class FindInFiles extends JRPCClient {
     this.searchState = new SearchState(() => this.updateStateFromSearchState());
     this.initializeProperties();
     this.isConnected = false;
+    this.checkedFiles = new Set();
   }
   
   initializeProperties() {
@@ -32,6 +35,18 @@ export class FindInFiles extends JRPCClient {
   connectedCallback() {
     super.connectedCallback();
     this.addClass?.(this);
+    
+    // Listen for file context change events on window (where EventHelper.dispatchWindowEvent sends them)
+    console.log('FindInFiles: Adding event listeners for file context changes');
+    window.addEventListener('file-added-to-context', this.handleFileAddedToContext.bind(this));
+    window.addEventListener('file-dropped-from-context', this.handleFileDroppedFromContext.bind(this));
+  }
+  
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    console.log('FindInFiles: Removing event listeners');
+    window.removeEventListener('file-added-to-context', this.handleFileAddedToContext.bind(this));
+    window.removeEventListener('file-dropped-from-context', this.handleFileDroppedFromContext.bind(this));
   }
   
   /**
@@ -137,6 +152,48 @@ export class FindInFiles extends JRPCClient {
     EventHelper.dispatchOpenFile(this, filePath, lineNumber);
   }
   
+  handleFileCheckboxChange(filePath, checked) {
+    console.log(`FindInFiles: Checkbox changed for ${filePath}, checked: ${checked}`);
+    
+    // Dispatch event to request file context change
+    if (checked) {
+      console.log(`FindInFiles: Dispatching request-add-file-to-context for ${filePath}`);
+      EventHelper.dispatchWindowEvent('request-add-file-to-context', { filePath });
+    } else {
+      console.log(`FindInFiles: Dispatching request-drop-file-from-context for ${filePath}`);
+      EventHelper.dispatchWindowEvent('request-drop-file-from-context', { filePath });
+    }
+  }
+  
+  handleFileAddedToContext(event) {
+    const { filePath } = event.detail;
+    console.log(`FindInFiles: Received file-added-to-context event for ${filePath}`);
+    
+    this.checkedFiles = new Set([...this.checkedFiles, filePath]);
+    this.requestUpdate();
+  }
+  
+  handleFileDroppedFromContext(event) {
+    const { filePath } = event.detail;
+    console.log(`FindInFiles: Received file-dropped-from-context event for ${filePath}`);
+    
+    const newSet = new Set(this.checkedFiles);
+    newSet.delete(filePath);
+    this.checkedFiles = newSet;
+    this.requestUpdate();
+  }
+  
+  // Handle notifications from the server when files are added/removed
+  add_rel_fname_notification(filePath) {
+    console.log(`FindInFiles: File added notification: ${filePath}`);
+    // The file-added-to-context event will be dispatched by FileTree
+  }
+
+  drop_rel_fname_notification(filePath) {
+    console.log(`FindInFiles: File dropped notification: ${filePath}`);
+    // The file-dropped-from-context event will be dispatched by FileTree
+  }
+  
   updateStateFromSearchState() {
     // Sync component properties with search state
     Object.keys(SearchState.properties).forEach(prop => {
@@ -148,6 +205,7 @@ export class FindInFiles extends JRPCClient {
   render() {
     // Convert Set to Array for better LitElement property change detection
     const expandedFilesArray = Array.from(this.expandedFiles || []);
+    const checkedFilesArray = Array.from(this.checkedFiles || []);
     
     return html`
       <div class="search-container">
@@ -175,6 +233,8 @@ export class FindInFiles extends JRPCClient {
           .searchResults=${this.searchResults}
           .expandedFiles=${this.expandedFiles}
           .expandedFilesArray=${expandedFilesArray}
+          .checkedFiles=${this.checkedFiles}
+          .checkedFilesArray=${checkedFilesArray}
           .allExpanded=${this.allExpanded}
           .isSearching=${this.isSearching}
           .searchQuery=${this.searchQuery}
@@ -183,6 +243,7 @@ export class FindInFiles extends JRPCClient {
           @collapse-all=${this.handleCollapseAll}
           @file-header-click=${e => this.handleFileHeaderClick(e.detail.filePath)}
           @open-file=${e => this.handleOpenFile(e.detail.filePath, e.detail.lineNumber)}
+          @file-checkbox-change=${e => this.handleFileCheckboxChange(e.detail.filePath, e.detail.checked)}
         ></search-results>
       </div>
     `;

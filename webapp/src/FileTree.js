@@ -56,15 +56,24 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     this.addClass?.(this);
     
     // Listen for file loaded events from the merge editor
+    console.log('FileTree: Adding event listener for file-loaded-in-editor');
     document.addEventListener('file-loaded-in-editor', this.handleFileLoadedInEditor.bind(this));
+    
+    // Listen for file context change requests on window (where EventHelper.dispatchWindowEvent sends them)
+    console.log('FileTree: Adding event listeners for file context change requests');
+    window.addEventListener('request-add-file-to-context', this.handleRequestAddFile.bind(this));
+    window.addEventListener('request-drop-file-from-context', this.handleRequestDropFile.bind(this));
   }
   
   disconnectedCallback() {
     super.disconnectedCallback();
     this.cleanup();
     
-    // Remove event listener
+    // Remove event listeners
+    console.log('FileTree: Removing event listeners');
     document.removeEventListener('file-loaded-in-editor', this.handleFileLoadedInEditor.bind(this));
+    window.removeEventListener('request-add-file-to-context', this.handleRequestAddFile.bind(this));
+    window.removeEventListener('request-drop-file-from-context', this.handleRequestDropFile.bind(this));
   }
   
   cleanup() {
@@ -128,9 +137,50 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   
   handleFileLoadedInEditor(event) {
     const filePath = event.detail.filePath;
+    console.log(`FileTree: Received file-loaded-in-editor event for ${filePath}`);
     if (filePath !== this.currentFile) {
       this.currentFile = filePath;
       this._scheduleBatchUpdate('scroll');
+    }
+  }
+  
+  async handleRequestAddFile(event) {
+    const { filePath } = event.detail;
+    console.log(`FileTree: Received request-add-file-to-context event for ${filePath}`);
+    
+    if (!this.isConnected) {
+      console.warn('Cannot add file to context - not connected');
+      return;
+    }
+    
+    console.log(`FileTree: Handling request to add file: ${filePath}`);
+    
+    try {
+      await this.fileTreeManager.addFile(filePath);
+    } catch (error) {
+      console.error(`Error adding file:`, error);
+      this.error = `Failed to add file: ${error.message}`;
+      this._scheduleBatchUpdate();
+    }
+  }
+  
+  async handleRequestDropFile(event) {
+    const { filePath } = event.detail;
+    console.log(`FileTree: Received request-drop-file-from-context event for ${filePath}`);
+    
+    if (!this.isConnected) {
+      console.warn('Cannot drop file from context - not connected');
+      return;
+    }
+    
+    console.log(`FileTree: Handling request to drop file: ${filePath}`);
+    
+    try {
+      await this.fileTreeManager.removeFile(filePath);
+    } catch (error) {
+      console.error(`Error dropping file:`, error);
+      this.error = `Failed to remove file: ${error.message}`;
+      this._scheduleBatchUpdate();
     }
   }
   
@@ -381,6 +431,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   
   async handleCheckboxClick(event, path) {
     event.stopPropagation();
+    console.log(`FileTree: Checkbox clicked for ${path}`);
     
     if (!this.isConnected) {
       console.warn('Cannot modify files - not connected');
@@ -389,10 +440,13 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     
     try {
       const isAdded = this.addedFiles.includes(path);
+      console.log(`FileTree: File ${path} is currently ${isAdded ? 'added' : 'not added'}`);
       
       if (isAdded) {
+        console.log(`FileTree: Removing file ${path} from context`);
         await this.fileTreeManager.removeFile(path);
       } else {
+        console.log(`FileTree: Adding file ${path} to context`);
         await this.fileTreeManager.addFile(path);
       }
     } catch (error) {
@@ -403,6 +457,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   async handleDirectoryCheckboxClick(event, node) {
     event.stopPropagation();
     event.preventDefault();
+    console.log(`FileTree: Directory checkbox clicked for ${node.path}`);
     
     if (!this.isConnected) {
       console.warn('Cannot modify files - not connected');
@@ -412,14 +467,17 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     try {
       const allFiles = this.getAllFilesInDirectory(node);
       const allAdded = allFiles.every(file => this.addedFiles.includes(file));
+      console.log(`FileTree: Directory ${node.path} has ${allFiles.length} files, all added: ${allAdded}`);
       
       if (allAdded) {
         // Remove all files
+        console.log(`FileTree: Removing all files from directory ${node.path}`);
         for (const filePath of allFiles) {
           await this.fileTreeManager.removeFile(filePath);
         }
       } else {
         // Add all files
+        console.log(`FileTree: Adding all files from directory ${node.path}`);
         for (const filePath of allFiles) {
           if (!this.addedFiles.includes(filePath)) {
             await this.fileTreeManager.addFile(filePath);
@@ -452,21 +510,29 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   }
   
   add_rel_fname_notification(filePath) {
-    console.log(`File added notification: ${filePath}`);
+    console.log(`FileTree: File added notification received for ${filePath}`);
     
     if (!this.addedFiles.includes(filePath)) {
       this.addedFiles = [...this.addedFiles, filePath];
       this.treeExpansion.expandPathToFile(filePath);
       this._scheduleBatchUpdate();
+      
+      // Emit event to notify other components
+      console.log(`FileTree: Dispatching file-added-to-context event for ${filePath}`);
+      EventHelper.dispatchWindowEvent('file-added-to-context', { filePath });
     }
   }
   
   drop_rel_fname_notification(filePath) {
-    console.log(`File dropped notification: ${filePath}`);
+    console.log(`FileTree: File dropped notification received for ${filePath}`);
     
     if (this.addedFiles.includes(filePath)) {
       this.addedFiles = this.addedFiles.filter(f => f !== filePath);
       this._scheduleBatchUpdate();
+      
+      // Emit event to notify other components
+      console.log(`FileTree: Dispatching file-dropped-from-context event for ${filePath}`);
+      EventHelper.dispatchWindowEvent('file-dropped-from-context', { filePath });
     }
   }
   

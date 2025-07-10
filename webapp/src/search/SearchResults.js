@@ -5,12 +5,15 @@ import { EventHelper } from '../utils/EventHelper.js';
 // Import Material Design Web Components
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
+import '@material/web/checkbox/checkbox.js';
 
 export class SearchResults extends LitElement {
   static properties = {
     searchResults: { type: Array },
     expandedFiles: { type: Set },
     expandedFilesArray: { type: Array },
+    checkedFiles: { type: Set },
+    checkedFilesArray: { type: Array },
     allExpanded: { type: Boolean },
     isSearching: { type: Boolean },
     searchQuery: { type: String },
@@ -22,6 +25,8 @@ export class SearchResults extends LitElement {
     this.searchResults = [];
     this.expandedFiles = new Set();
     this.expandedFilesArray = [];
+    this.checkedFiles =  new Set();
+    this.checkedFilesArray = [];
     this.allExpanded = false;
     this.isSearching = false;
     this.searchQuery = '';
@@ -33,6 +38,10 @@ export class SearchResults extends LitElement {
     if (changedProperties.has('expandedFilesArray')) {
       // Convert array back to Set for internal use
       this.expandedFiles = new Set(this.expandedFilesArray);
+    }
+    if (changedProperties.has('checkedFilesArray')) {
+      // Convert array back to Set for internal use
+      this.checkedFiles = new Set(this.checkedFilesArray);
     }
   }
 
@@ -50,6 +59,13 @@ export class SearchResults extends LitElement {
 
   handleOpenFile(filePath, lineNumber) {
     EventHelper.dispatchOpenFile(this, filePath, lineNumber);
+  }
+  
+  handleFileCheckboxChange(event, filePath) {
+    const checked = event.target.checked;
+    console.log(`SearchResults: Checkbox changed for ${filePath}, checked: ${checked}`);
+    console.log(`SearchResults: Dispatching file-checkbox-change event`);
+    EventHelper.dispatch(this, 'file-checkbox-change', { filePath, checked });
   }
 
   render() {
@@ -79,11 +95,18 @@ export class SearchResults extends LitElement {
         
         ${repeat(this.searchResults, result => result.file, result => {
           const isExpanded = this.expandedFiles.has(result.file);
+          const isChecked = this.checkedFiles.has(result.file);
           return html`
             <div class="file-result">
               <div class="file-header" 
                    @click=${() => this.handleFileHeaderClick(result.file)}
                    title=${result.file}>
+                <md-checkbox
+                  class="file-checkbox"
+                  ?checked=${isChecked}
+                  @change=${(e) => this.handleFileCheckboxChange(e, result.file)}
+                  @click=${(e) => e.stopPropagation()}
+                ></md-checkbox>
                 <md-icon class="material-symbols-outlined expand-icon">
                   ${isExpanded ? 'expand_less' : 'expand_more'}
                 </md-icon>
@@ -168,6 +191,10 @@ export class SearchResults extends LitElement {
     
     .file-header:hover {
       background-color: var(--md-sys-color-surface-variant, #d9d1e0);
+    }
+    
+    .file-checkbox {
+      --md-checkbox-container-size: 16px;
     }
     
     .expand-icon {
