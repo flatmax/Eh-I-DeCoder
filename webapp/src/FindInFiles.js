@@ -52,9 +52,12 @@ export class FindInFiles extends JRPCClient {
   /**
    * Called when JRPC connection is established and ready
    */
-  setupDone() {
+  async setupDone() {
     console.log('FindInFiles::setupDone - Connection ready');
     this.isConnected = true;
+    
+    // Load the inchat files to determine which should be checked
+    await this.loadInchatFiles();
   }
   
   /**
@@ -73,6 +76,26 @@ export class FindInFiles extends JRPCClient {
     this.isConnected = false;
     if (this.isSearching) {
       this.searchState.handleSearchError(new Error('Connection lost during search'));
+    }
+  }
+  
+  async loadInchatFiles() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load inchat files - not connected');
+      return;
+    }
+    
+    try {
+      console.log('FindInFiles: Loading inchat files...');
+      const response = await this.call['EditBlockCoder.get_inchat_relative_files']();
+      const inchatFiles = extractResponseData(response, [], true);
+      console.log('FindInFiles: Inchat files loaded:', inchatFiles);
+      
+      // Update the checked files set
+      this.checkedFiles = new Set(inchatFiles);
+      this.requestUpdate();
+    } catch (error) {
+      console.error('FindInFiles: Error loading inchat files:', error);
     }
   }
   
