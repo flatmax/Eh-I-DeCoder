@@ -358,6 +358,24 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
     }
   }
   
+  async loadInchatFiles() {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot load inchat files - not connected');
+      return [];
+    }
+    
+    try {
+      console.log('Loading inchat files...');
+      const response = await this.call['EditBlockCoder.get_inchat_relative_files']();
+      const inchatFiles = extractResponseData(response, [], true);
+      console.log('Inchat files loaded:', inchatFiles);
+      return inchatFiles;
+    } catch (error) {
+      console.error('Error loading inchat files:', error);
+      return [];
+    }
+  }
+  
   async loadFileTree(scrollPosition = 0) {
     if (!this.isConnected || !this.call) {
       console.warn('Cannot load file tree - not connected');
@@ -374,8 +392,11 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       
       const fileData = await this.fileTreeManager.loadFileData();
       
+      // Load the inchat files to determine which should be checked
+      const inchatFiles = await this.loadInchatFiles();
+      
       // Batch all state updates
-      this.addedFiles = fileData.addedFiles;
+      this.addedFiles = inchatFiles;
       this.files = fileData.allFiles;
       this.treeData = fileData.treeData;
       
