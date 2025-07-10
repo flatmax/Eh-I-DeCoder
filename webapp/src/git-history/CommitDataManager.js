@@ -1,3 +1,5 @@
+import { extractResponseData } from '../Utils.js';
+
 export class CommitDataManager {
   constructor(gitHistoryView) {
     this.view = gitHistoryView;
@@ -171,6 +173,15 @@ export class CommitDataManager {
   extractCommitsFromResponse(response) {
     if (!response) return [];
     
+    // First try to extract using the utility function
+    const extracted = extractResponseData(response, []);
+    
+    // If we got an array, use it
+    if (Array.isArray(extracted) && extracted.length > 0) {
+      return this.sortCommitsByDate(extracted);
+    }
+    
+    // Otherwise, try manual extraction
     let commits = [];
     
     if (typeof response === 'string' && response.includes('|')) {

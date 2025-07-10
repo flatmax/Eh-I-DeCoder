@@ -48,6 +48,63 @@ class RepoHistory:
         except Exception as e:
             return create_error_response(e)
     
+    def get_branches(self):
+        """Get list of all branches in the repository"""
+        try:
+            self._ensure_repo()
+            
+            branches = []
+            
+            # Get all local branches
+            for branch in self.repo.repo.branches:
+                try:
+                    # Get the commit hash for this branch
+                    commit_hash = branch.commit.hexsha
+                    
+                    branch_data = {
+                        'name': branch.name,
+                        'commit': commit_hash,
+                        'is_current': branch == self.repo.repo.active_branch if hasattr(self.repo.repo, 'active_branch') else False
+                    }
+                    branches.append(branch_data)
+                except Exception as e:
+                    # If we can't get commit for a branch, still include it
+                    self.repo.log(f"Warning: Could not get commit for branch {branch.name}: {e}")
+                    branch_data = {
+                        'name': branch.name,
+                        'commit': None,
+                        'is_current': False
+                    }
+                    branches.append(branch_data)
+            
+            # Sort branches - current branch first, then alphabetically
+            branches.sort(key=lambda b: (not b['is_current'], b['name']))
+            
+            return branches
+            
+        except Exception as e:
+            return create_error_response(e)
+    
+    def get_branch_commit(self, branch_name):
+        """Get the commit hash for a specific branch"""
+        try:
+            self._ensure_repo()
+            
+            # Try to get the branch
+            if branch_name in self.repo.repo.branches:
+                branch = self.repo.repo.branches[branch_name]
+                return branch.commit.hexsha
+            else:
+                # Try as a reference (could be a tag or remote branch)
+                try:
+                    ref = self.repo.repo.refs[branch_name]
+                    return ref.commit.hexsha
+                except (KeyError, AttributeError):
+                    raise GitError(f"Branch or reference '{branch_name}' not found")
+            
+        except Exception as e:
+            return create_error_response(e)
+    
     def get_changed_files(self, from_commit, to_commit):
         """Get list of files changed between two commits"""
         try:

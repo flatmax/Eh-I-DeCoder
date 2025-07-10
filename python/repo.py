@@ -85,6 +85,14 @@ class Repo(BaseWrapper):
         """Get commit history with detailed information - optimized for performance with pagination support"""
         return self.repo_history.get_commit_history(max_count, branch, skip)
     
+    def get_branches(self):
+        """Get list of all branches in the repository"""
+        return self.repo_history.get_branches()
+    
+    def get_branch_commit(self, branch_name):
+        """Get the commit hash for a specific branch"""
+        return self.repo_history.get_branch_commit(branch_name)
+    
     def get_changed_files(self, from_commit, to_commit):
         """Get list of files changed between two commits"""
         return self.repo_history.get_changed_files(from_commit, to_commit)
@@ -214,7 +222,7 @@ class Repo(BaseWrapper):
             # Notify RepoTree using _safe_create_task - call loadGitStatus which triggers a refresh
             self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
             
-        except Exception as e:
+        except Exception as e: 
             self.log(f"Error in _notify_git_change: {e}")
 
     def _notify_file_saved(self, file_path):
