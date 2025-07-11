@@ -34,6 +34,15 @@ export class GitDiffRenderer {
         <div class="header-controls">
           ${this.renderRebaseControls()}
           ${!this.view.rebaseCompleting && !this.view.gitEditorMode ? html`
+            ${this.view.gitHistoryMode && this.view.changedFiles.length > 0 ? html`
+              <button 
+                class="add-all-files-button" 
+                title="Add all ${this.view.changedFiles.length} files to AI context"
+                @click=${() => this.view.addAllFilesToContext()}
+              >
+                + Add All to Context
+              </button>
+            ` : ''}
             <button class="refresh-button" title="Refresh Rebase Status" @click=${() => this.view.refreshRebaseStatus()}>
               🔄
             </button>
@@ -312,15 +321,6 @@ export class GitDiffRenderer {
             ${this.view.conflictFiles.includes(file) ? html`<span class="conflict-indicator">⚠</span>` : ''}
           </button>
         `)}
-        ${this.view.changedFiles.length > 0 ? html`
-          <button 
-            class="add-all-files-button" 
-            title="Add all ${this.view.changedFiles.length} files to AI context"
-            @click=${() => this.view.addAllFilesToContext()}
-          >
-            + Add All to Context
-          </button>
-        ` : ''}
       </div>
     `;
   }
