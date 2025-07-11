@@ -8,6 +8,7 @@ import {GitDiffRenderer} from './git-diff/GitDiffRenderer.js';
 import {extractResponseData} from './Utils.js';
 import './diffEditor/MonacoDiffEditor.js';
 import {LanguageDetector} from './diffEditor/LanguageDetector.js';
+import {EventHelper} from './utils/EventHelper.js';
 
 export class GitDiffView extends JRPCClient {
   static properties = {
@@ -302,6 +303,22 @@ export class GitDiffView extends JRPCClient {
     }
     
     return monacoEditor.getSelectedText() || '';
+  }
+
+  /**
+   * Add all changed files to the AI context
+   */
+  async addAllFilesToContext() {
+    if (!this.changedFiles || this.changedFiles.length === 0) return;
+    
+    console.log('GitDiffView: Adding all changed files to context');
+    
+    // Dispatch event for each file
+    for (const file of this.changedFiles) {
+      const filePath = typeof file === 'object' && file.file ? file.file : file;
+      console.log(`GitDiffView: Dispatching request-add-file-to-context for ${filePath}`);
+      EventHelper.dispatchWindowEvent('request-add-file-to-context', { filePath });
+    }
   }
 
   /**

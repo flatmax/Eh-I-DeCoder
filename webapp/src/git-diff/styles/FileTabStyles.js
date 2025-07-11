@@ -7,6 +7,9 @@ export const fileTabStyles = css`
     background: #f6f8fa;
     border-bottom: 1px solid #e1e4e8;
     flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
   }
 
   .file-tab {

@@ -312,6 +312,15 @@ export class GitDiffRenderer {
             ${this.view.conflictFiles.includes(file) ? html`<span class="conflict-indicator">⚠</span>` : ''}
           </button>
         `)}
+        ${this.view.changedFiles.length > 0 ? html`
+          <button 
+            class="add-all-files-button" 
+            title="Add all ${this.view.changedFiles.length} files to AI context"
+            @click=${() => this.view.addAllFilesToContext()}
+          >
+            + Add All to Context
+          </button>
+        ` : ''}
       </div>
     `;
   }
