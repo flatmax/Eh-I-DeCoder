@@ -2,6 +2,22 @@ import {css} from 'lit';
 
 export class RepoTreeStyles {
   static styles = css`
+    /* Container positioning for FAB */
+    :host {
+      position: relative;
+      display: block;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    /* Wrapper for the tree content */
+    .repo-tree-wrapper {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    
     /* Context Menu Styles */
     .context-menu {
       position: fixed;
@@ -42,9 +58,9 @@ export class RepoTreeStyles {
     }
     
     .refresh-fab {
-      position: fixed;
+      position: absolute;
       bottom: 24px;
-      left: 24px;
+      right: 24px;
       z-index: 100;
     }
     

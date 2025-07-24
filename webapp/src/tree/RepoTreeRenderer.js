@@ -18,9 +18,6 @@ export class RepoTreeRenderer {
 
   renderFabAndContextMenu() {
     return html`
-      <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.repoTree.loadFileTree()}>
-        <md-icon slot="icon">refresh</md-icon>
-      </md-fab>
       ${this.renderContextMenu()}
     `;
   }
