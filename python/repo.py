@@ -106,6 +106,62 @@ class Repo(BaseWrapper):
         """Get the content of a file from either HEAD, working directory, or specific commit"""
         return self.repo_file_manager.get_file_content(file_path, version)
     
+    def rename_file(self, old_path, new_path):
+        """Rename a file using Git mv command"""
+        try:
+            self._ensure_repo()
+            
+            # Get the repository root
+            repo_root = self.repo.working_tree_dir
+            
+            # Construct full paths
+            old_full_path = os.path.join(repo_root, old_path)
+            new_full_path = os.path.join(repo_root, new_path)
+            
+            # Check if the old file exists
+            if not os.path.exists(old_full_path):
+                raise FileOperationError(f"File does not exist: {old_path}")
+            
+            # Check if the new path already exists
+            if os.path.exists(new_full_path):
+                raise FileOperationError(f"Target file already exists: {new_path}")
+            
+            # Ensure the parent directory of the new path exists
+            new_dir = os.path.dirname(new_full_path)
+            if new_dir and not os.path.exists(new_dir):
+                os.makedirs(new_dir, exist_ok=True)
+            
+            # Use git mv to rename the file
+            try:
+                # Run git mv command
+                result = subprocess.run(
+                    ['git', 'mv', old_path, new_path],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                self.log(f"Successfully renamed file from {old_path} to {new_path}")
+                
+                # Notify about the change
+                self._notify_git_change()
+                
+                return {
+                    'success': True,
+                    'old_path': old_path,
+                    'new_path': new_path,
+                    'message': f"File renamed from {old_path} to {new_path}"
+                }
+                
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() if e.stderr else str(e)
+                raise GitError(f"Git rename failed: {error_msg}")
+                
+        except Exception as e:
+            self.log(f"Error renaming file: {e}")
+            return create_error_response(e)
+    
     # File analysis methods - delegate to file_analyzer
     def get_file_line_counts(self, file_paths):
         """Get line counts for a list of files"""

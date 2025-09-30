@@ -44,6 +44,8 @@ export class RepoTreeRenderer {
       <div class="context-menu">
         ${isFile ? html`
           <!-- File context menu options -->
+          ${this.repoTree.repoManagers.contextMenu.renderMenuItem('edit', 'Rename File', () => this.repoTree.repoManagers.gitActions.handleRenameFile())}
+          
           ${path && this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(path) === 'staged' ? 
             this.repoTree.repoManagers.contextMenu.renderMenuItem('remove_circle', 'Unstage File', () => this.repoTree.repoManagers.gitActions.handleUnstageFile()) :
             this.repoTree.repoManagers.contextMenu.renderMenuItem('add_circle', 'Stage File', () => this.repoTree.repoManagers.gitActions.handleStageFile())

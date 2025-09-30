@@ -49,6 +49,45 @@ export class GitActions {
     }
   }
 
+  async handleRenameFile() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+
+    this.contextMenu.hide();
+
+    try {
+      // Get the current filename
+      const currentName = path.split('/').pop();
+      const directory = path.substring(0, path.lastIndexOf('/'));
+      
+      // Prompt for new name
+      const newName = prompt(`Rename "${currentName}" to:`, currentName);
+      if (!newName || newName === currentName) return;
+
+      // Construct new path
+      const newPath = directory ? `${directory}/${newName}` : newName;
+
+      console.log(`Renaming file from ${path} to ${newPath}`);
+      const response = await this.jrpcClient.call['Repo.rename_file'](path, newPath);
+      console.log(`rename_file response:`, response);
+      
+      // Check if the response indicates an error
+      if (response && response.error) {
+        console.error(`Error renaming file: ${response.error}`);
+        alert(`Failed to rename file: ${response.error}`);
+      } else {
+        console.log(`File renamed successfully from ${path} to ${newPath}`);
+        // Notify completion
+        if (this.onActionComplete) {
+          this.onActionComplete();
+        }
+      }
+    } catch (error) {
+      console.error(`Error renaming file ${path}:`, error);
+      alert(`Failed to rename file: ${error.message}`);
+    }
+  }
+
   async performGitAction(action, logMessage) {
     const path = this.contextMenu.path;
     if (!path) return;
