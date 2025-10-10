@@ -7,7 +7,7 @@ name = "eh-i-decoder"
 version = "1.7.0"
 description = "JSON-RPC server for Aider"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "aider-chat @ git+https://github.com/Aider-AI/aider.git",
