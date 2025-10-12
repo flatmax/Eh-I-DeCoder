@@ -1,3 +1,5 @@
+import { EventHelper } from '../utils/EventHelper.js';
+
 export class GitActions {
   constructor(jrpcClient, contextMenu, onActionComplete) {
     this.jrpcClient = jrpcClient;
@@ -14,6 +16,13 @@ export class GitActions {
   }
   
   async handleDiscardChanges() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+
+    // Confirm discard
+    const confirmed = confirm(`Are you sure you want to discard changes to "${path}"?`);
+    if (!confirmed) return;
+
     await this.performGitAction('discard_changes', 'Discarding changes to file');
   }
 
@@ -141,6 +150,26 @@ export class GitActions {
       console.error('Error creating file:', error);
       alert(`Failed to create file: ${error.message}`);
     }
+  }
+
+  handleLoadToLeft() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+    
+    this.contextMenu.hide();
+    
+    console.log('Loading file to left:', path);
+    EventHelper.dispatchWindowEvent('load-file-to-left', { filePath: path });
+  }
+
+  handleLoadToRight() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+    
+    this.contextMenu.hide();
+    
+    console.log('Loading file to right:', path);
+    EventHelper.dispatchWindowEvent('load-file-to-right', { filePath: path });
   }
 
   openFileInEditor(filePath) {

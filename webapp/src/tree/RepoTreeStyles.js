@@ -56,6 +56,12 @@ export class RepoTreeStyles {
     .context-menu-text {
       font-size: 14px;
     }
+
+    .context-menu-divider {
+      height: 1px;
+      background-color: #e0e0e0;
+      margin: 4px 0;
+    }
     
     .refresh-fab {
       position: absolute;

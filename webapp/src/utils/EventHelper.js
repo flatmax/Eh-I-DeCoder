@@ -436,4 +436,20 @@ export class EventHelper {
     document.dispatchEvent(event);
     return true;
   }
+
+  /**
+   * Dispatch load-file-to-left event (window level)
+   * @param {string} filePath - File path to load
+   */
+  static dispatchLoadFileToLeft(filePath) {
+    this.dispatchWindowEvent('load-file-to-left', { filePath });
+  }
+
+  /**
+   * Dispatch load-file-to-right event (window level)
+   * @param {string} filePath - File path to load
+   */
+  static dispatchLoadFileToRight(filePath) {
+    this.dispatchWindowEvent('load-file-to-right', { filePath });
+  }
 }
