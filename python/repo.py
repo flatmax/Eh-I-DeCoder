@@ -47,11 +47,64 @@ class Repo(BaseWrapper):
         
         self._initialize_repo()
     
+    def _configure_safe_directory(self, repo_path):
+        """Configure Git safe.directory for the repository path"""
+        try:
+            # Get the absolute path
+            abs_path = os.path.abspath(repo_path)
+            
+            # Check if this directory is already in safe.directory
+            try:
+                result = subprocess.run(
+                    ['git', 'config', '--global', '--get-all', 'safe.directory'],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                
+                safe_dirs = result.stdout.strip().split('\n') if result.stdout else []
+                
+                # Check if our path or '*' is already configured
+                if abs_path in safe_dirs or '*' in safe_dirs:
+                    self.log(f"Repository path {abs_path} is already in safe.directory")
+                    return True
+                    
+            except Exception as e:
+                self.log(f"Error checking safe.directory: {e}")
+            
+            # Add the directory to safe.directory
+            self.log(f"Adding {abs_path} to Git safe.directory")
+            result = subprocess.run(
+                ['git', 'config', '--global', '--add', 'safe.directory', abs_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            self.log(f"Successfully added {abs_path} to safe.directory")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            self.log(f"Failed to configure safe.directory: {e.stderr if e.stderr else str(e)}")
+            return False
+        except Exception as e:
+            self.log(f"Error configuring safe.directory: {e}")
+            return False
+    
     def _initialize_repo(self):
         """Initialize the Git repository"""
         try:
+            # First, try to configure safe.directory for this path
+            self._configure_safe_directory(self.repo_path)
+            
             # This will search up the directory tree to find a Git repository
             self.repo = git.Repo(self.repo_path, search_parent_directories=True)
+            
+            # If we successfully opened the repo, also configure safe.directory for the actual repo root
+            if self.repo and self.repo.working_tree_dir:
+                actual_repo_path = self.repo.working_tree_dir
+                if os.path.abspath(actual_repo_path) != os.path.abspath(self.repo_path):
+                    self._configure_safe_directory(actual_repo_path)
             
             # Start the git monitor after initializing the repository
             self.start_git_monitor()

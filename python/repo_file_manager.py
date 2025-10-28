@@ -1,5 +1,6 @@
 import os
 import stat
+import sys
 try:
     from .exceptions import GitError, GitRepositoryError, FileOperationError, create_error_response
     from .repo_history import RepoHistory
@@ -67,33 +68,63 @@ class RepoFileManager:
     
     def get_file_content(self, file_path, version='working'):
         """Get the content of a file from either HEAD, working directory, or specific commit"""
+        # Force output to stderr for debugging
+        print(f"[REPO_FILE_MANAGER] get_file_content called: file_path={file_path}, version={version}", file=sys.stderr, flush=True)
+        
         try:
             self._ensure_repo()
             
             if version == 'HEAD':
                 # Get file content from HEAD commit
+                print(f"[REPO_FILE_MANAGER] Attempting to read {file_path} from HEAD", file=sys.stderr, flush=True)
                 try:
                     blob = self.repo.repo.head.commit.tree[file_path]
+                    print(f"[REPO_FILE_MANAGER] Found blob for {file_path} in HEAD", file=sys.stderr, flush=True)
                     content = blob.data_stream.read().decode('utf-8')
+                    print(f"[REPO_FILE_MANAGER] Successfully loaded HEAD content for {file_path}, length: {len(content)}", file=sys.stderr, flush=True)
+                    self.repo.log(f"Successfully loaded HEAD content for {file_path}, length: {len(content)}")
                     return content
-                except KeyError:
+                except KeyError as e:
                     # File doesn't exist in HEAD (new file)
+                    print(f"[REPO_FILE_MANAGER] KeyError: File {file_path} doesn't exist in HEAD (new file), returning empty string", file=sys.stderr, flush=True)
+                    self.repo.log(f"File {file_path} doesn't exist in HEAD (new file), returning empty string")
+                    return ""
+                except Exception as e:
+                    # Log any other errors when reading from HEAD
+                    print(f"[REPO_FILE_MANAGER] Exception reading {file_path} from HEAD: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+                    self.repo.log(f"Error reading {file_path} from HEAD: {type(e).__name__}: {e}")
+                    # Return empty string for any HEAD read errors (common on sshfs mounts)
                     return ""
             elif version == 'working':
                 # Get file content from working directory
                 full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
+                print(f"[REPO_FILE_MANAGER] Attempting to read {file_path} from working directory: {full_path}", file=sys.stderr, flush=True)
                 if os.path.exists(full_path):
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    return content
+                    try:
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        print(f"[REPO_FILE_MANAGER] Successfully loaded working content for {file_path}, length: {len(content)}", file=sys.stderr, flush=True)
+                        self.repo.log(f"Successfully loaded working content for {file_path}, length: {len(content)}")
+                        return content
+                    except Exception as e:
+                        print(f"[REPO_FILE_MANAGER] Error reading {file_path} from working directory: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+                        self.repo.log(f"Error reading {file_path} from working directory: {type(e).__name__}: {e}")
+                        raise FileOperationError(f"Could not read file {file_path}: {e}")
                 else:
+                    print(f"[REPO_FILE_MANAGER] File {file_path} doesn't exist in working directory", file=sys.stderr, flush=True)
+                    self.repo.log(f"File {file_path} doesn't exist in working directory")
                     return ""
             else:
                 # Delegate to history module for specific commit
+                print(f"[REPO_FILE_MANAGER] Delegating to history module for commit {version}", file=sys.stderr, flush=True)
                 history = RepoHistory(self.repo)
                 return history.get_file_content_at_commit(file_path, version)
                 
         except UnicodeDecodeError as e:
+            print(f"[REPO_FILE_MANAGER] Unicode decode error for {file_path}: {e}", file=sys.stderr, flush=True)
+            self.repo.log(f"Unicode decode error for {file_path}: {e}")
             return create_error_response(FileOperationError(f"File {file_path} contains binary data or invalid encoding: {e}"))
         except Exception as e:
+            print(f"[REPO_FILE_MANAGER] Unexpected error in get_file_content for {file_path} (version={version}): {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            self.repo.log(f"Unexpected error in get_file_content for {file_path} (version={version}): {type(e).__name__}: {e}")
             return create_error_response(e)

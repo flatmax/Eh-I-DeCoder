@@ -8,18 +8,34 @@ export class FileContentLoader {
   async loadFileContent(filePath) {
     console.log(`Loading file content for: ${filePath}`);
     
-    const { headContent, workingContent } = await FileContentService.loadFileVersions(
-      this.jrpcClient, 
-      filePath
-    );
-    
-    console.log('File content loaded:', {
-      filePath,
-      headLength: headContent.length,
-      workingLength: workingContent.length
-    });
-    
-    return { headContent, workingContent };
+    try {
+      const { headContent, workingContent } = await FileContentService.loadFileVersions(
+        this.jrpcClient, 
+        filePath
+      );
+      
+      // Ensure we always have valid strings
+      const validHeadContent = headContent || '';
+      const validWorkingContent = workingContent || '';
+      
+      console.log('File content loaded:', {
+        filePath,
+        headLength: validHeadContent.length,
+        workingLength: validWorkingContent.length
+      });
+      
+      return { 
+        headContent: validHeadContent, 
+        workingContent: validWorkingContent 
+      };
+    } catch (error) {
+      console.error(`Error loading file content for ${filePath}:`, error);
+      // Return empty strings as fallback
+      return {
+        headContent: '',
+        workingContent: ''
+      };
+    }
   }
 
   async saveFileContent(filePath, content) {
