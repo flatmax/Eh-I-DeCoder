@@ -84,32 +84,18 @@ export class FileContentService {
         })
       ]);
 
-      console.log(`FileContentService: Raw responses for ${filePath}:`, {
-        headResponse: typeof headResponse,
-        workingResponse: typeof workingResponse,
-        headHasError: headResponse && headResponse.error ? true : false,
-        workingHasError: workingResponse && workingResponse.error ? true : false
-      });
-
       // Extract content with proper error handling
       // extractResponseData returns the default value if response has an error
       let headContent = extractResponseData(headResponse, '');
       let workingContent = extractResponseData(workingResponse, '');
 
-      console.log(`FileContentService: Extracted content types for ${filePath}:`, {
-        headContentType: typeof headContent,
-        workingContentType: typeof workingContent,
-        headContentValue: headContent === '' ? 'empty string' : (typeof headContent === 'string' ? `string(${headContent.length})` : JSON.stringify(headContent)),
-        workingContentValue: workingContent === '' ? 'empty string' : (typeof workingContent === 'string' ? `string(${workingContent.length})` : JSON.stringify(workingContent))
-      });
-
       // Additional safety check - ensure we got strings, not objects
       if (typeof headContent !== 'string') {
-        console.warn(`FileContentService: HEAD content is not a string for ${filePath}, using empty string. Got:`, headContent);
+        console.warn(`FileContentService: HEAD content is not a string for ${filePath}, using empty string`);
         headContent = '';
       }
       if (typeof workingContent !== 'string') {
-        console.warn(`FileContentService: Working content is not a string for ${filePath}, using empty string. Got:`, workingContent);
+        console.warn(`FileContentService: Working content is not a string for ${filePath}, using empty string`);
         workingContent = '';
       }
 
