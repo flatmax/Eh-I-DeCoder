@@ -19,7 +19,8 @@ export class FileContentService {
         // Try to read the external file using the regular file content method
         // This will work if the backend can access the file
         const response = await jrpcClient.call['Repo.get_file_content'](filePath, 'working');
-        return extractResponseData(response, '');
+        const content = extractResponseData(response, '');
+        return content || '';
       } catch (error) {
         console.warn(`FileContentService: Failed to load external file ${filePath}:`, error);
         // Return a placeholder message for external files that can't be loaded
@@ -28,8 +29,14 @@ export class FileContentService {
     }
     
     // Regular workspace file
-    const response = await jrpcClient.call['Repo.get_file_content'](filePath, version);
-    return extractResponseData(response, '');
+    try {
+      const response = await jrpcClient.call['Repo.get_file_content'](filePath, version);
+      const content = extractResponseData(response, '');
+      return content || '';
+    } catch (error) {
+      console.warn(`FileContentService: Failed to load file ${filePath} (${version}):`, error);
+      return '';
+    }
   }
 
   /**
@@ -46,11 +53,12 @@ export class FileContentService {
         // Try to read the external file using the regular file content method
         const response = await jrpcClient.call['Repo.get_file_content'](filePath, 'working');
         const content = extractResponseData(response, '');
+        const validContent = content || '';
         
         // For external files, both HEAD and working are the same
         return {
-          headContent: content,
-          workingContent: content
+          headContent: validContent,
+          workingContent: validContent
         };
       } catch (error) {
         console.warn(`FileContentService: Failed to load external file ${filePath}:`, error);
@@ -63,16 +71,47 @@ export class FileContentService {
       }
     }
 
-    // Regular workspace files
-    const [headResponse, workingResponse] = await Promise.all([
-      jrpcClient.call['Repo.get_file_content'](filePath, 'HEAD'),
-      jrpcClient.call['Repo.get_file_content'](filePath, 'working')
-    ]);
+    // Regular workspace files - load both versions with error handling
+    try {
+      const [headResponse, workingResponse] = await Promise.all([
+        jrpcClient.call['Repo.get_file_content'](filePath, 'HEAD').catch(err => {
+          console.warn(`FileContentService: Failed to load HEAD version of ${filePath}:`, err);
+          return { error: err.message || 'Failed to load HEAD version' };
+        }),
+        jrpcClient.call['Repo.get_file_content'](filePath, 'working').catch(err => {
+          console.warn(`FileContentService: Failed to load working version of ${filePath}:`, err);
+          return { error: err.message || 'Failed to load working version' };
+        })
+      ]);
 
-    return {
-      headContent: extractResponseData(headResponse, ''),
-      workingContent: extractResponseData(workingResponse, '')
-    };
+      // Extract content with proper error handling
+      // extractResponseData returns the default value if response has an error
+      let headContent = extractResponseData(headResponse, '');
+      let workingContent = extractResponseData(workingResponse, '');
+
+      // Additional safety check - ensure we got strings, not objects
+      if (typeof headContent !== 'string') {
+        console.warn(`FileContentService: HEAD content is not a string for ${filePath}, using empty string`);
+        headContent = '';
+      }
+      if (typeof workingContent !== 'string') {
+        console.warn(`FileContentService: Working content is not a string for ${filePath}, using empty string`);
+        workingContent = '';
+      }
+
+      // Ensure we always return strings, never undefined or null
+      return {
+        headContent: headContent || '',
+        workingContent: workingContent || ''
+      };
+    } catch (error) {
+      console.error(`FileContentService: Unexpected error loading file versions for ${filePath}:`, error);
+      // Return empty strings as fallback
+      return {
+        headContent: '',
+        workingContent: ''
+      };
+    }
   }
 
   /**

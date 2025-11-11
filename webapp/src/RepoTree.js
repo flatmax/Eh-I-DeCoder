@@ -236,6 +236,17 @@ export class RepoTree extends FileTree {
     });
   }
   
+  render() {
+    return html`
+      <div class="repo-tree-wrapper">
+        ${super.render()}
+        <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.loadFileTree()}>
+          <md-icon slot="icon">refresh</md-icon>
+        </md-fab>
+      </div>
+    `;
+  }
+  
   static styles = css`
     ${FileTree.styles}
     ${RepoTreeStyles.styles}

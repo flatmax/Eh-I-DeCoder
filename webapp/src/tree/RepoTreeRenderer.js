@@ -18,9 +18,6 @@ export class RepoTreeRenderer {
 
   renderFabAndContextMenu() {
     return html`
-      <md-fab class="refresh-fab small-fab" title="Refresh" aria-label="Refresh file tree" @click=${() => this.repoTree.loadFileTree()}>
-        <md-icon slot="icon">refresh</md-icon>
-      </md-fab>
       ${this.renderContextMenu()}
     `;
   }
@@ -44,9 +41,11 @@ export class RepoTreeRenderer {
     const isFile = this.repoTree.repoManagers.contextMenu.isFile;
 
     return html`
-      <div class="context-menu">
+      <div class="context-menu" style="left: ${this.repoTree.repoManagers.contextMenu.x}px; top: ${this.repoTree.repoManagers.contextMenu.y}px;">
         ${isFile ? html`
           <!-- File context menu options -->
+          ${this.repoTree.repoManagers.contextMenu.renderMenuItem('edit', 'Rename File', () => this.repoTree.repoManagers.gitActions.handleRenameFile())}
+          
           ${path && this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(path) === 'staged' ? 
             this.repoTree.repoManagers.contextMenu.renderMenuItem('remove_circle', 'Unstage File', () => this.repoTree.repoManagers.gitActions.handleUnstageFile()) :
             this.repoTree.repoManagers.contextMenu.renderMenuItem('add_circle', 'Stage File', () => this.repoTree.repoManagers.gitActions.handleStageFile())
@@ -59,6 +58,11 @@ export class RepoTreeRenderer {
           ${path && this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(path) === 'untracked' ?
             this.repoTree.repoManagers.contextMenu.renderMenuItem('delete', 'Delete File', () => this.repoTree.repoManagers.gitActions.handleDeleteFile()) : ''
           }
+
+          <div class="context-menu-divider"></div>
+
+          ${this.repoTree.repoManagers.contextMenu.renderMenuItem('west', 'Load to Left', () => this.repoTree.repoManagers.gitActions.handleLoadToLeft())}
+          ${this.repoTree.repoManagers.contextMenu.renderMenuItem('east', 'Load to Right', () => this.repoTree.repoManagers.gitActions.handleLoadToRight())}
         ` : html`
           <!-- Directory context menu options -->
           ${this.repoTree.repoManagers.contextMenu.renderMenuItem('add', 'Create File', () => this.repoTree.repoManagers.gitActions.handleCreateFile())}

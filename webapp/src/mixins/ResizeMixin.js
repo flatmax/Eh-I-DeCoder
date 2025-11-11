@@ -1,3 +1,5 @@
+import { ResizeController } from '../utils/ResizeController.js';
+
 export const ResizeMixin = (superClass) => class extends superClass {
   static properties = {
     ...superClass.properties,
@@ -7,39 +9,47 @@ export const ResizeMixin = (superClass) => class extends superClass {
   constructor() {
     super();
     this.sidebarWidth = 280;
-    this.isResizing = false;
+    this.resizeController = null;
   }
 
-  _handleMouseDown(e) {
-    if (e.button !== 0) return;
-    
-    this.isResizing = true;
-    this.initialX = e.clientX;
-    this.initialWidth = this.sidebarWidth;
-    
-    e.currentTarget.classList.add('active');
-    e.preventDefault();
+  firstUpdated() {
+    super.firstUpdated?.();
+    this.initializeResize();
   }
-  
-  _handleMouseMove(e) {
-    if (!this.isResizing) return;
-    
-    const delta = e.clientX - this.initialX;
-    const maxWidth = Math.floor(window.innerWidth / 3);
-    let newWidth = Math.max(180, Math.min(maxWidth, this.initialWidth + delta));
-    
-    this.sidebarWidth = newWidth;
-    this.requestUpdate();
+
+  initializeResize() {
+    // Initialize resize controller for sidebar
+    this.resizeController = new ResizeController(this.shadowRoot, {
+      minWidth: 180,
+      maxWidth: Math.floor(window.innerWidth / 3),
+      direction: 'right',
+      initialWidth: this.sidebarWidth,
+      handleSelector: '.resize-handle',
+      onResize: (width) => {
+        this.sidebarWidth = width;
+        this.requestUpdate();
+      }
+    });
   }
-  
-  _handleMouseUp(e) {
-    if (!this.isResizing) return;
-    
-    this.isResizing = false;
-    
-    const handle = this.shadowRoot.querySelector('.resize-handle');
-    if (handle) {
-      handle.classList.remove('active');
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.resizeController) {
+      this.resizeController.destroy();
+      this.resizeController = null;
     }
+  }
+
+  // Remove the old mouse event handler methods since ResizeController handles them now
+  _handleMouseDown(event) {
+    // Deprecated - handled by ResizeController
+  }
+
+  _handleMouseMove(event) {
+    // Deprecated - handled by ResizeController
+  }
+
+  _handleMouseUp(event) {
+    // Deprecated - handled by ResizeController
   }
 };

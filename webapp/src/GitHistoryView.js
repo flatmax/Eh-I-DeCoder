@@ -3,6 +3,9 @@ import {JRPCClient} from '@flatmax/jrpc-oo';
 import {GitHistoryStyles} from './git-history/GitHistoryStyles.js';
 import {CommitDataManager} from './git-history/CommitDataManager.js';
 import {ResizeHandler} from './git-history/ResizeHandler.js';
+import {BranchManager} from './git-history/BranchManager.js';
+import {SelectionValidator} from './git-history/SelectionValidator.js';
+import {PanelRenderer} from './git-history/PanelRenderer.js';
 import './CommitList.js';
 import './GitDiffView.js';
 
@@ -11,7 +14,10 @@ export class GitHistoryView extends JRPCClient {
     serverURI: { type: String },
     fromCommit: { type: String, state: true },
     toCommit: { type: String, state: true },
+    fromBranch: { type: String, state: true },
+    toBranch: { type: String, state: true },
     commits: { type: Array, state: true },
+    branches: { type: Array, state: true },
     loading: { type: Boolean, state: true },
     loadingMore: { type: Boolean, state: true },
     error: { type: String, state: true },
@@ -25,14 +31,19 @@ export class GitHistoryView extends JRPCClient {
     totalCommitsLoaded: { type: Number, state: true },
     leftPanelHovered: { type: Boolean, state: true },
     rightPanelHovered: { type: Boolean, state: true },
-    isConnected: { type: Boolean, state: true }
+    isConnected: { type: Boolean, state: true },
+    leftPanelMode: { type: String, state: true }, // 'commits' or 'branches'
+    rightPanelMode: { type: String, state: true } // 'commits' or 'branches'
   };
 
   constructor() {
     super();
     this.fromCommit = '';
     this.toCommit = '';
+    this.fromBranch = '';
+    this.toBranch = '';
     this.commits = [];
+    this.branches = [];
     this.loading = false;
     this.loadingMore = false;
     this.error = null;
@@ -47,13 +58,151 @@ export class GitHistoryView extends JRPCClient {
     this.leftPanelHovered = false;
     this.rightPanelHovered = false;
     this.isConnected = false;
+    this.leftPanelMode = 'commits';
+    this.rightPanelMode = 'commits';
 
     // Initialize managers
     this.commitDataManager = new CommitDataManager(this);
     this.resizeHandler = new ResizeHandler(this);
+    this.branchManager = new BranchManager(this);
+    this.selectionValidator = new SelectionValidator(this);
+    this.panelRenderer = new PanelRenderer(this);
   }
 
-  static styles = GitHistoryStyles.styles;
+  static styles = [
+    GitHistoryStyles.styles,
+    css`
+      .mode-toggle {
+        display: flex;
+        gap: 4px;
+        padding: 8px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e1e4e8;
+      }
+
+      .mode-toggle button {
+        flex: 1;
+        padding: 6px 12px;
+        border: 1px solid #e1e4e8;
+        background: white;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s ease;
+      }
+
+      .mode-toggle button.active {
+        background: #0366d6;
+        color: white;
+        border-color: #0366d6;
+      }
+
+      .mode-toggle button:hover:not(.active) {
+        background: #f1f8ff;
+      }
+
+      .branch-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+      }
+
+      .branch-item {
+        padding: 8px 12px;
+        margin: 4px 0;
+        background: white;
+        border: 1px solid #e1e4e8;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .branch-item:hover {
+        background: #f1f8ff;
+        border-color: #c8e1ff;
+      }
+
+      .branch-item.selected {
+        background: #0366d6;
+        color: white;
+        border-color: #0366d6;
+      }
+
+      .branch-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .branch-item.disabled:hover {
+        background: white;
+        border-color: #e1e4e8;
+      }
+
+      .branch-icon {
+        font-size: 14px;
+      }
+
+      .branch-name {
+        flex: 1;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 12px;
+      }
+
+      .branch-commit {
+        font-size: 10px;
+        opacity: 0.7;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      }
+
+      .collapsed-branches {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .collapsed-branch {
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 10px;
+        padding: 4px 2px;
+        background: #ffffff;
+        border: 1px solid #e1e4e8;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        color: #586069;
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .collapsed-branch:hover {
+        background: #f1f8ff;
+        border-color: #c8e1ff;
+        color: #0366d6;
+      }
+
+      .collapsed-branch.active {
+        background: #0366d6;
+        border-color: #0366d6;
+        color: white;
+        font-weight: bold;
+      }
+
+      .collapsed-branch.disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    `
+  ];
 
   connectedCallback() {
     super.connectedCallback();
@@ -74,6 +223,7 @@ export class GitHistoryView extends JRPCClient {
     this.isConnected = true;
     super.setupDone?.();
     this.commitDataManager.loadCommits();
+    this.branchManager.loadBranches();
   }
   
   /**
@@ -94,6 +244,16 @@ export class GitHistoryView extends JRPCClient {
     this.error = 'Connection lost. Waiting for reconnection...';
   }
 
+  toggleLeftPanelMode() {
+    this.leftPanelMode = this.leftPanelMode === 'commits' ? 'branches' : 'commits';
+    this.requestUpdate();
+  }
+
+  toggleRightPanelMode() {
+    this.rightPanelMode = this.rightPanelMode === 'commits' ? 'branches' : 'commits';
+    this.requestUpdate();
+  }
+
   handleCommitListScroll(event) {
     if (!this.isConnected) {
       console.warn('Cannot load more commits - not connected');
@@ -106,12 +266,13 @@ export class GitHistoryView extends JRPCClient {
     const selectedHash = event.detail.commitHash;
     
     // Check if this commit is allowed (not newer than the toCommit)
-    if (this.toCommit && !this.isCommitAllowedForFrom(selectedHash)) {
+    if (this.toCommit && !this.selectionValidator.isCommitAllowedForFrom(selectedHash)) {
       console.log('Cannot select commit newer than the "to" commit');
       return;
     }
     
     this.fromCommit = selectedHash;
+    this.fromBranch = ''; // Clear branch selection when commit is selected
     this.requestUpdate();
   }
 
@@ -119,93 +280,20 @@ export class GitHistoryView extends JRPCClient {
     const selectedHash = event.detail.commitHash;
     
     // Check if this commit is allowed (not older than the fromCommit)
-    if (this.fromCommit && !this.isCommitAllowedForTo(selectedHash)) {
+    if (this.fromCommit && !this.selectionValidator.isCommitAllowedForTo(selectedHash)) {
       console.log('Cannot select commit older than the "from" commit');
       return;
     }
     
     this.toCommit = selectedHash;
+    this.toBranch = ''; // Clear branch selection when commit is selected
     
     // If the current fromCommit is now newer than the new toCommit, clear it
-    if (this.fromCommit && !this.isCommitAllowedForFrom(this.fromCommit)) {
+    if (this.fromCommit && !this.selectionValidator.isCommitAllowedForFrom(this.fromCommit)) {
       this.fromCommit = '';
     }
     
     this.requestUpdate();
-  }
-
-  /**
-   * Check if a commit is allowed to be selected as the "from" commit
-   * A commit is allowed if it's older than or equal to the selected "to" commit
-   */
-  isCommitAllowedForFrom(commitHash) {
-    if (!this.toCommit || !commitHash) return true;
-    
-    const fromIndex = this.commits.findIndex(c => c.hash === commitHash);
-    const toIndex = this.commits.findIndex(c => c.hash === this.toCommit);
-    
-    // If either commit is not found, allow it (fallback)
-    if (fromIndex === -1 || toIndex === -1) return true;
-    
-    // In git history, newer commits have lower indices (they appear first)
-    // So fromCommit should have a higher or equal index than toCommit
-    return fromIndex >= toIndex;
-  }
-
-  /**
-   * Check if a commit is allowed to be selected as the "to" commit
-   * A commit is allowed if it's newer than or equal to the selected "from" commit
-   */
-  isCommitAllowedForTo(commitHash) {
-    if (!this.fromCommit || !commitHash) return true;
-    
-    const toIndex = this.commits.findIndex(c => c.hash === commitHash);
-    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
-    
-    // If either commit is not found, allow it (fallback)
-    if (toIndex === -1 || fromIndex === -1) return true;
-    
-    // In git history, newer commits have lower indices (they appear first)
-    // So toCommit should have a lower or equal index than fromCommit
-    return toIndex <= fromIndex;
-  }
-
-  /**
-   * Get disabled commits for the left panel (from commits)
-   */
-  getDisabledCommitsForFrom() {
-    if (!this.toCommit) return new Set();
-    
-    const toIndex = this.commits.findIndex(c => c.hash === this.toCommit);
-    if (toIndex === -1) return new Set();
-    
-    const disabledCommits = new Set();
-    
-    // Disable all commits that are newer (have lower index) than the toCommit
-    for (let i = 0; i < toIndex; i++) {
-      disabledCommits.add(this.commits[i].hash);
-    }
-    
-    return disabledCommits;
-  }
-
-  /**
-   * Get disabled commits for the right panel (to commits)
-   */
-  getDisabledCommitsForTo() {
-    if (!this.fromCommit) return new Set();
-    
-    const fromIndex = this.commits.findIndex(c => c.hash === this.fromCommit);
-    if (fromIndex === -1) return new Set();
-    
-    const disabledCommits = new Set();
-    
-    // Disable all commits that are older (have higher index) than the fromCommit
-    for (let i = fromIndex + 1; i < this.commits.length; i++) {
-      disabledCommits.add(this.commits[i].hash);
-    }
-    
-    return disabledCommits;
   }
 
   handleLeftPanelMouseEnter() {
@@ -234,77 +322,6 @@ export class GitHistoryView extends JRPCClient {
     return this.rightPanelHovered ? this.rightPanelWidth : 60;
   }
 
-  renderCollapsedCommitHashes(selectedCommit, isLeft = true) {
-    if (!this.commits || this.commits.length === 0) return '';
-    
-    const disabledCommits = isLeft ? this.getDisabledCommitsForFrom() : this.getDisabledCommitsForTo();
-    
-    return html`
-      <div class="collapsed-commit-hashes">
-        ${this.commits.map(commit => {
-          const isDisabled = disabledCommits.has(commit.hash);
-          const disabledMessage = isLeft ? 
-            'Cannot select newer commit than "To" commit' : 
-            'Cannot select older commit than "From" commit';
-          
-          return html`
-            <div 
-              class="collapsed-hash ${selectedCommit === commit.hash ? 'active' : ''} ${isDisabled ? 'disabled' : ''}"
-              @click=${isDisabled ? null : () => isLeft ? this.handleFromCommitSelect({detail: {commitHash: commit.hash}}) : this.handleToCommitSelect({detail: {commitHash: commit.hash}})}
-              title="${isDisabled ? disabledMessage : `${commit.hash} - ${commit.message || 'No message'}`}"
-              style="${isDisabled ? 'cursor: not-allowed; opacity: 0.5;' : ''}"
-            >
-              ${commit.hash?.substring(0, 7) || '???????'}
-            </div>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  renderEmptyState() {
-    if (this.commits.length === 0) {
-      return html`
-        <div class="empty-state">
-          <p>No commits found in this repository.</p>
-          <p>Make your first commit to see history.</p>
-        </div>
-      `;
-    }
-    return null;
-  }
-  
-  renderSingleCommitWarning() {
-    if (this.commits.length === 1) {
-      const commit = this.commits[0];
-      return html`
-        <div class="notification-banner">
-          <p><strong>Only one commit available: ${commit.hash?.substring(0, 7) || 'Unknown'}</strong></p>
-          <p>${commit.message || 'No message'} (${commit.author || 'Unknown author'})</p>
-          <p>This is showing the contents of the initial commit. Make more commits to see change comparisons.</p>
-          <button @click=${() => this.isConnected ? this.commitDataManager.loadGitLogManually() : null} class="manual-refresh-button" ?disabled=${!this.isConnected}>
-            Refresh Git History
-          </button>
-        </div>
-      `;
-    }
-    return null;
-  }
-
-  renderSelectedCommits() {
-    if (!this.fromCommit || !this.toCommit) return '';
-    
-    const fromCommitObj = this.commits.find(c => c.hash === this.fromCommit);
-    const toCommitObj = this.commits.find(c => c.hash === this.toCommit);
-    
-    return html`
-      <div class="selected-commits">
-        Comparing: ${fromCommitObj?.hash?.substring(0, 7) || 'Unknown'} → ${toCommitObj?.hash?.substring(0, 7) || 'Unknown'}
-        (${this.totalCommitsLoaded} commits loaded)
-      </div>
-    `;
-  }
-
   render() {
     if (this.loading) {
       return html`<div class="loading">Loading commit history...</div>`;
@@ -314,7 +331,7 @@ export class GitHistoryView extends JRPCClient {
       return html`<div class="error">${this.error}</div>`;
     }
 
-    const emptyState = this.renderEmptyState();
+    const emptyState = this.panelRenderer.renderEmptyState();
     if (emptyState) return emptyState;
     
     if (!this.fromCommit || !this.toCommit) {
@@ -333,17 +350,41 @@ export class GitHistoryView extends JRPCClient {
           <div class="commit-panel-header">
             ${this.leftPanelHovered ? 'From Commit (Older)' : 'From'}
           </div>
-          ${this.leftPanelHovered ? html`
-            <commit-list
-              .commits=${this.commits}
-              .selectedCommit=${this.fromCommit}
-              .disabledCommits=${this.getDisabledCommitsForFrom()}
-              .serverURI=${this.serverURI}
-              @commit-select=${this.handleFromCommitSelect}
-              @commit-list-scroll=${this.handleCommitListScroll}
-            ></commit-list>
-          ` : this.renderCollapsedCommitHashes(this.fromCommit, true)}
-          ${this.loadingMore ? html`
+          ${this.leftPanelHovered && this.branches.length > 0 ? html`
+            <div class="mode-toggle">
+              <button 
+                class="${this.leftPanelMode === 'commits' ? 'active' : ''}"
+                @click=${() => this.toggleLeftPanelMode()}
+              >
+                Commits
+              </button>
+              <button 
+                class="${this.leftPanelMode === 'branches' ? 'active' : ''}"
+                @click=${() => this.toggleLeftPanelMode()}
+              >
+                Branches
+              </button>
+            </div>
+          ` : ''}
+          ${this.leftPanelHovered ? (
+            this.leftPanelMode === 'branches' ? 
+              this.panelRenderer.renderBranchList(this.branches, this.fromBranch, this.branchManager.getDisabledBranchesForFrom(), true) :
+              html`
+                <commit-list
+                  .commits=${this.commits}
+                  .selectedCommit=${this.fromCommit}
+                  .disabledCommits=${this.selectionValidator.getDisabledCommitsForFrom()}
+                  .serverURI=${this.serverURI}
+                  @commit-select=${this.handleFromCommitSelect}
+                  @commit-list-scroll=${this.handleCommitListScroll}
+                ></commit-list>
+              `
+          ) : (
+            this.leftPanelMode === 'branches' && this.branches.length > 0 ? 
+              this.panelRenderer.renderCollapsedBranches(this.fromBranch, true) :
+              this.panelRenderer.renderCollapsedCommitHashes(this.fromCommit, true)
+          )}
+          ${this.loadingMore && this.leftPanelMode === 'commits' ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
               ${this.leftPanelHovered ? 'Loading more commits...' : '...'}
@@ -359,8 +400,8 @@ export class GitHistoryView extends JRPCClient {
 
         <!-- Center Panel -->
         <div class="center-panel">
-          ${this.renderSingleCommitWarning()}
-          ${this.renderSelectedCommits()}
+          ${this.panelRenderer.renderSingleCommitWarning()}
+          ${this.panelRenderer.renderSelectedCommits()}
           <git-diff-view
             .serverURI=${this.serverURI}
             .fromCommit=${this.fromCommit}
@@ -385,17 +426,41 @@ export class GitHistoryView extends JRPCClient {
           <div class="commit-panel-header">
             ${this.rightPanelHovered ? 'To Commit (Newer)' : 'To'}
           </div>
-          ${this.rightPanelHovered ? html`
-            <commit-list
-              .commits=${this.commits}
-              .selectedCommit=${this.toCommit}
-              .disabledCommits=${this.getDisabledCommitsForTo()}
-              .serverURI=${this.serverURI}
-              @commit-select=${this.handleToCommitSelect}
-              @commit-list-scroll=${this.handleCommitListScroll}
-            ></commit-list>
-          ` : this.renderCollapsedCommitHashes(this.toCommit, false)}
-          ${this.loadingMore ? html`
+          ${this.rightPanelHovered && this.branches.length > 0 ? html`
+            <div class="mode-toggle">
+              <button 
+                class="${this.rightPanelMode === 'commits' ? 'active' : ''}"
+                @click=${() => this.toggleRightPanelMode()}
+              >
+                Commits
+              </button>
+              <button 
+                class="${this.rightPanelMode === 'branches' ? 'active' : ''}"
+                @click=${() => this.toggleRightPanelMode()}
+              >
+                Branches
+              </button>
+            </div>
+          ` : ''}
+          ${this.rightPanelHovered ? (
+            this.rightPanelMode === 'branches' ? 
+              this.panelRenderer.renderBranchList(this.branches, this.toBranch, this.branchManager.getDisabledBranchesForTo(), false) :
+              html`
+                <commit-list
+                  .commits=${this.commits}
+                  .selectedCommit=${this.toCommit}
+                  .disabledCommits=${this.selectionValidator.getDisabledCommitsForTo()}
+                  .serverURI=${this.serverURI}
+                  @commit-select=${this.handleToCommitSelect}
+                  @commit-list-scroll=${this.handleCommitListScroll}
+                ></commit-list>
+              `
+          ) : (
+            this.rightPanelMode === 'branches' && this.branches.length > 0 ? 
+              this.panelRenderer.renderCollapsedBranches(this.toBranch, false) :
+              this.panelRenderer.renderCollapsedCommitHashes(this.toCommit, false)
+          )}
+          ${this.loadingMore && this.rightPanelMode === 'commits' ? html`
             <div class="loading-more">
               <div class="loading-more-spinner"></div>
               ${this.rightPanelHovered ? 'Loading more commits...' : '...'}

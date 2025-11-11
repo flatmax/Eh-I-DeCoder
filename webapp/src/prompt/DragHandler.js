@@ -76,6 +76,9 @@ export class DragHandler {
     // Mark as potentially dragging (but not actually dragging until threshold is met)
     this.promptView.isDragging = true;
     
+    // Notify state manager
+    this.promptView.dialogStateManager.startDragging();
+    
     // Add dragging class to disable transitions during drag
     this.promptView.classList.add('dragging');
     this.promptView.style.cursor = 'grabbing';
@@ -99,6 +102,9 @@ export class DragHandler {
     this.resizeType = resizeType;
     this.initialWidth = rect.width;
     this.initialMouseX = event.clientX;
+    
+    // Notify state manager
+    this.promptView.dialogStateManager.startResizing();
     
     // Add resizing class
     this.promptView.classList.add('resizing');
@@ -215,9 +221,11 @@ export class DragHandler {
     // Reset cursor
     this.promptView.style.cursor = '';
     
-    // Remove dragging class and ensure correct class is applied
+    // Remove dragging class
     this.promptView.classList.remove('dragging');
-    this.promptView.dialogStateManager.updateDialogClass();
+    
+    // Notify state manager
+    this.promptView.dialogStateManager.endDragging();
   }
   
   handleResizeEnd(event) {
@@ -232,5 +240,8 @@ export class DragHandler {
     
     // Remove resizing class
     this.promptView.classList.remove('resizing');
+    
+    // Notify state manager
+    this.promptView.dialogStateManager.endResizing();
   }
 }

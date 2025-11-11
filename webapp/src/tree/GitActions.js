@@ -1,3 +1,5 @@
+import { EventHelper } from '../utils/EventHelper.js';
+
 export class GitActions {
   constructor(jrpcClient, contextMenu, onActionComplete) {
     this.jrpcClient = jrpcClient;
@@ -14,6 +16,13 @@ export class GitActions {
   }
   
   async handleDiscardChanges() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+
+    // Confirm discard
+    const confirmed = confirm(`Are you sure you want to discard changes to "${path}"?`);
+    if (!confirmed) return;
+
     await this.performGitAction('discard_changes', 'Discarding changes to file');
   }
 
@@ -46,6 +55,45 @@ export class GitActions {
     } catch (error) {
       console.error(`Error deleting file ${path}:`, error);
       alert(`Failed to delete file: ${error.message}`);
+    }
+  }
+
+  async handleRenameFile() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+
+    this.contextMenu.hide();
+
+    try {
+      // Get the current filename
+      const currentName = path.split('/').pop();
+      const directory = path.substring(0, path.lastIndexOf('/'));
+      
+      // Prompt for new name
+      const newName = prompt(`Rename "${currentName}" to:`, currentName);
+      if (!newName || newName === currentName) return;
+
+      // Construct new path
+      const newPath = directory ? `${directory}/${newName}` : newName;
+
+      console.log(`Renaming file from ${path} to ${newPath}`);
+      const response = await this.jrpcClient.call['Repo.rename_file'](path, newPath);
+      console.log(`rename_file response:`, response);
+      
+      // Check if the response indicates an error
+      if (response && response.error) {
+        console.error(`Error renaming file: ${response.error}`);
+        alert(`Failed to rename file: ${response.error}`);
+      } else {
+        console.log(`File renamed successfully from ${path} to ${newPath}`);
+        // Notify completion
+        if (this.onActionComplete) {
+          this.onActionComplete();
+        }
+      }
+    } catch (error) {
+      console.error(`Error renaming file ${path}:`, error);
+      alert(`Failed to rename file: ${error.message}`);
     }
   }
 
@@ -102,6 +150,26 @@ export class GitActions {
       console.error('Error creating file:', error);
       alert(`Failed to create file: ${error.message}`);
     }
+  }
+
+  handleLoadToLeft() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+    
+    this.contextMenu.hide();
+    
+    console.log('Loading file to left:', path);
+    EventHelper.dispatchWindowEvent('load-file-to-left', { filePath: path });
+  }
+
+  handleLoadToRight() {
+    const path = this.contextMenu.path;
+    if (!path) return;
+    
+    this.contextMenu.hide();
+    
+    console.log('Loading file to right:', path);
+    EventHelper.dispatchWindowEvent('load-file-to-right', { filePath: path });
   }
 
   openFileInEditor(filePath) {

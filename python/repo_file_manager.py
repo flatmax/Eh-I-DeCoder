@@ -79,13 +79,19 @@ class RepoFileManager:
                 except KeyError:
                     # File doesn't exist in HEAD (new file)
                     return ""
+                except Exception:
+                    # Return empty string for any HEAD read errors (common on sshfs mounts)
+                    return ""
             elif version == 'working':
                 # Get file content from working directory
                 full_path = os.path.join(self.repo.repo.working_tree_dir, file_path)
                 if os.path.exists(full_path):
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    return content
+                    try:
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        return content
+                    except Exception as e:
+                        raise FileOperationError(f"Could not read file {file_path}: {e}")
                 else:
                     return ""
             else:

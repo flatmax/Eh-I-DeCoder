@@ -71,6 +71,10 @@ export class DiffEditorStyles {
         gap: 2px;
       }
 
+      .file-path-container.right-file {
+        text-align: right;
+      }
+
       .file-directory {
         font-size: 11px;
         color: #969696;
@@ -125,6 +129,38 @@ export class DiffEditorStyles {
         0% { opacity: 0.5; }
         50% { opacity: 1; }
         100% { opacity: 0.5; }
+      }
+
+      .comparison-mode-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 8px 16px;
+        background: rgba(100, 100, 255, 0.1);
+        border-radius: 4px;
+      }
+
+      .comparison-mode-indicator span {
+        color: #6464ff;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .exit-comparison-btn {
+        padding: 4px 12px;
+        background: rgba(255, 100, 100, 0.2);
+        color: #ff6464;
+        border: 1px solid #ff6464;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+
+      .exit-comparison-btn:hover {
+        background: rgba(255, 100, 100, 0.3);
       }
 
       navigation-history-graph {

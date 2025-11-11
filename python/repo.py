@@ -47,11 +47,64 @@ class Repo(BaseWrapper):
         
         self._initialize_repo()
     
+    def _configure_safe_directory(self, repo_path):
+        """Configure Git safe.directory for the repository path"""
+        try:
+            # Get the absolute path
+            abs_path = os.path.abspath(repo_path)
+            
+            # Check if this directory is already in safe.directory
+            try:
+                result = subprocess.run(
+                    ['git', 'config', '--global', '--get-all', 'safe.directory'],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                
+                safe_dirs = result.stdout.strip().split('\n') if result.stdout else []
+                
+                # Check if our path or '*' is already configured
+                if abs_path in safe_dirs or '*' in safe_dirs:
+                    self.log(f"Repository path {abs_path} is already in safe.directory")
+                    return True
+                    
+            except Exception as e:
+                self.log(f"Error checking safe.directory: {e}")
+            
+            # Add the directory to safe.directory
+            self.log(f"Adding {abs_path} to Git safe.directory")
+            result = subprocess.run(
+                ['git', 'config', '--global', '--add', 'safe.directory', abs_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            self.log(f"Successfully added {abs_path} to safe.directory")
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            self.log(f"Failed to configure safe.directory: {e.stderr if e.stderr else str(e)}")
+            return False
+        except Exception as e:
+            self.log(f"Error configuring safe.directory: {e}")
+            return False
+    
     def _initialize_repo(self):
         """Initialize the Git repository"""
         try:
+            # First, try to configure safe.directory for this path
+            self._configure_safe_directory(self.repo_path)
+            
             # This will search up the directory tree to find a Git repository
             self.repo = git.Repo(self.repo_path, search_parent_directories=True)
+            
+            # If we successfully opened the repo, also configure safe.directory for the actual repo root
+            if self.repo and self.repo.working_tree_dir:
+                actual_repo_path = self.repo.working_tree_dir
+                if os.path.abspath(actual_repo_path) != os.path.abspath(self.repo_path):
+                    self._configure_safe_directory(actual_repo_path)
             
             # Start the git monitor after initializing the repository
             self.start_git_monitor()
@@ -85,6 +138,14 @@ class Repo(BaseWrapper):
         """Get commit history with detailed information - optimized for performance with pagination support"""
         return self.repo_history.get_commit_history(max_count, branch, skip)
     
+    def get_branches(self):
+        """Get list of all branches in the repository"""
+        return self.repo_history.get_branches()
+    
+    def get_branch_commit(self, branch_name):
+        """Get the commit hash for a specific branch"""
+        return self.repo_history.get_branch_commit(branch_name)
+    
     def get_changed_files(self, from_commit, to_commit):
         """Get list of files changed between two commits"""
         return self.repo_history.get_changed_files(from_commit, to_commit)
@@ -97,6 +158,62 @@ class Repo(BaseWrapper):
     def get_file_content(self, file_path, version='working'):
         """Get the content of a file from either HEAD, working directory, or specific commit"""
         return self.repo_file_manager.get_file_content(file_path, version)
+    
+    def rename_file(self, old_path, new_path):
+        """Rename a file using Git mv command"""
+        try:
+            self._ensure_repo()
+            
+            # Get the repository root
+            repo_root = self.repo.working_tree_dir
+            
+            # Construct full paths
+            old_full_path = os.path.join(repo_root, old_path)
+            new_full_path = os.path.join(repo_root, new_path)
+            
+            # Check if the old file exists
+            if not os.path.exists(old_full_path):
+                raise FileOperationError(f"File does not exist: {old_path}")
+            
+            # Check if the new path already exists
+            if os.path.exists(new_full_path):
+                raise FileOperationError(f"Target file already exists: {new_path}")
+            
+            # Ensure the parent directory of the new path exists
+            new_dir = os.path.dirname(new_full_path)
+            if new_dir and not os.path.exists(new_dir):
+                os.makedirs(new_dir, exist_ok=True)
+            
+            # Use git mv to rename the file
+            try:
+                # Run git mv command
+                result = subprocess.run(
+                    ['git', 'mv', old_path, new_path],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                self.log(f"Successfully renamed file from {old_path} to {new_path}")
+                
+                # Notify about the change
+                self._notify_git_change()
+                
+                return {
+                    'success': True,
+                    'old_path': old_path,
+                    'new_path': new_path,
+                    'message': f"File renamed from {old_path} to {new_path}"
+                }
+                
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() if e.stderr else str(e)
+                raise GitError(f"Git rename failed: {error_msg}")
+                
+        except Exception as e:
+            self.log(f"Error renaming file: {e}")
+            return create_error_response(e)
     
     # File analysis methods - delegate to file_analyzer
     def get_file_line_counts(self, file_paths):
@@ -214,7 +331,7 @@ class Repo(BaseWrapper):
             # Notify RepoTree using _safe_create_task - call loadGitStatus which triggers a refresh
             self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
             
-        except Exception as e:
+        except Exception as e: 
             self.log(f"Error in _notify_git_change: {e}")
 
     def _notify_file_saved(self, file_path):

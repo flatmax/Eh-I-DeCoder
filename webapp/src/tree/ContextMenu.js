@@ -1,65 +1,55 @@
-import {html} from 'lit';
+import { html } from 'lit';
 import '@material/web/icon/icon.js';
 
 export class ContextMenu {
-  constructor(host) {
-    this.host = host;
+  constructor(repoTree) {
+    this.repoTree = repoTree;
     this.visible = false;
-    this.path = null;
+    this.x = 0;
+    this.y = 0;
+    this.path = '';
     this.isFile = false;
   }
 
   show(event, path, isFile) {
-    // Prevent default browser context menu
     event.preventDefault();
+    event.stopPropagation();
     
-    // Set the path and type for the selected item
+    this.visible = true;
+    this.x = event.clientX;
+    this.y = event.clientY;
     this.path = path;
     this.isFile = isFile;
-    this.visible = true;
     
-    // Position context menu immediately to avoid flickering
-    const x = event.clientX;
-    const y = event.clientY;
+    this.repoTree.requestUpdate();
     
-    // Force immediate update and then position the menu
-    this.host.requestUpdate().then(() => {
-      this.host.updateComplete.then(() => {
-        const contextMenu = this.host.shadowRoot.querySelector('.context-menu');
-        if (contextMenu) {
-          // Position context menu at mouse position
-          contextMenu.style.left = `${x}px`;
-          contextMenu.style.top = `${y}px`;
-          
-          // Add event listener for clicks outside the menu
-          requestAnimationFrame(() => {
-            const closeMenu = (e) => {
-              // Check if click is outside the context menu
-              if (!contextMenu.contains(e.target)) {
-                this.hide();
-                document.removeEventListener('click', closeMenu);
-              }
-            };
-            
-            document.addEventListener('click', closeMenu);
-          });
-        }
-      });
-    });
+    // Add click listener to close menu
+    setTimeout(() => {
+      document.addEventListener('click', this.handleDocumentClick.bind(this), { once: true });
+    }, 0);
   }
 
   hide() {
     this.visible = false;
-    this.host.requestUpdate();
+    this.repoTree.requestUpdate();
   }
 
-  renderMenuItem(icon, text, handler) {
+  handleDocumentClick(event) {
+    // Check if click is inside the context menu
+    const contextMenu = this.repoTree.shadowRoot?.querySelector('.context-menu');
+    if (contextMenu && contextMenu.contains(event.target)) {
+      return;
+    }
+    this.hide();
+  }
+
+  renderMenuItem(icon, label, handler) {
     return html`
       <div class="context-menu-item" @click=${handler}>
         <span class="context-menu-icon">
           <md-icon class="material-symbols-outlined">${icon}</md-icon>
         </span>
-        <span class="context-menu-text">${text}</span>
+        <span class="context-menu-text">${label}</span>
       </div>
     `;
   }

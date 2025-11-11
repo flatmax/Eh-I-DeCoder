@@ -20,7 +20,10 @@ export class DiffEditor extends JRPCClient {
     headContent: { type: String, state: true },
     workingContent: { type: String, state: true },
     isSaving: { type: Boolean, state: true },
-    isConnected: { type: Boolean, state: true }
+    isConnected: { type: Boolean, state: true },
+    leftFilePath: { type: String, state: true },
+    rightFilePath: { type: String, state: true },
+    comparisonMode: { type: Boolean, state: true }
   };
 
   static styles = DiffEditorStyles.styles;
@@ -39,6 +42,13 @@ export class DiffEditor extends JRPCClient {
     this.fileManager = new FileManager(this);
     this.lspManager = new LSPManager(this);
     this.isConnected = false;
+    this.leftFilePath = null;
+    this.rightFilePath = null;
+    this.comparisonMode = false;
+    
+    // Bind event handlers
+    this._boundHandleLoadFileToLeft = this.handleLoadFileToLeft.bind(this);
+    this._boundHandleLoadFileToRight = this.handleLoadFileToRight.bind(this);
   }
 
   async connectedCallback() {
@@ -48,6 +58,10 @@ export class DiffEditor extends JRPCClient {
     // Set up event listeners
     this.addEventListener('open-file', this.handleOpenFile.bind(this));
     this.addEventListener('navigate-to-history', this.navigationManager.handleNavigateToHistory.bind(this.navigationManager));
+    
+    // Listen for load-to-left and load-to-right events
+    window.addEventListener('load-file-to-left', this._boundHandleLoadFileToLeft);
+    window.addEventListener('load-file-to-right', this._boundHandleLoadFileToRight);
     
     // Initialize LSP if port is available
     if (this.lspPort) {
@@ -98,7 +112,12 @@ export class DiffEditor extends JRPCClient {
       <div class="diff-editor-container">
         <div class="diff-header-container">
           <div class="diff-header-left">
-            ${this.currentFile ? html`
+            ${this.comparisonMode ? html`
+              <div class="file-path-container">
+                <div class="file-directory">${this.leftFilePath ? this.getDirectory(this.leftFilePath) : ''}</div>
+                <div class="file-name">${this.leftFilePath ? this.getFilename(this.leftFilePath) : 'No file'}</div>
+              </div>
+            ` : this.currentFile ? html`
               <div class="file-path-container">
                 <div class="file-directory">${this.getDirectory(this.currentFile)}</div>
                 <div class="file-name">${this.getFilename(this.currentFile)}</div>
@@ -106,16 +125,29 @@ export class DiffEditor extends JRPCClient {
             ` : html`
               <h3>No file open</h3>
             `}
-            <span class="label head-label">HEAD</span>
+            <span class="label head-label">${this.comparisonMode ? 'Left' : 'HEAD'}</span>
           </div>
           <div class="diff-header-center">
-            <navigation-history-graph></navigation-history-graph>
+            ${this.comparisonMode ? html`
+              <div class="comparison-mode-indicator">
+                <span>Comparison Mode</span>
+                <button class="exit-comparison-btn" @click=${this.exitComparisonMode}>Exit</button>
+              </div>
+            ` : html`
+              <navigation-history-graph></navigation-history-graph>
+            `}
           </div>
           <div class="diff-header-right">
+            ${this.comparisonMode ? html`
+              <div class="file-path-container right-file">
+                <div class="file-directory">${this.rightFilePath ? this.getDirectory(this.rightFilePath) : ''}</div>
+                <div class="file-name">${this.rightFilePath ? this.getFilename(this.rightFilePath) : 'No file'}</div>
+              </div>
+            ` : ''}
             ${this.isSaving ? html`
               <span class="label save-indicator">Saving...</span>
             ` : ''}
-            <span class="label working-label">Working Copy</span>
+            <span class="label working-label">${this.comparisonMode ? 'Right' : 'Working Copy'}</span>
           </div>
         </div>
         ${this._renderContent()}
@@ -140,12 +172,14 @@ export class DiffEditor extends JRPCClient {
       <div class="diff-content">
         ${this.isLoading ? html`
           <div class="loading">Loading...</div>
-        ` : this.currentFile ? html`
+        ` : (this.currentFile || this.comparisonMode) ? html`
           <monaco-diff-editor
             .originalContent=${this.headContent}
             .modifiedContent=${this.workingContent}
-            .filePath=${this.currentFile}
-            .language=${this.languageDetector.getLanguageFromFile(this.currentFile)}
+            .filePath=${this.comparisonMode ? this.rightFilePath : this.currentFile}
+            .language=${this.comparisonMode ? 
+              this.languageDetector.getLanguageFromFile(this.rightFilePath || '') : 
+              this.languageDetector.getLanguageFromFile(this.currentFile)}
             theme="vs-dark"
             @save-file=${this.handleSaveFile}
             @request-find-in-files=${this.handleRequestFindInFiles}
@@ -167,13 +201,70 @@ export class DiffEditor extends JRPCClient {
     const filePath = event.detail.filePath;
     const lineNumber = event.detail.lineNumber || null;
     if (filePath && this.isConnected) {
+      this.exitComparisonMode();
       this.fileManager.loadFileContent(filePath, lineNumber);
     }
   }
 
+  async handleLoadFileToLeft(event) {
+    const filePath = event.detail.filePath;
+    if (!filePath || !this.isConnected) return;
+
+    console.log('Loading file to left:', filePath);
+    
+    // Enter comparison mode
+    this.comparisonMode = true;
+    this.leftFilePath = filePath;
+    
+    // Load the file content for the left side
+    try {
+      const content = await FileContentService.loadFile(this, filePath, 'working');
+      this.headContent = content;
+      
+      // If right side is not set, clear it
+      if (!this.rightFilePath) {
+        this.workingContent = '';
+      }
+    } catch (error) {
+      console.error('Error loading file to left:', error);
+    }
+  }
+
+  async handleLoadFileToRight(event) {
+    const filePath = event.detail.filePath;
+    if (!filePath || !this.isConnected) return;
+
+    console.log('Loading file to right:', filePath);
+    
+    // Enter comparison mode
+    this.comparisonMode = true;
+    this.rightFilePath = filePath;
+    
+    // Load the file content for the right side
+    try {
+      const content = await FileContentService.loadFile(this, filePath, 'working');
+      this.workingContent = content;
+      
+      // If left side is not set, clear it
+      if (!this.leftFilePath) {
+        this.headContent = '';
+      }
+    } catch (error) {
+      console.error('Error loading file to right:', error);
+    }
+  }
+
+  exitComparisonMode() {
+    this.comparisonMode = false;
+    this.leftFilePath = null;
+    this.rightFilePath = null;
+    this.headContent = '';
+    this.workingContent = '';
+  }
+
   handleContentChanged(event) {
     // Handle content changes for LSP
-    if (this.lspManager.isConnected && this.currentFile) {
+    if (this.lspManager.isConnected && this.currentFile && !this.comparisonMode) {
       const uri = `file://${this.currentFile}`;
       const content = event.detail.content;
       const version = event.detail.version || 1;
@@ -184,6 +275,12 @@ export class DiffEditor extends JRPCClient {
   }
 
   async handleSaveFile(event) {
+    if (this.comparisonMode) {
+      console.warn('Cannot save in comparison mode');
+      alert('Cannot save files in comparison mode. Exit comparison mode first.');
+      return;
+    }
+
     if (!this.currentFile) {
       console.error('No file currently open to save');
       return;
@@ -240,6 +337,9 @@ export class DiffEditor extends JRPCClient {
       return;
     }
 
+    // Exit comparison mode when loading a file normally
+    this.exitComparisonMode();
+
     // If a file is currently open in the LSP, notify the server that it's being closed.
     if (this.lspManager.isConnected && this.currentFile) {
       const oldUri = `file://${this.currentFile}`;
@@ -259,13 +359,17 @@ export class DiffEditor extends JRPCClient {
   }
 
   async reloadIfCurrentFile(data) {
-    if (this.isConnected) {
+    if (this.isConnected && !this.comparisonMode) {
       await this.fileManager.reloadIfCurrentFile(data);
     }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    
+    // Remove window event listeners
+    window.removeEventListener('load-file-to-left', this._boundHandleLoadFileToLeft);
+    window.removeEventListener('load-file-to-right', this._boundHandleLoadFileToRight);
     
     // Clean up LSP connection
     if (this.lspManager) {

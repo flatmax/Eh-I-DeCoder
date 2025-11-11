@@ -182,9 +182,51 @@ export class PromptView extends MessageHandler {
     const { word } = event.detail;
     if (!word) return;
     
-    // Add the word to the current input value with a space at the end
+    // Get the text field element
+    const textField = this.shadowRoot.querySelector('md-filled-text-field');
+    if (!textField) {
+      // If text field not found, fall back to appending at end
+      const currentValue = this.inputValue || '';
+      const newValue = currentValue ? `${currentValue} ${word} ` : `${word} `;
+      
+      this._batchUpdate({
+        inputValue: newValue,
+        isMinimized: false
+      });
+      return;
+    }
+    
+    // Get the actual input element inside the text field
+    const input = textField.shadowRoot?.querySelector('input') || textField.shadowRoot?.querySelector('textarea');
+    if (!input) {
+      // If input not found, fall back to appending at end
+      const currentValue = this.inputValue || '';
+      const newValue = currentValue ? `${currentValue} ${word} ` : `${word} `;
+      
+      this._batchUpdate({
+        inputValue: newValue,
+        isMinimized: false
+      });
+      return;
+    }
+    
+    // Get current cursor position
+    const cursorPos = input.selectionStart || 0;
     const currentValue = this.inputValue || '';
-    const newValue = currentValue ? `${currentValue} ${word} ` : `${word} `;
+    
+    // Insert word at cursor position with spaces
+    const beforeCursor = currentValue.substring(0, cursorPos);
+    const afterCursor = currentValue.substring(cursorPos);
+    
+    // Add space before word if needed (if there's text before and it doesn't end with space)
+    const spaceBefore = beforeCursor && !beforeCursor.endsWith(' ') ? ' ' : '';
+    
+    // Add space after word
+    const spaceAfter = ' ';
+    
+    // Construct new value
+    const newValue = beforeCursor + spaceBefore + word + spaceAfter + afterCursor;
+    const newCursorPos = cursorPos + spaceBefore.length + word.length + spaceAfter.length;
     
     // Batch update input value and minimize state
     this._batchUpdate({
@@ -192,19 +234,15 @@ export class PromptView extends MessageHandler {
       isMinimized: false
     });
     
-    // Focus the input field and position cursor at the end
+    // Focus the input field and position cursor after the inserted word
     this.updateComplete.then(() => {
-      const textField = this.shadowRoot.querySelector('md-filled-text-field');
-      if (textField) {
-        textField.focus();
-        // Set cursor to end of text
-        setTimeout(() => {
-          const input = textField.shadowRoot?.querySelector('input');
-          if (input) {
-            input.setSelectionRange(newValue.length, newValue.length);
-          }
-        }, 10);
-      }
+      textField.focus();
+      // Set cursor position after the inserted word
+      setTimeout(() => {
+        if (input) {
+          input.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 10);
     });
   }
   
