@@ -24,6 +24,7 @@ export class MessageHandler extends JRPCClient {
     this._updateTimer = null;
     this.isConnected = false;
     this._confirmationDialog = null;
+    this._streamingContent = '';  // Accumulator for streaming content
   }
 
   connectedCallback() {
@@ -117,8 +118,9 @@ export class MessageHandler extends JRPCClient {
     // Add user message to history
     this.addMessageToHistory('user', message);
     
-    // Mark as processing
+    // Mark as processing and reset streaming accumulator
     this.isProcessing = true;
+    this._streamingContent = '';
     
     try {
       // Call EditBlockCoder.run with named argument dictionary
@@ -187,9 +189,11 @@ export class MessageHandler extends JRPCClient {
    * Process stream chunk asynchronously
    */
   async _processStreamChunk(chunk, final = false, role = 'assistant') {
-    // If chunk is null or undefined, handle gracefully
-    if (!chunk) {
-      console.warn('Received empty chunk');
+    // If chunk is null or undefined, skip but don't warn if it's a final marker
+    if (!chunk && chunk !== '') {
+      if (!final) {
+        console.warn('Received null/undefined chunk');
+      }
       return;
     }
 
@@ -206,16 +210,33 @@ export class MessageHandler extends JRPCClient {
    * Handle message chunks - OPTIMIZED to avoid array recreation
    */
   _handleChunk(chunk, final, role) {
-    // If there's no role message yet, create one
-    if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
-      this.messageHistory.push({ role, content: '' });
-    }
-    
-    // Get reference to the last message object
-    const lastMessage = this.messageHistory[this.messageHistory.length - 1];
-    
-    if (role === 'command') {
+    if (role === 'assistant') {
+      // For assistant role, accumulate the streaming content
+      this._streamingContent += chunk;
+      
+      // If there's no assistant message yet, create one
+      if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== 'assistant') {
+        this.messageHistory.push({ role: 'assistant', content: '' });
+      }
+      
+      // Get reference to the last message object
+      const lastMessage = this.messageHistory[this.messageHistory.length - 1];
+      
+      // Update with accumulated content
+      lastMessage.content = this._streamingContent;
+      
+      // If this is the final chunk, reset the accumulator
+      if (final) {
+        this._streamingContent = '';
+      }
+    } else if (role === 'command') {
       // For command role, append to content (with newline if not empty)
+      if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== 'command') {
+        this.messageHistory.push({ role: 'command', content: '' });
+      }
+      
+      const lastMessage = this.messageHistory[this.messageHistory.length - 1];
+      
       if (lastMessage.content) {
         lastMessage.content += '\n' + chunk;
       } else {
@@ -223,11 +244,13 @@ export class MessageHandler extends JRPCClient {
       }
     } else {
       // For other roles, just update the content
+      if (this.messageHistory.length === 0 || this.messageHistory[this.messageHistory.length - 1].role !== role) {
+        this.messageHistory.push({ role, content: '' });
+      }
+      
+      const lastMessage = this.messageHistory[this.messageHistory.length - 1];
       lastMessage.content = chunk;
     }
-    
-    // No need to recreate the array - just mutate the existing message
-    // This avoids unnecessary re-renders
   }
   
   /**
@@ -245,6 +268,9 @@ export class MessageHandler extends JRPCClient {
    * Process stream completion asynchronously
    */
   async _processStreamComplete() {
+    // Reset streaming accumulator
+    this._streamingContent = '';
+    
     // Mark processing as complete
     this.isProcessing = false;
     
@@ -274,6 +300,9 @@ export class MessageHandler extends JRPCClient {
    */
   async _processStreamError(errorMessage) {
     console.error('Streaming error:', errorMessage);
+    
+    // Reset streaming accumulator
+    this._streamingContent = '';
     
     // Add error to message history or update last assistant message
     if (this.messageHistory.length > 0 && this.messageHistory[this.messageHistory.length - 1].role === 'assistant') {

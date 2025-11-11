@@ -147,7 +147,11 @@ class CoderWrapper(BaseWrapper):
             result = self.original_add_rel_fname(filename)
             
             # Notify RepoTree to refresh its file list
-            self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            try:
+                self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            except KeyError:
+                # Method not registered yet, ignore
+                pass
             
             return result
         except Exception as e:
@@ -161,7 +165,11 @@ class CoderWrapper(BaseWrapper):
             result = self.original_drop_rel_fname(filename)
             
             # Notify RepoTree to refresh its file list
-            self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            try:
+                self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            except KeyError:
+                # Method not registered yet, ignore
+                pass
             
             return result
         except Exception as e:
@@ -223,6 +231,7 @@ class CoderWrapper(BaseWrapper):
         """
         Wrapper for the coder's run method to execute it non-blockingly.
         This method is intended to be called via JRPC and return immediately.
+        In aider-ce, the run method is async, so we need to handle it properly.
         """
         try:
             # Check if this is a terminal command
@@ -237,26 +246,39 @@ class CoderWrapper(BaseWrapper):
                 self.signal_completion()
                 return {"status": "terminal_command_detected", "command": message}
 
+            # Get the actual run method (which is async in aider-ce)
             actual_run_method = self.original_run
 
             def task_to_run_in_thread():
+                """Run the async coder.run method using the main event loop"""
                 thread_name = threading.current_thread().name
                 try:
-                    if asyncio.iscoroutinefunction(actual_run_method):
+                    # Use the main event loop instead of creating a new one
+                    if self.main_loop and not self.main_loop.is_closed():
+                        # Schedule the coroutine in the main loop and wait for it
+                        future = asyncio.run_coroutine_threadsafe(
+                            actual_run_method(message),
+                            self.main_loop
+                        )
+                        # Wait for completion (this blocks the thread but not the main loop)
+                        future.result()
+                    else:
+                        # Fallback: create a new event loop if main loop not available
+                        self.log("Warning: Main loop not available, creating new event loop")
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
                             loop.run_until_complete(actual_run_method(message))
                         finally:
                             loop.close()
-                    else:
-                        actual_run_method(message)
                     
                     # Signal completion to MessageHandler
                     self.signal_completion()
                     
                 except Exception as e:
                     self.log(f"Exception in threaded coder.run: {e}")
+                    import traceback
+                    self.log(f"Traceback: {traceback.format_exc()}")
                     
                     # Signal completion even on error to reset the UI
                     self.signal_completion()
@@ -277,4 +299,7 @@ class CoderWrapper(BaseWrapper):
             return {"status": "coder.run initiated", "thread_name": thread.name}
             
         except Exception as e:
+            self.log(f"Error in run_wrapper: {e}")
+            import traceback
+            self.log(f"Traceback: {traceback.format_exc()}")
             return create_error_response(e)

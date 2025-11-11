@@ -23,6 +23,23 @@ class BaseWrapper:
     def log(self, message):
         """Write a log message to the log file with timestamp (legacy method)"""
         Logger.info(message)
+    
+    def get_remotes(self):
+        """Get list of connected remotes from JRPC server
+        
+        This method should be overridden by subclasses that have access to the JRPC server,
+        or it will return an empty list by default.
+        """
+        # Try to get remotes from the global jrpc_server if available
+        try:
+            # Import here to avoid circular dependency
+            from . import aider_server
+            if aider_server.jrpc_server:
+                return aider_server.jrpc_server.get_remotes()
+        except (ImportError, AttributeError):
+            pass
+        
+        return []
 
     def _safe_create_task(self, coro):
         """Safely create an async task using main_loop if available"""

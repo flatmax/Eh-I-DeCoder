@@ -329,7 +329,11 @@ class Repo(BaseWrapper):
         """Notify RepoTree component about git state changes"""
         try:
             # Notify RepoTree using _safe_create_task - call loadGitStatus which triggers a refresh
-            self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
+            try:
+                self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
+            except KeyError:
+                # Method not registered yet, ignore
+                pass
             
         except Exception as e: 
             self.log(f"Error in _notify_git_change: {e}")
@@ -349,6 +353,9 @@ class Repo(BaseWrapper):
             try:
                 # Notify DiffEditor using _safe_create_task
                 self._safe_create_task(self.get_call()['DiffEditor.reloadIfCurrentFile']({'filePath': file_path}))
+            except KeyError:
+                # Method not registered yet, ignore
+                pass
             except Exception as e:
                 self.log(f"Error calling DiffEditor.reloadIfCurrentFile: {e}")
             

@@ -42,10 +42,10 @@ class IOWrapper(BaseWrapper):
         # Replace with our wrapper method
         io_instance.assistant_output = self.assistant_output_wrapper
         
-        # For streaming responses
-        if hasattr(io_instance, 'get_assistant_mdstream'):
-            self.original_get_assistant_mdstream = io_instance.get_assistant_mdstream
-            io_instance.get_assistant_mdstream = self.get_mdstream_wrapper
+        # For streaming responses - intercept the new stream_output method
+        if hasattr(io_instance, 'stream_output'):
+            self.original_stream_output = io_instance.stream_output
+            io_instance.stream_output = self.stream_output_wrapper
         
         # Storage for responses
         self.last_response = None
@@ -112,7 +112,7 @@ class IOWrapper(BaseWrapper):
             self.log(f"Error checking remote connections: {e}")
             return False
     
-    def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False):
+    def confirm_ask_wrapper(self, question, default=None, subject=None, explicit_yes_required=False, group=None, allow_never=False, group_response=None):
         """Intercept confirm_ask calls and send to webapp"""
         question_id = (question, subject)
         if question_id in self.io.never_prompts:
@@ -125,7 +125,8 @@ class IOWrapper(BaseWrapper):
                 'subject': str(subject) if subject is not None else None,
                 'explicit_yes_required': explicit_yes_required,
                 'group': str(group) if group is not None else None,
-                'allow_never': allow_never
+                'allow_never': allow_never,
+                'group_response': str(group_response) if group_response is not None else None
             }
             
             # Use main_loop if available, otherwise fall back to original method
@@ -143,11 +144,11 @@ class IOWrapper(BaseWrapper):
 
                 return response
             else:
-                return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+                return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never, group_response)
                 
         except Exception as e:
             self.log(f"Error in confirm_ask_wrapper: {e}")
-            return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never)
+            return self.original_confirm_ask(question, default, subject, explicit_yes_required, group, allow_never, group_response)
     
     async def _async_confirmation_request(self, confirmation_data):
         """Make the async RPC call to the webapp"""
@@ -167,40 +168,40 @@ class IOWrapper(BaseWrapper):
         # Store the message for webapp
         self.last_response = message
         
-        # Send to webapp if connected - fire and forget
-        if self.is_connected:
-            self._safe_create_task(self.send_to_webapp(message))
+        # Send to webapp - use synchronous approach to ensure delivery
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                # Run the async call synchronously to ensure it completes
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_to_webapp(message),
+                    self.main_loop
+                )
+                # Wait briefly for the message to be sent
+                try:
+                    future.result(timeout=1.0)
+                except Exception as e:
+                    self.log(f"Error sending assistant output to webapp: {e}")
+        except Exception as e:
+            self.log(f"Error in assistant_output_wrapper: {e}")
         
         # Call original method to maintain console output
         return self.original_assistant_output(message, pretty)
     
-    def get_mdstream_wrapper(self):
-        """Intercept markdown stream creation for streaming responses"""
-        mdstream = self.original_get_assistant_mdstream()
+    def stream_output_wrapper(self, text, final=False):
+        """Intercept stream_output calls for streaming responses (aider-ce)"""
+        # Send to webapp synchronously to ensure delivery
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_stream_update(text, final),
+                    self.main_loop
+                )
+                # Don't wait for completion to avoid blocking
+        except Exception as e:
+            self.log(f"Error sending stream update: {e}")
         
-        # Store the original update method
-        original_update = mdstream.update
-        
-        # Replace with our wrapper
-        def update_wrapper(content, final=False):
-            # Send to webapp asynchronously - fire and forget
-            self._safe_create_task(self.send_stream_update(content, final))
-            
-            # Call original method with error handling for Rich LiveError
-            try:
-                return original_update(content, final)
-            except Exception as e:
-                # Check if it's a Rich LiveError
-                if "Only one live display may be active at once" in str(e):
-                    # Don't call the original update to avoid the Rich conflict
-                    # The webapp will handle the display instead
-                    return None
-                else:
-                    # Re-raise other exceptions
-                    raise
-        
-        mdstream.update = update_wrapper
-        return mdstream
+        # Call original method to maintain console output
+        return self.original_stream_output(text, final)
         
     # Command output wrapper methods
     def tool_output_wrapper(self, message='', **kwargs):
@@ -208,8 +209,16 @@ class IOWrapper(BaseWrapper):
         # Mark that we've seen command output
         self.has_command_output = True
         
-        # Send to webapp - fire and forget
-        self._safe_create_task(self.send_to_webapp_command('output', message))
+        # Send to webapp synchronously
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_to_webapp_command('output', message),
+                    self.main_loop
+                )
+                # Don't wait for completion to avoid blocking
+        except Exception as e:
+            self.log(f"Error sending tool output: {e}")
         
         # Call original method with all arguments
         return self.original_tool_output(message, **kwargs)
@@ -219,8 +228,16 @@ class IOWrapper(BaseWrapper):
         # Mark that we've seen command output
         self.has_command_output = True
         
-        # Send to webapp - fire and forget
-        self._safe_create_task(self.send_to_webapp_command('error', message))
+        # Send to webapp synchronously
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_to_webapp_command('error', message),
+                    self.main_loop
+                )
+                # Don't wait for completion to avoid blocking
+        except Exception as e:
+            self.log(f"Error sending tool error: {e}")
         
         # Call original method with all arguments
         return self.original_tool_error(message, **kwargs)
@@ -230,8 +247,16 @@ class IOWrapper(BaseWrapper):
         # Mark that we've seen command output
         self.has_command_output = True
         
-        # Send to webapp - fire and forget
-        self._safe_create_task(self.send_to_webapp_command('warning', message))
+        # Send to webapp synchronously
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_to_webapp_command('warning', message),
+                    self.main_loop
+                )
+                # Don't wait for completion to avoid blocking
+        except Exception as e:
+            self.log(f"Error sending tool warning: {e}")
         
         # Call original method with all arguments
         return self.original_tool_warning(message, **kwargs)
@@ -244,8 +269,16 @@ class IOWrapper(BaseWrapper):
         # Mark that we've seen command output
         self.has_command_output = True
         
-        # Send to webapp - fire and forget
-        self._safe_create_task(self.send_to_webapp_command('print', message))
+        # Send to webapp synchronously
+        try:
+            if self.main_loop and not self.main_loop.is_closed():
+                future = asyncio.run_coroutine_threadsafe(
+                    self.send_to_webapp_command('print', message),
+                    self.main_loop
+                )
+                # Don't wait for completion to avoid blocking
+        except Exception as e:
+            self.log(f"Error sending print output: {e}")
         
         # Call original method
         return self.original_print(*args, **kwargs)
@@ -257,61 +290,63 @@ class IOWrapper(BaseWrapper):
                 # Reset the flag
                 self.has_command_output = False
                 # Send completion signal
-                self._safe_create_task(self.get_call()['MessageHandler.streamComplete']())
+                if self.main_loop and not self.main_loop.is_closed():
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.get_call()['MessageHandler.streamComplete'](),
+                        self.main_loop
+                    )
         except Exception as e:
             self.log(f"Error in signal_command_complete: {e}")
     
     async def send_to_webapp(self, message):
-        """Send completed response to webapp - OPTIMIZED VERSION"""
+        """Send completed response to webapp"""
         try:
-            # Fire and forget - don't wait for response
-            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](message, True, 'assistant'))
+            # Call the RPC method directly
+            call_func = self.get_call()['MessageHandler.streamWrite']
+            await call_func(message, True, 'assistant')
             
         except Exception as e:
             err_msg = f"Error sending to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}\n{e.__traceback__}")
             
-            # Try to notify the webapp about the error - fire and forget
+            # Try to notify the webapp about the error
             try:
-                self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
+                call_func = self.get_call()['MessageHandler.streamError']
+                await call_func(str(e))
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
     
     async def send_stream_update(self, content, final):
-        """Send streaming update to webapp - OPTIMIZED VERSION"""
-        if not self.is_connected:
-            return
-            
+        """Send streaming update to webapp"""
         try:
-            # Fire and forget - don't wait for response
-            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](content, final, 'assistant'))
+            # Call the RPC method directly
+            call_func = self.get_call()['MessageHandler.streamWrite']
+            await call_func(content, final, 'assistant')
             
         except Exception as e:
             err_msg = f"Error sending stream update to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
             
-            # Try to notify the webapp about the error - fire and forget
+            # Try to notify the webapp about the error
             try:
-                self._safe_create_task(self.get_call()['MessageHandler.streamError'](str(e)))
+                call_func = self.get_call()['MessageHandler.streamError']
+                await call_func(str(e))
             except Exception as e2:
                 self.log(f"Failed to send error notification: {e2}")
                 
     async def send_to_webapp_command(self, msg_type, message):
         """Send command output to webapp using streamWrite with 'command' role"""
-        if not self.is_connected:
-            return
-            
         try:
             # Format the message with type prefix for parsing in JavaScript
             formatted_message = f"{msg_type}:{message}"
             
-            # Fire and forget - don't wait for response
-            # Use streamWrite with 'command' role instead of displayCommandOutput
-            self._safe_create_task(self.get_call()['MessageHandler.streamWrite'](formatted_message, False, 'command'))
+            # Call the RPC method directly
+            call_func = self.get_call()['MessageHandler.streamWrite']
+            await call_func(formatted_message, False, 'command')
+            
         except Exception as e:
-            err_msg = f"Error sending command output to webapp (if you're exiting, ctl-c again please): {e}"
+            err_msg = f"Error sending command output to webapp: {e}"
             self.log(f"{err_msg}\n{type(e)}")
-            print(err_msg)
     
     def override_prompt_input(self):
         """Override the prompt_session to check for connections before accepting input"""
