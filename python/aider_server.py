@@ -6,7 +6,6 @@ import asyncio
 import signal
 import sys
 import os
-import threading
 import atexit
 from asyncio import Event
 from concurrent.futures import ThreadPoolExecutor
@@ -36,11 +35,11 @@ except ImportError:
 # Apply the monkey patch before importing aider modules
 CoderWrapper.apply_coder_create_patch()
 
-from aider.main import main
+from aider.main import main_async
 
 shutdown_event = None
 jrpc_server = None
-aider_thread = None
+aider_task = None
 cleanup_done = False
 
 def cleanup_all():
@@ -88,23 +87,50 @@ async def find_ports_async(config):
             server_port = await server_port_future
             return server_port, None
 
-async def start_aider_async(aider_config):
-    """Start aider in a thread asynchronously"""
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        await loop.run_in_executor(executor, main, aider_config['args'])
-
 async def wait_for_coder_init(timeout=30):
-    """Wait for coder initialization with shorter polling interval"""
+    """Wait for coder initialization with validation"""
     start_time = asyncio.get_event_loop().time()
-    while CoderWrapper._coder_instance is None:
+    check_count = 0
+    
+    while True:
+        check_count += 1
+        coder = CoderWrapper._coder_instance
+        
+        # Debug output every 10 checks (1 second)
+        if check_count % 10 == 0:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if coder is None:
+                print(f"Still waiting for coder... ({elapsed:.1f}s elapsed)")
+            else:
+                print(f"Coder instance found: {type(coder)} ({elapsed:.1f}s elapsed)")
+        
+        # Check if we have a valid coder instance
+        if coder is not None:
+            # Verify it's not a coroutine
+            if asyncio.iscoroutine(coder):
+                print(f"Warning: Coder instance is a coroutine: {coder}")
+                # Wait a bit more in case it gets replaced
+                await asyncio.sleep(0.1)
+                continue
+            
+            # Verify it has the run method
+            if hasattr(coder, 'run'):
+                print(f"Valid coder instance found: {type(coder).__name__}")
+                return True
+            else:
+                print(f"Warning: Coder instance lacks 'run' method: {type(coder)}")
+                await asyncio.sleep(0.1)
+                continue
+        
+        # Check timeout
         if asyncio.get_event_loop().time() - start_time > timeout:
+            print(f"Timeout after {timeout}s. Final coder state: {type(coder) if coder else 'None'}")
             return False
-        await asyncio.sleep(0.1)  # Reduced from 0.5 to 0.1
-    return True
+        
+        await asyncio.sleep(0.1)
 
 async def main_starter_async():
-    global shutdown_event, jrpc_server, aider_thread
+    global shutdown_event, jrpc_server, aider_task
     shutdown_event = Event()
     
     # Register cleanup function to run on exit
@@ -157,14 +183,13 @@ async def main_starter_async():
     # Create tasks for parallel startup
     tasks = []
     
-    # Start aider in a separate thread
-    aider_thread = threading.Thread(
-        target=main, 
-        args=(aider_config['args'],), 
-        daemon=True,
-        name="AiderThread"
-    )
-    aider_thread.start()
+    # Start aider as an async task
+    print("Starting aider...")
+    aider_task = asyncio.create_task(main_async(aider_config['args']))
+    tasks.append(aider_task)
+    
+    # Give aider a moment to start initializing
+    await asyncio.sleep(0.5)
     
     # Start webapp dev server asynchronously
     try:
@@ -176,19 +201,47 @@ async def main_starter_async():
         print(f"Failed to start webapp: {e}")
         return 1
     
-    # Wait for coder initialization (with shorter timeout)
+    # Wait for coder initialization (with detailed logging)
     print("Waiting for coder initialization...")
     coder_initialized = await wait_for_coder_init(timeout=30)
     
     if not coder_initialized:
-        print("Warning: Coder initialization timed out, continuing anyway...")
-    else:
-        print(f"Coder initialized")
+        print("Error: Coder initialization timed out or failed validation")
+        coder = CoderWrapper._coder_instance
+        if coder:
+            print(f"  Coder type: {type(coder)}")
+            print(f"  Is coroutine: {asyncio.iscoroutine(coder)}")
+            print(f"  Has 'run' method: {hasattr(coder, 'run')}")
+        return 1
+    
+    print(f"Coder initialized successfully")
     
     # Create wrappers and add to server
     try:
-        coder_wrapper = CoderWrapper()
-        coder = coder_wrapper.coder
+        # Get the coder instance that was set by the monkey patch
+        coder = CoderWrapper.get_coder()
+        
+        if coder is None:
+            raise ValidationError("Coder instance is None after initialization")
+        
+        # Verify it's not a coroutine
+        if asyncio.iscoroutine(coder):
+            raise ValidationError(
+                f"Coder instance is a coroutine, not a coder object. "
+                f"Type: {type(coder)}, Value: {coder}"
+            )
+        
+        # Verify it has the run method
+        if not hasattr(coder, 'run'):
+            raise ValidationError(
+                f"Coder object does not have 'run' method. "
+                f"Type: {type(coder)}, Attributes: {dir(coder)}"
+            )
+        
+        print(f"Creating CoderWrapper with coder type: {type(coder).__name__}")
+        
+        # Create the wrapper with the actual coder instance
+        coder_wrapper = CoderWrapper(coder)
         coder.io.yes = None
         
         jrpc_server.add_class(coder, 'EditBlockCoder')
@@ -211,6 +264,8 @@ async def main_starter_async():
         return 1
     except Exception as e:
         print(f"Error initializing components: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
     
     # Start LSP server if enabled (asynchronously)
@@ -234,7 +289,7 @@ async def main_starter_async():
             dev_server_started = await webapp_task
             if dev_server_started:
                 # Small delay for dev server readiness
-                await asyncio.sleep(0.5)  # Reduced from 2 seconds
+                await asyncio.sleep(0.5)
                 # Open browser asynchronously
                 asyncio.create_task(asyncio.to_thread(open_browser, config))
             else:
@@ -243,9 +298,9 @@ async def main_starter_async():
             print(f"Webapp error: {e}")
         
         # Check LSP server result if started
-        if config.is_lsp_enabled() and lsp_port and len(tasks) > 1:
+        if config.is_lsp_enabled() and lsp_port and len(tasks) > 2:
             try:
-                actual_lsp_port = await tasks[1]  # LSP task
+                actual_lsp_port = await tasks[2]  # LSP task (aider is tasks[0], webapp is tasks[1])
                 if actual_lsp_port:
                     print(f"LSP server running on port {actual_lsp_port}")
                 else:
@@ -271,6 +326,8 @@ async def main_starter_async():
             return 2
     except Exception as e:
         print(f"Server error: {e}")
+        import traceback
+        traceback.print_exc()
         return 3
     finally:
         # Cancel any remaining tasks
@@ -302,6 +359,8 @@ def main_starter():
         force_exit()
     except Exception as e:
         print(f"Unhandled exception: {e}")
+        import traceback
+        traceback.print_exc()
         force_exit()
     finally:
         # Final cleanup attempt

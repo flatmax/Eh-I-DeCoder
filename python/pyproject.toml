@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "aider-chat @ git+https://github.com/Aider-AI/aider.git",
+    "aider-ce @ git+https://github.com/dwash96/aider-ce.git",
     "jrpc-oo @ git+https://github.com/flatmax/jrpc-oo.git",
     "GitPython",
     "watchdog",

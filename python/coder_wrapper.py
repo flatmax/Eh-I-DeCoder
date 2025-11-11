@@ -34,9 +34,9 @@ class CoderWrapper(BaseWrapper):
         Coder._coder_change_callbacks = []
         
         @classmethod
-        def patched_create(cls, *args, **kwargs):
-            # Call the original create method
-            result = original_create(*args, **kwargs)
+        async def patched_create(cls, *args, **kwargs):
+            # Call the original create method and await it since it's async
+            result = await original_create(*args, **kwargs)
             
             # Get coder details
             coder_type = result.__class__.__name__
@@ -91,6 +91,14 @@ class CoderWrapper(BaseWrapper):
                 coder = self.__class__._coder_instance
                 if coder is None:
                     raise ValidationError("No coder instance available, and none was provided")
+            
+            # Verify we have a valid coder object, not a coroutine
+            if asyncio.iscoroutine(coder):
+                raise ValidationError("Received a coroutine instead of a coder instance")
+            
+            # Verify the coder has the expected methods
+            if not hasattr(coder, 'run'):
+                raise ValidationError(f"Coder object does not have 'run' method. Type: {type(coder)}")
             
             self.coder = coder
             
