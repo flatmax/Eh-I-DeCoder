@@ -10,6 +10,11 @@ export class EventHandler {
     this.historyIndex = -1;
     this.retainedContent = null;
     
+    // Chat history navigation state
+    this.chatHistoryPrompts = [];
+    this.chatHistoryIndex = -1;
+    this.isInChatHistoryMode = false;
+    
     // Bind methods
     this.handleTextareaKeydown = this.handleTextareaKeydown.bind(this);
   }
@@ -48,12 +53,43 @@ export class EventHandler {
     const cursorLine = this._getCursorVisualLine(textarea);
     const totalLines = this._getTotalVisualLines(textarea);
     
-    if (key === 'ArrowUp' && cursorLine === 1 && this.promptHistory.length > 0) {
-      event.preventDefault();
-      this._navigateHistoryBack();
-    } else if (key === 'ArrowDown' && cursorLine === totalLines && this.historyIndex >= 0) {
-      event.preventDefault();
-      this._navigateHistoryForward();
+    if (key === 'ArrowUp' && cursorLine === 1) {
+      // Check if we have any history to navigate
+      if (this.promptHistory.length > 0 || this._hasChatHistoryPrompts()) {
+        event.preventDefault();
+        this._navigateHistoryBack();
+      }
+    } else if (key === 'ArrowDown' && cursorLine === totalLines) {
+      // Check if we're currently navigating history
+      if (this.historyIndex >= 0 || this.isInChatHistoryMode) {
+        event.preventDefault();
+        this._navigateHistoryForward();
+      }
+    }
+  }
+
+  /**
+   * Check if there are user prompts available in chat history
+   * @returns {boolean}
+   */
+  _hasChatHistoryPrompts() {
+    this._refreshChatHistoryPrompts();
+    return this.chatHistoryPrompts.length > 0;
+  }
+
+  /**
+   * Refresh the chat history prompts from the chat history panel
+   */
+  _refreshChatHistoryPrompts() {
+    const chatHistoryPanel = this.promptView.shadowRoot?.querySelector('chat-history-panel');
+    if (chatHistoryPanel) {
+      const userPrompts = chatHistoryPanel.getUserPrompts?.() || [];
+      // Filter out prompts that are already in local history to avoid duplicates
+      this.chatHistoryPrompts = userPrompts.filter(
+        prompt => !this.promptHistory.includes(prompt)
+      );
+    } else {
+      this.chatHistoryPrompts = [];
     }
   }
 
@@ -188,30 +224,77 @@ export class EventHandler {
 
   /**
    * Navigate backward through prompt history (older prompts)
+   * First goes through local history, then continues with chat history
    */
   _navigateHistoryBack() {
-    if (this.historyIndex === -1) {
+    // If we haven't started navigating yet, save current content
+    if (this.historyIndex === -1 && !this.isInChatHistoryMode) {
       this.retainedContent = this.promptView.inputValue || '';
       this.historyIndex = this.promptHistory.length;
+      // Refresh chat history prompts when starting navigation
+      this._refreshChatHistoryPrompts();
     }
     
+    // Try to navigate in local history first
     if (this.historyIndex > 0) {
       this.historyIndex--;
       this.promptView.inputValue = this.promptHistory[this.historyIndex];
+      this._moveCursorToEnd();
+      return;
+    }
+    
+    // Local history exhausted, switch to chat history mode
+    if (this.historyIndex === 0 && !this.isInChatHistoryMode && this.chatHistoryPrompts.length > 0) {
+      this.isInChatHistoryMode = true;
+      this.chatHistoryIndex = this.chatHistoryPrompts.length;
+    }
+    
+    // Navigate in chat history (from newest to oldest)
+    if (this.isInChatHistoryMode && this.chatHistoryIndex > 0) {
+      this.chatHistoryIndex--;
+      this.promptView.inputValue = this.chatHistoryPrompts[this.chatHistoryIndex];
       this._moveCursorToEnd();
     }
   }
 
   /**
    * Navigate forward through prompt history (newer prompts)
+   * Goes through chat history first, then local history, then back to retained content
    */
   _navigateHistoryForward() {
+    // If in chat history mode, navigate forward through it first
+    if (this.isInChatHistoryMode) {
+      if (this.chatHistoryIndex < this.chatHistoryPrompts.length - 1) {
+        this.chatHistoryIndex++;
+        this.promptView.inputValue = this.chatHistoryPrompts[this.chatHistoryIndex];
+        this._moveCursorToEnd();
+        return;
+      }
+      
+      // Reached end of chat history, switch back to local history
+      this.isInChatHistoryMode = false;
+      this.chatHistoryIndex = -1;
+      this.historyIndex = 0;
+      
+      // If there's local history, show the first (oldest) item
+      if (this.promptHistory.length > 0) {
+        this.promptView.inputValue = this.promptHistory[this.historyIndex];
+        this._moveCursorToEnd();
+        return;
+      }
+    }
+    
+    // Navigate forward in local history
     if (this.historyIndex < this.promptHistory.length - 1) {
       this.historyIndex++;
       this.promptView.inputValue = this.promptHistory[this.historyIndex];
       this._moveCursorToEnd();
-    } else if (this.historyIndex === this.promptHistory.length - 1) {
+    } else if (this.historyIndex === this.promptHistory.length - 1 || 
+               (this.historyIndex === -1 && !this.isInChatHistoryMode)) {
+      // Reached end of local history or no history, restore retained content
       this.historyIndex = -1;
+      this.isInChatHistoryMode = false;
+      this.chatHistoryIndex = -1;
       this.promptView.inputValue = this.retainedContent || '';
       this.retainedContent = null;
       this._moveCursorToEnd();
@@ -262,6 +345,8 @@ export class EventHandler {
     this.promptHistory.push(prompt);
     this.historyIndex = -1;
     this.retainedContent = null;
+    this.isInChatHistoryMode = false;
+    this.chatHistoryIndex = -1;
   }
 
   /**
