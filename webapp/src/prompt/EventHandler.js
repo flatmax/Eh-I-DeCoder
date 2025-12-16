@@ -41,146 +41,160 @@ export class EventHandler {
    * @param {KeyboardEvent} event - The keydown event
    */
   handleTextareaKeydown(event) {
-    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
-      return;
-    }
+    const { key } = event;
+    if (key !== 'ArrowUp' && key !== 'ArrowDown') return;
     
     const textarea = event.target;
+    const cursorLine = this._getCursorVisualLine(textarea);
+    const totalLines = this._getTotalVisualLines(textarea);
     
-    if (event.key === 'ArrowUp') {
-      // Check if cursor is on the first visual line
-      const isOnFirstLine = this._isCursorOnFirstVisualLine(textarea);
-      
-      if (isOnFirstLine && this.promptHistory.length > 0) {
-        event.preventDefault();
-        this._navigateHistoryBack();
-      }
-    } else if (event.key === 'ArrowDown') {
-      // Check if cursor is on the last visual line
-      const isOnLastLine = this._isCursorOnLastVisualLine(textarea);
-      
-      if (isOnLastLine && this.historyIndex >= 0) {
-        event.preventDefault();
-        this._navigateHistoryForward();
-      }
+    if (key === 'ArrowUp' && cursorLine === 1 && this.promptHistory.length > 0) {
+      event.preventDefault();
+      this._navigateHistoryBack();
+    } else if (key === 'ArrowDown' && cursorLine === totalLines && this.historyIndex >= 0) {
+      event.preventDefault();
+      this._navigateHistoryForward();
     }
   }
 
   /**
-   * Check if cursor is on the first visual line of the textarea
+   * Get the visual line number where the cursor is located (1-based)
+   * Uses marker span approach for accurate measurement
    * @param {HTMLTextAreaElement} textarea - The textarea element
-   * @returns {boolean} - True if cursor is on the first visual line
+   * @returns {number} - The visual line number (1-based)
    */
-  _isCursorOnFirstVisualLine(textarea) {
+  _getCursorVisualLine(textarea) {
     const cursorPosition = textarea.selectionStart;
+    if (cursorPosition === 0) return 1;
     
-    // If cursor is at position 0, it's definitely on the first line
-    if (cursorPosition === 0) return true;
-    
-    // Create a temporary div to measure text dimensions
-    const mirror = document.createElement('div');
+    const text = textarea.value;
     const style = window.getComputedStyle(textarea);
     
-    // Copy relevant styles to the mirror
-    mirror.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      width: ${textarea.clientWidth}px;
-      font-family: ${style.fontFamily};
-      font-size: ${style.fontSize};
-      font-weight: ${style.fontWeight};
-      line-height: ${style.lineHeight};
-      padding: ${style.padding};
-      border: ${style.border};
-      box-sizing: ${style.boxSizing};
-    `;
+    // Create mirror div
+    const mirror = document.createElement('div');
     
-    // Get text before cursor and add a marker character to account for cursor position
-    // This ensures that if cursor is at position 0 of line 2 (right after a newline),
-    // the marker will be on line 2 and we measure the correct height
-    const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-    mirror.textContent = textBeforeCursor + '|'; // Add marker to measure where cursor actually is
+    // Copy text-affecting styles
+    mirror.style.fontFamily = style.fontFamily;
+    mirror.style.fontSize = style.fontSize;
+    mirror.style.fontWeight = style.fontWeight;
+    mirror.style.lineHeight = style.lineHeight;
+    mirror.style.paddingLeft = style.paddingLeft;
+    mirror.style.paddingRight = style.paddingRight;
+    mirror.style.paddingTop = style.paddingTop;
+    mirror.style.paddingBottom = style.paddingBottom;
+    mirror.style.wordWrap = style.wordWrap;
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.overflowWrap = 'break-word';
     
+    // Structural fixes - critical for exact matching
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.top = '0';
+    mirror.style.left = '-9999px';
+    
+    // CRITICAL: Force width and box-sizing to match clientWidth exactly
+    mirror.style.width = textarea.clientWidth + 'px';
+    mirror.style.boxSizing = 'border-box';
+    mirror.style.overflow = 'hidden';
+    
+    // Insert text before cursor
+    const textBefore = text.substring(0, cursorPosition);
+    mirror.textContent = textBefore;
+    
+    // Create marker span at cursor position
+    const marker = document.createElement('span');
+    marker.textContent = '|';
+    mirror.appendChild(marker);
+    
+    // Append to DOM to render
     document.body.appendChild(mirror);
     
-    // Get the line height
+    // Calculate line number based on marker position
     const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const markerTop = marker.offsetTop;
     
-    // Check if the text before cursor (plus marker) fits within one line height
-    const isOnFirstLine = mirror.offsetHeight <= lineHeight * 1.5; // Allow some tolerance
+    // Calculate line: (marker position - padding) / lineHeight + 1
+    // Add small buffer (lineHeight / 10) to handle sub-pixel rendering
+    const calculatedLine = Math.floor((markerTop - paddingTop + (lineHeight / 10)) / lineHeight) + 1;
     
+    // Clean up
     document.body.removeChild(mirror);
     
-    return isOnFirstLine;
+    return Math.max(1, calculatedLine);
   }
 
   /**
-   * Check if cursor is on the last visual line of the textarea
+   * Get the total number of visual lines in the textarea
    * @param {HTMLTextAreaElement} textarea - The textarea element
-   * @returns {boolean} - True if cursor is on the last visual line
+   * @returns {number} - The total number of visual lines
    */
-  _isCursorOnLastVisualLine(textarea) {
-    const cursorPosition = textarea.selectionStart;
-    const value = textarea.value;
+  _getTotalVisualLines(textarea) {
+    const text = textarea.value;
+    if (!text) return 1;
     
-    // If cursor is at the end, it's definitely on the last line
-    if (cursorPosition === value.length) return true;
-    
-    // Create a temporary div to measure text dimensions
-    const mirror = document.createElement('div');
     const style = window.getComputedStyle(textarea);
     
-    // Copy relevant styles to the mirror
-    mirror.style.cssText = `
-      position: absolute;
-      visibility: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      width: ${textarea.clientWidth}px;
-      font-family: ${style.fontFamily};
-      font-size: ${style.fontSize};
-      font-weight: ${style.fontWeight};
-      line-height: ${style.lineHeight};
-      padding: ${style.padding};
-      border: ${style.border};
-      box-sizing: ${style.boxSizing};
-    `;
+    // Create mirror div
+    const mirror = document.createElement('div');
     
-    // Get the line height
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+    // Copy text-affecting styles
+    mirror.style.fontFamily = style.fontFamily;
+    mirror.style.fontSize = style.fontSize;
+    mirror.style.fontWeight = style.fontWeight;
+    mirror.style.lineHeight = style.lineHeight;
+    mirror.style.paddingLeft = style.paddingLeft;
+    mirror.style.paddingRight = style.paddingRight;
+    mirror.style.paddingTop = style.paddingTop;
+    mirror.style.paddingBottom = style.paddingBottom;
+    mirror.style.wordWrap = style.wordWrap;
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.overflowWrap = 'break-word';
     
-    // Measure height of text up to cursor, adding marker to get accurate cursor line position
-    mirror.textContent = value.substring(0, cursorPosition) + '|';
+    // Structural fixes
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.top = '0';
+    mirror.style.left = '-9999px';
+    
+    // CRITICAL: Force width and box-sizing to match clientWidth exactly
+    mirror.style.width = textarea.clientWidth + 'px';
+    mirror.style.boxSizing = 'border-box';
+    mirror.style.overflow = 'hidden';
+    
+    // Insert full text
+    mirror.textContent = text;
+    
+    // Create marker span at end
+    const marker = document.createElement('span');
+    marker.textContent = '|';
+    mirror.appendChild(marker);
+    
+    // Append to DOM to render
     document.body.appendChild(mirror);
-    const heightToCursor = mirror.offsetHeight;
     
-    // Measure height of full text, adding marker to account for trailing newlines
-    mirror.textContent = value + '|';
-    const totalHeight = mirror.offsetHeight;
+    // Calculate total lines based on marker position
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const markerTop = marker.offsetTop;
     
+    const totalLines = Math.floor((markerTop - paddingTop + (lineHeight / 10)) / lineHeight) + 1;
+    
+    // Clean up
     document.body.removeChild(mirror);
     
-    // Check if cursor is on the last line (within one line height of the total)
-    const isOnLastLine = (totalHeight - heightToCursor) < lineHeight * 1.5;
-    
-    return isOnLastLine;
+    return Math.max(1, totalLines);
   }
 
   /**
    * Navigate backward through prompt history (older prompts)
    */
   _navigateHistoryBack() {
-    // If we're not currently browsing history, retain current content
     if (this.historyIndex === -1) {
       this.retainedContent = this.promptView.inputValue || '';
-      this.historyIndex = this.promptHistory.length; // Start at the end
+      this.historyIndex = this.promptHistory.length;
     }
     
-    // Move to older prompt if possible
     if (this.historyIndex > 0) {
       this.historyIndex--;
       this.promptView.inputValue = this.promptHistory[this.historyIndex];
@@ -193,12 +207,10 @@ export class EventHandler {
    */
   _navigateHistoryForward() {
     if (this.historyIndex < this.promptHistory.length - 1) {
-      // Move to newer prompt
       this.historyIndex++;
       this.promptView.inputValue = this.promptHistory[this.historyIndex];
       this._moveCursorToEnd();
     } else if (this.historyIndex === this.promptHistory.length - 1) {
-      // At the end of history, restore retained content
       this.historyIndex = -1;
       this.promptView.inputValue = this.retainedContent || '';
       this.retainedContent = null;
@@ -212,12 +224,10 @@ export class EventHandler {
   _moveCursorToEnd() {
     this.promptView.updateComplete.then(() => {
       const textField = this.promptView.shadowRoot?.querySelector('md-filled-text-field');
-      if (textField) {
-        const textarea = textField.shadowRoot?.querySelector('textarea');
-        if (textarea) {
-          const length = textarea.value.length;
-          textarea.setSelectionRange(length, length);
-        }
+      const textarea = textField?.shadowRoot?.querySelector('textarea');
+      if (textarea) {
+        const length = textarea.value.length;
+        textarea.setSelectionRange(length, length);
       }
     });
   }
@@ -227,17 +237,12 @@ export class EventHandler {
    * @param {string} prompt - The prompt to add
    */
   addToPromptHistory(prompt) {
-    if (!prompt || !prompt.trim()) return;
+    if (!prompt?.trim()) return;
     
     // Don't add duplicates of the most recent prompt
-    if (this.promptHistory.length > 0 && 
-        this.promptHistory[this.promptHistory.length - 1] === prompt) {
-      return;
-    }
+    if (this.promptHistory[this.promptHistory.length - 1] === prompt) return;
     
     this.promptHistory.push(prompt);
-    
-    // Reset history navigation state
     this.historyIndex = -1;
     this.retainedContent = null;
   }
@@ -278,7 +283,7 @@ export class EventHandler {
     if (!text) return;
     
     // If input already has text, add a space before appending
-    if (this.promptView.inputValue && this.promptView.inputValue.trim() !== '') {
+    if (this.promptView.inputValue?.trim()) {
       this.promptView.inputValue += ' ' + text;
     } else {
       this.promptView.inputValue = text;
