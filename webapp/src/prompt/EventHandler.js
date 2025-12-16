@@ -233,6 +233,23 @@ export class EventHandler {
   }
 
   /**
+   * Focus the textarea input
+   */
+  focusTextarea() {
+    this.promptView.updateComplete.then(() => {
+      const textField = this.promptView.shadowRoot?.querySelector('md-filled-text-field');
+      if (textField) {
+        textField.focus();
+        // Also focus the inner textarea for good measure
+        const textarea = textField.shadowRoot?.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+        }
+      }
+    });
+  }
+
+  /**
    * Add a prompt to the history
    * @param {string} prompt - The prompt to add
    */
@@ -273,6 +290,9 @@ export class EventHandler {
     
     // Send via inherited sendPrompt method with maximize callback
     await this.promptView.sendPrompt(message, () => this.promptView.maximize());
+    
+    // Focus the textarea after sending so user can continue typing
+    this.focusTextarea();
   }
 
   /**

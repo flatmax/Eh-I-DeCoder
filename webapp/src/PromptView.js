@@ -310,6 +310,13 @@ export class PromptView extends MessageHandler {
   }
   
   /**
+   * Focus the textarea input
+   */
+  focusTextarea() {
+    this.eventHandler.focusTextarea();
+  }
+  
+  /**
    * LitElement render method
    */
   render() {
@@ -355,6 +362,8 @@ export class PromptView extends MessageHandler {
    */
   async onStreamComplete() {
     await this.scrollManager.onStreamComplete();
+    // Focus the textarea so user can continue typing
+    this.focusTextarea();
   }
   
   /**
@@ -362,6 +371,8 @@ export class PromptView extends MessageHandler {
    */
   async onStreamError(errorMessage) {
     await this.scrollManager.onStreamError(errorMessage);
+    // Focus the textarea so user can retry or continue
+    this.focusTextarea();
   }
 
   /**
