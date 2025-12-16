@@ -263,6 +263,22 @@ export class ChatHistoryPanel extends JRPCClient {
     this.showScrollToBottom = false;
   }
 
+  /**
+   * Get all user prompts from the parsed messages
+   * Returns prompts in chronological order (oldest first)
+   * @returns {string[]} Array of user prompt contents
+   */
+  getUserPrompts() {
+    if (!this.parsedMessages || this.parsedMessages.length === 0) {
+      return [];
+    }
+    
+    return this.parsedMessages
+      .filter(message => message.role === 'user')
+      .map(message => message.content?.trim())
+      .filter(content => content && content.length > 0);
+  }
+
   render() {
     if (this.loading) {
       return html`

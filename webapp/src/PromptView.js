@@ -96,6 +96,7 @@ export class PromptView extends MessageHandler {
     // Force initial state update
     this.updateComplete.then(() => {
       this.dialogStateManager.updateDialogClass();
+      this.eventHandler.setupTextareaKeyHandler();
     });
   }
   
@@ -309,10 +310,37 @@ export class PromptView extends MessageHandler {
   }
   
   /**
+   * Focus the textarea input
+   */
+  focusTextarea() {
+    this.eventHandler.focusTextarea();
+  }
+  
+  /**
    * LitElement render method
    */
   render() {
     return renderPromptView(this);
+  }
+  
+  /**
+   * Called after the component's DOM has been updated the first time
+   */
+  firstUpdated(changedProperties) {
+    super.firstUpdated && super.firstUpdated(changedProperties);
+    this.eventHandler.setupTextareaKeyHandler();
+  }
+  
+  /**
+   * Called after every update
+   */
+  updated(changedProperties) {
+    super.updated && super.updated(changedProperties);
+    
+    // Re-setup the key handler if the component was re-rendered
+    if (changedProperties.has('isMinimized') && !this.isMinimized) {
+      this.eventHandler.setupTextareaKeyHandler();
+    }
   }
   
   /**
@@ -334,6 +362,8 @@ export class PromptView extends MessageHandler {
    */
   async onStreamComplete() {
     await this.scrollManager.onStreamComplete();
+    // Focus the textarea so user can continue typing
+    this.focusTextarea();
   }
   
   /**
@@ -341,6 +371,8 @@ export class PromptView extends MessageHandler {
    */
   async onStreamError(errorMessage) {
     await this.scrollManager.onStreamError(errorMessage);
+    // Focus the textarea so user can retry or continue
+    this.focusTextarea();
   }
 
   /**
