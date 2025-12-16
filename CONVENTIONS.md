@@ -1,3 +1,4 @@
+```code```
 JRPC-OO lifecycle:
 in javascript :
 * setupDone() When the system is finished setup and ready to be used
