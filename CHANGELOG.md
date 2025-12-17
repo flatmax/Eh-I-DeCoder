@@ -321,3 +321,36 @@
 - Better Git conflict resolution support
 - Performance optimizations for commit history loading
 - Modular component architecture for better maintainability
+f60ab74 updated createRelease.sh
+41b1a42 Bump version to 1.8.0
+587d2ae Merge branch 'master' into dev
+8a4e1d5 feat: add chat history navigation to prompt input
+909e4d8 docs: add code block formatting to CONVENTIONS.md
+ee1d15f feat: auto-focus textarea after stream completion and message send
+e041b2a refactor: simplify cursor line detection and improve code clarity
+27d17b5 refactor: move prompt history logic to EventHandler class
+1dc43dc feat: add prompt history navigation with arrow keys
+bcd7c10 Merge pull request #21 from flatmax/dev
+1b9d048 refactor: remove debug logging statements
+bb9c605 feat: add safe.directory configuration and improve file content loading robustness
+6f23366 feat: add file comparison mode with left and right file loading
+f67c386 update python requirement in toml
+7d90b34 feat: add file renaming functionality to Git repository management
+a9c61bc refactor: improve word insertion logic with cursor position preservation
+08f98be feat: add refresh FAB directly to RepoTree component
+272ff7a feat: add button to add all changed files to AI context in git history mode
+d45b558 feat: add button to add all changed files to AI context
+d1c9dd8 refactor: Extract branch and selection logic into separate modules
+ecb55b0 refactor: Modularize GitDiffRebaseManager by extracting sub-managers
+b2dabf1 refactor: Modularize GitDiffStyles by extracting styles into separate files
+68ddca9 feat: add branch selection and branch mode to git history view
+5eb41c5 feat: add loadInchatFiles method to fetch and set checked files dynamically
+b96d3c5 feat: add loadInchatFiles method to retrieve and set inchat files
+9c26fe2 feat: add file context management and checkbox interactions in search results
+e0c0a99 feat: add comprehensive EventBus with component-scoped event management
+150fb3d refactor: implement state machine for dialog interactions
+c244077 refactor: Improve content processing with strategy pattern and extract methods
+6fd8040 refactor: replace manual resize logic with unified ResizeController
+a35b1b8 Merge branch 'master' of github.com:flatmax/Eh-I-DeCoder
+3f2584a Update README.md
+30e1675 Merge pull request #20 from flatmax/dev

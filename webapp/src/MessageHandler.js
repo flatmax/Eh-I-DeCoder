@@ -122,10 +122,9 @@ export class MessageHandler extends JRPCClient {
     
     try {
       // Call EditBlockCoder.run with named argument dictionary
-      console.log('Calling EditBlockCoder.run...');
       this.call['EditBlockCoder.run'](message)
         .then(() => {
-          console.log('Run completed');
+          // Run completed
         })
         .catch(error => {
           console.error('Error from EditBlockCoder.run promise:', error);

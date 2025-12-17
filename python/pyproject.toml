@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "aider-chat @ git+https://github.com/Aider-AI/aider.git",
+    "aider-chat @ git+https://github.com/Aider-AI/aider.git@59250e070e6472967b9c83069baa33eb32d69faf",
     "jrpc-oo @ git+https://github.com/flatmax/jrpc-oo.git",
     "GitPython",
     "watchdog",
@@ -29,3 +29,4 @@ Issues = "https://github.com/your-username/Eh-I-DeCoder/issues"
 packages = ["eh_i_decoder"]
 package-dir = {"eh_i_decoder" = "."}
 py-modules = []
+

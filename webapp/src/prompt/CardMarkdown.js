@@ -62,9 +62,86 @@ export class CardMarkdown extends LitElement {
       .replace(/'/g, '&#039;');
   }
 
+  /**
+   * Normalize table content by removing extra blank lines between table rows.
+   * GFM tables require contiguous rows with no blank lines between them.
+   * This fixes issues where streaming adds extra newlines between table rows.
+   */
+  normalizeTableContent(content) {
+    if (!content || typeof content !== 'string') {
+      return content;
+    }
+
+    // First pass: normalize excessive newlines before tables
+    // Replace 3+ newlines with exactly 2 (one blank line)
+    let normalized = content.replace(/\n{3,}/g, '\n\n');
+
+    // Second pass: fix table rows that are separated by blank lines
+    // This regex finds table rows (lines starting with |) that are separated by empty lines
+    // and collapses them to be on consecutive lines
+    
+    // Split into lines for processing
+    const lines = normalized.split('\n');
+    const result = [];
+    let inTable = false;
+    let pendingEmptyLines = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      
+      // Check if this line is a table row (starts with |)
+      const isTableRow = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
+      // Check if this is a table separator row (like |---|---|)
+      const isTableSeparator = /^\|[\s\-:|]+\|$/.test(trimmedLine);
+      
+      if (isTableRow || isTableSeparator) {
+        if (!inTable) {
+          // Starting a new table - add any pending empty lines before the table
+          // but only one blank line max
+          if (result.length > 0 && result[result.length - 1].trim() !== '') {
+            result.push('');
+          }
+          inTable = true;
+        }
+        // Inside a table - skip any pending empty lines (don't add them)
+        pendingEmptyLines = 0;
+        result.push(line);
+      } else if (trimmedLine === '') {
+        // Empty line
+        if (inTable) {
+          // We're in a table and hit an empty line
+          // Don't add it yet - wait to see if more table rows follow
+          pendingEmptyLines++;
+        } else {
+          // Not in a table - preserve empty lines (but collapse multiples)
+          if (result.length === 0 || result[result.length - 1].trim() !== '') {
+            result.push(line);
+          }
+        }
+      } else {
+        // Non-empty, non-table line
+        if (inTable) {
+          // We were in a table, now we're leaving it
+          inTable = false;
+          // Add one blank line after the table if there were pending empty lines
+          if (pendingEmptyLines > 0) {
+            result.push('');
+          }
+          pendingEmptyLines = 0;
+        }
+        result.push(line);
+      }
+    }
+
+    return result.join('\n');
+  }
+
   processMarkdown(content) {
     try {
-      return marked(content);
+      // Normalize table content before parsing
+      const normalizedContent = this.normalizeTableContent(content);
+      return marked(normalizedContent);
     } catch (e) {
       console.error('Markdown parsing error:', e);
       return content;
