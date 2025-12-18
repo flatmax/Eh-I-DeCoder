@@ -1,5 +1,24 @@
 # Changelog
 
+## [v1.8.0] - 2024-12-21
+
+### Added
+- **Prompt Input Enhancements**
+  - Chat history navigation in prompt input field
+  - Prompt history navigation with arrow keys (Up/Down to cycle through previous prompts)
+  - Auto-focus textarea after stream completion and message send
+
+### Changed
+- **Code Architecture & Refactoring**
+  - Moved prompt history logic to EventHandler class for better organization
+  - Simplified cursor line detection and improved code clarity
+
+### Fixed
+- Removed debug logging statements
+
+### Documentation
+- Added code block formatting to CONVENTIONS.md
+
 ## [v1.7.0] - 2024-12-21
 
 ### Added
