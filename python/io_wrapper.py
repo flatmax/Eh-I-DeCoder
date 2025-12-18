@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import time
 import tracemalloc
 import traceback
@@ -72,6 +73,31 @@ class IOWrapper(BaseWrapper):
         
         # Override prompt input to check for connections
         self.override_prompt_input()
+    
+    def _normalize_newlines(self, content):
+        """
+        Normalize doubled newlines in content.
+        The streaming content has every newline doubled:
+        - \\n becomes \\n\\n
+        - \\n\\n becomes \\n\\n\\n\\n
+        This function removes every second consecutive newline to fix this.
+        """
+        if not content:
+            return content
+        
+        # Replace every pair of newlines with a single newline
+        # This handles the case where \n\n\n\n should become \n\n
+        # and \n\n should become \n
+        # We do this by replacing \n\n with a placeholder, then \n\n with \n
+        # Actually simpler: replace every occurrence of \n\n with \n
+        # But we need to be careful not to over-normalize
+        
+        # Since ALL newlines are doubled, we can simply replace \n\n with \n
+        # This will turn \n\n\n\n into \n\n (correct for paragraph breaks)
+        # and \n\n into \n (correct for line breaks)
+        normalized = content.replace('\n\n', '\n')
+        
+        return normalized
         
     def _start_connection_monitor(self):
         """Start a background task to monitor connection status"""
@@ -169,7 +195,9 @@ class IOWrapper(BaseWrapper):
         
         # Send to webapp if connected - fire and forget
         if self.is_connected:
-            self._safe_create_task(self.send_to_webapp(message))
+            # Normalize newlines before sending
+            normalized_message = self._normalize_newlines(message)
+            self._safe_create_task(self.send_to_webapp(normalized_message))
         
         # Call original method to maintain console output
         return self.original_assistant_output(message, pretty)
@@ -181,10 +209,16 @@ class IOWrapper(BaseWrapper):
         # Store the original update method
         original_update = mdstream.update
         
+        # Reference to self for closure
+        io_wrapper = self
+        
         # Replace with our wrapper
         def update_wrapper(content, final=False):
+            # Normalize newlines before sending to webapp
+            normalized_content = io_wrapper._normalize_newlines(content)
+            
             # Send to webapp asynchronously - fire and forget
-            self._safe_create_task(self.send_stream_update(content, final))
+            io_wrapper._safe_create_task(io_wrapper.send_stream_update(normalized_content, final))
             
             # Call original method with error handling for Rich LiveError
             try:
