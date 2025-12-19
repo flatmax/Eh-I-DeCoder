@@ -33,10 +33,8 @@ class GitSearch:
         try:
             self._ensure_repo()
             
-            # Use the optimized git grep implementation for faster searches
             return self._search_with_git_grep(query, word, regex, respect_gitignore, ignore_case)
         except git.exc.GitCommandError as e:
-            # If git grep fails, fall back to the Python implementation
             self.repo.log(f"Git grep failed: {e}. Using Python implementation.")
             return self._search_with_python(query, word, regex, respect_gitignore, ignore_case)
         except Exception as e:
@@ -46,54 +44,40 @@ class GitSearch:
     
     def _search_with_git_grep(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files using Git's built-in grep command"""
-        # Build git grep arguments
-        git_args = ["-n"]  # -n to show line numbers
+        git_args = ["-n"]
         
         if ignore_case:
-            git_args.append("-i")  # --ignore-case
+            git_args.append("-i")
         
         if word:
-            git_args.append("-w")  # --word-regexp
+            git_args.append("-w")
         
         if regex:
-            # git grep uses basic regex by default, -E for extended regex
-            git_args.append("-E")  # --extended-regexp
+            git_args.append("-E")
         else:
-            # For plain text, git grep treats it literally
-            git_args.append("-F")  # --fixed-strings (literal string)
+            git_args.append("-F")
         
-        # Set up gitignore handling
         if not respect_gitignore:
-            # If not respecting gitignore, search all files including ignored ones
             git_args.append("--no-index")
         else:
-            # Default git grep behavior respects gitignore for tracked files
-            # Add --untracked to include untracked files that aren't ignored
             git_args.append("--untracked")
             git_args.append("--exclude-standard")
         
-        # Always skip binary files
-        git_args.append("-I")  # --binary-files=without-match
-        
-        # Add the query as the last argument
+        git_args.append("-I")
         git_args.append(query)
         
         try:
-            # Execute git grep and get results
             grep_output = self.repo.repo.git.grep(git_args, as_process=False)
             
-            # Process results into the expected format
             consolidated_results = {}
             
             for line in grep_output.splitlines():
-                # Format is "path/to/file:line_num:line_content"
                 parts = line.split(':', 2)
                 if len(parts) == 3:
                     file_path, line_num_str, line_content = parts
                     try:
                         line_num = int(line_num_str)
                         
-                        # Add to consolidated results dictionary
                         if file_path not in consolidated_results:
                             consolidated_results[file_path] = {
                                 "file": file_path,
@@ -107,14 +91,11 @@ class GitSearch:
                     except ValueError:
                         self.repo.log(f"Warning: Could not parse line number from git grep output: {line}")
             
-            # Convert dict to list for final results
             return list(consolidated_results.values())
             
         except git.exc.GitCommandError as e:
-            # git grep returns exit code 1 if no matches found
             if e.status == 1:
                 return []
-            # For other errors, re-raise to fall back to Python implementation
             raise
     
     def _search_with_python(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
@@ -123,11 +104,9 @@ class GitSearch:
             results = []
             repo_root = self.repo.repo.working_tree_dir
             
-            # Prepare the search pattern based on parameters
             if regex:
                 try:
                     if word:
-                        # For word+regex, we'll add word boundary assertions
                         pattern = re.compile(r'\b' + query + r'\b', re.IGNORECASE if ignore_case else 0)
                     else:
                         pattern = re.compile(query, re.IGNORECASE if ignore_case else 0)
@@ -135,60 +114,46 @@ class GitSearch:
                     raise ValueError(f"Invalid regular expression: {e}")
             else:
                 if word:
-                    # For word-only search, prepare for whole word matching
-                    pattern = None  # We'll handle this separately
+                    pattern = None
                 else:
-                    # For plain text search, escape regex special chars
                     pattern = re.compile(re.escape(query), re.IGNORECASE if ignore_case else 0)
             
-            # Walk through all files in the repository
             for root, _, files in os.walk(repo_root):
                 for file in files:
                     full_path = os.path.join(root, file)
                     
-                    # Get relative path
                     rel_path = os.path.relpath(full_path, repo_root)
                 
-                    # Skip binary files, .git directory, and very large files
                     if (rel_path.startswith('.git/') or 
-                        os.path.getsize(full_path) > 1024 * 1024):  # Skip files > 1MB
+                        os.path.getsize(full_path) > 1024 * 1024):
                         continue
                 
-                    # Check if file is ignored by gitignore
                     if respect_gitignore:
                         try:
-                            # Use git's check-ignore command to see if file is ignored
                             self.repo.repo.git.check_ignore(rel_path)
-                            # If we reach here, the file is ignored (command succeeded)
                             continue
                         except git.exc.GitCommandError:
-                            # File is not ignored (command failed)
                             pass
                     
                     try:
                         with open(full_path, 'r', encoding='utf-8') as f:
                             lines = f.readlines()
                     except UnicodeDecodeError:
-                        # Skip binary files that couldn't be decoded as utf-8
                         continue
                     except Exception:
-                        # Skip files we can't read
                         continue
                     
                     file_matches = []
                     for line_num, line in enumerate(lines, 1):
                         if regex or not word:
-                            # Use regex pattern for both regex mode and plain text mode
                             if pattern.search(line):
                                 file_matches.append({
                                     "line_num": line_num,
                                     "line": line.rstrip('\n')
                                 })
                         else:
-                            # For word-only search, do manual word boundary checking
                             words = re.findall(r'\b\w+\b', line)
                             if ignore_case:
-                                # Case-insensitive comparison
                                 if any(query.lower() == word.lower() for word in words):
                                     file_matches.append({
                                         "line_num": line_num,
@@ -212,3 +177,101 @@ class GitSearch:
             if isinstance(e, ValueError):
                 raise GitError(str(e))
             raise GitError(f"Error during Python search: {e}")
+    
+    def replace_in_files(self, search_query, replace_query, file_paths, word=False, regex=False, ignore_case=False):
+        """Replace content in specified repository files
+        
+        Args:
+            search_query (str): The search string or pattern to find
+            replace_query (str): The replacement string
+            file_paths (list): List of file paths to perform replacement in
+            word (bool): If True, match whole words only
+            regex (bool): If True, treat search_query as a regular expression
+            ignore_case (bool): If True, perform case-insensitive matching
+            
+        Returns:
+            dict: Summary of replacements made
+        """
+        try:
+            self._ensure_repo()
+            
+            repo_root = self.repo.repo.working_tree_dir
+            total_replacements = 0
+            files_modified = 0
+            modified_files = []
+            
+            flags = re.IGNORECASE if ignore_case else 0
+            
+            if regex:
+                try:
+                    if word:
+                        pattern = re.compile(r'\b' + search_query + r'\b', flags)
+                    else:
+                        pattern = re.compile(search_query, flags)
+                except re.error as e:
+                    raise ValueError(f"Invalid regular expression: {e}")
+            else:
+                escaped_query = re.escape(search_query)
+                if word:
+                    pattern = re.compile(r'\b' + escaped_query + r'\b', flags)
+                else:
+                    pattern = re.compile(escaped_query, flags)
+            
+            for file_path in file_paths:
+                full_path = os.path.join(repo_root, file_path)
+                
+                if not os.path.isfile(full_path):
+                    self.repo.log(f"Warning: File not found: {file_path}")
+                    continue
+                
+                real_full_path = os.path.realpath(full_path)
+                real_repo_root = os.path.realpath(repo_root)
+                if not real_full_path.startswith(real_repo_root):
+                    self.repo.log(f"Warning: File outside repository: {file_path}")
+                    continue
+                
+                try:
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    matches = pattern.findall(content)
+                    match_count = len(matches)
+                    
+                    if match_count > 0:
+                        new_content = pattern.sub(replace_query, content)
+                        
+                        with open(full_path, 'w', encoding='utf-8') as f:
+                            f.write(new_content)
+                        
+                        total_replacements += match_count
+                        files_modified += 1
+                        modified_files.append({
+                            "file": file_path,
+                            "replacements": match_count
+                        })
+                        
+                        self.repo.log(f"Replaced {match_count} occurrence(s) in {file_path}")
+                        
+                        self.repo._notify_file_saved(file_path)
+                        
+                except UnicodeDecodeError:
+                    self.repo.log(f"Warning: Could not read file as UTF-8: {file_path}")
+                    continue
+                except Exception as e:
+                    self.repo.log(f"Warning: Error processing file {file_path}: {e}")
+                    continue
+            
+            if files_modified > 0:
+                self.repo._notify_git_change()
+            
+            return {
+                "success": True,
+                "total_replacements": total_replacements,
+                "files_modified": files_modified,
+                "modified_files": modified_files
+            }
+            
+        except Exception as e:
+            if isinstance(e, (ValueError, GitRepositoryError)):
+                raise GitError(str(e))
+            raise GitError(f"Error during replace: {e}")

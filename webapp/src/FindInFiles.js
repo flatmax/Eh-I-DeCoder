@@ -6,7 +6,6 @@ import { SearchState } from './search/SearchState.js';
 import { EventHelper } from './utils/EventHelper.js';
 import { extractResponseData } from './Utils.js';
 
-// Import Material Design Web Components
 import '@material/web/progress/circular-progress.js';
 
 export class FindInFiles extends JRPCClient {
@@ -26,7 +25,6 @@ export class FindInFiles extends JRPCClient {
   }
   
   initializeProperties() {
-    // Initialize all properties from SearchState
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
@@ -36,7 +34,6 @@ export class FindInFiles extends JRPCClient {
     super.connectedCallback();
     this.addClass?.(this);
     
-    // Listen for file context change events on window (where EventHelper.dispatchWindowEvent sends them)
     console.log('FindInFiles: Adding event listeners for file context changes');
     window.addEventListener('file-added-to-context', this.handleFileAddedToContext.bind(this));
     window.addEventListener('file-dropped-from-context', this.handleFileDroppedFromContext.bind(this));
@@ -49,33 +46,25 @@ export class FindInFiles extends JRPCClient {
     window.removeEventListener('file-dropped-from-context', this.handleFileDroppedFromContext.bind(this));
   }
   
-  /**
-   * Called when JRPC connection is established and ready
-   */
   async setupDone() {
     console.log('FindInFiles::setupDone - Connection ready');
     this.isConnected = true;
     
-    // Load the inchat files to determine which should be checked
     await this.loadInchatFiles();
   }
   
-  /**
-   * Called when remote is up but not yet ready
-   */
   remoteIsUp() {
     console.log('FindInFiles::remoteIsUp - Remote connected');
-    // Don't perform searches yet - wait for setupDone
   }
   
-  /**
-   * Called when remote disconnects
-   */
   remoteDisconnected() {
     console.log('FindInFiles::remoteDisconnected');
     this.isConnected = false;
     if (this.isSearching) {
       this.searchState.handleSearchError(new Error('Connection lost during search'));
+    }
+    if (this.isReplacing) {
+      this.searchState.handleReplaceError(new Error('Connection lost during replace'));
     }
   }
   
@@ -91,7 +80,6 @@ export class FindInFiles extends JRPCClient {
       const inchatFiles = extractResponseData(response, [], true);
       console.log('FindInFiles: Inchat files loaded:', inchatFiles);
       
-      // Update the checked files set
       this.checkedFiles = new Set(inchatFiles);
       this.requestUpdate();
     } catch (error) {
@@ -99,19 +87,13 @@ export class FindInFiles extends JRPCClient {
     }
   }
   
-  /**
-   * Focus the search input field and optionally set the search query
-   * @param {string} [selectedText] - Optional text to set as the search query
-   */
   focusSearchInput(selectedText = '') {
     this.updateComplete.then(() => {
       const searchForm = this.shadowRoot.querySelector('search-form');
       if (searchForm) {
         searchForm.focusInput(selectedText);
         
-        // If selectedText is provided, automatically execute the search
         if (selectedText && selectedText.trim() && this.isConnected) {
-          // Small delay to ensure the input is focused and updated
           setTimeout(() => {
             this.handleSearch(selectedText.trim(), {
               useWordMatch: this.searchState.useWordMatch,
@@ -140,12 +122,70 @@ export class FindInFiles extends JRPCClient {
         options.useWordMatch, 
         options.useRegex,
         options.respectGitignore,
-        !options.caseSensitive  // pass the inverse as ignore_case
+        !options.caseSensitive
       );
       
       this.searchState.handleSearchResponse(response);
     } catch (error) {
       this.searchState.handleSearchError(error);
+    }
+  }
+  
+  async handleReplaceAll(searchQuery, replaceQuery, filePaths, options) {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot replace - not connected');
+      this.searchState.handleReplaceError(new Error('Not connected to server'));
+      return;
+    }
+    
+    this.searchState.startReplace();
+    
+    try {
+      const response = await this.call['Repo.replace_in_files'](
+        searchQuery,
+        replaceQuery,
+        filePaths,
+        options.useWordMatch,
+        options.useRegex,
+        !options.caseSensitive
+      );
+      
+      this.searchState.handleReplaceResponse(response);
+      
+      if (!this.searchState.replaceError) {
+        await this.handleSearch(searchQuery, options);
+      }
+    } catch (error) {
+      this.searchState.handleReplaceError(error);
+    }
+  }
+  
+  async handleReplaceInFile(searchQuery, replaceQuery, filePath, options) {
+    if (!this.isConnected || !this.call) {
+      console.warn('Cannot replace - not connected');
+      this.searchState.handleReplaceError(new Error('Not connected to server'));
+      return;
+    }
+    
+    this.searchState.startReplace();
+    
+    try {
+      const response = await this.call['Repo.replace_in_files'](
+        searchQuery,
+        replaceQuery,
+        [filePath],
+        options.useWordMatch,
+        options.useRegex,
+        !options.caseSensitive
+      );
+      
+      this.searchState.handleReplaceResponse(response);
+      
+      if (!this.searchState.replaceError) {
+        await this.handleSearch(searchQuery, options);
+      }
+    } catch (error) {
+      this.searchState.handleReplaceError(error);
     }
   }
   
@@ -162,7 +202,6 @@ export class FindInFiles extends JRPCClient {
   }
   
   handleOpenFile(filePath, lineNumber = null) {
-    // Ensure lineNumber is a number (if it exists)
     if (lineNumber !== null) {
       lineNumber = parseInt(lineNumber, 10);
       if (isNaN(lineNumber)) {
@@ -171,14 +210,12 @@ export class FindInFiles extends JRPCClient {
       }
     }
     
-    // Use EventHelper for consistent event dispatching
     EventHelper.dispatchOpenFile(this, filePath, lineNumber);
   }
   
   handleFileCheckboxChange(filePath, checked) {
     console.log(`FindInFiles: Checkbox changed for ${filePath}, checked: ${checked}`);
     
-    // Dispatch event to request file context change
     if (checked) {
       console.log(`FindInFiles: Dispatching request-add-file-to-context for ${filePath}`);
       EventHelper.dispatchWindowEvent('request-add-file-to-context', { filePath });
@@ -206,19 +243,15 @@ export class FindInFiles extends JRPCClient {
     this.requestUpdate();
   }
   
-  // Handle notifications from the server when files are added/removed
   add_rel_fname_notification(filePath) {
     console.log(`FindInFiles: File added notification: ${filePath}`);
-    // The file-added-to-context event will be dispatched by FileTree
   }
 
   drop_rel_fname_notification(filePath) {
     console.log(`FindInFiles: File dropped notification: ${filePath}`);
-    // The file-dropped-from-context event will be dispatched by FileTree
   }
   
   updateStateFromSearchState() {
-    // Sync component properties with search state
     Object.keys(SearchState.properties).forEach(prop => {
       this[prop] = this.searchState[prop];
     });
@@ -226,7 +259,6 @@ export class FindInFiles extends JRPCClient {
   }
   
   render() {
-    // Convert Set to Array for better LitElement property change detection
     const expandedFilesArray = Array.from(this.expandedFiles || []);
     const checkedFilesArray = Array.from(this.checkedFiles || []);
     
@@ -235,6 +267,8 @@ export class FindInFiles extends JRPCClient {
         <search-form
           .searchState=${this.searchState}
           @search=${e => this.isConnected ? this.handleSearch(e.detail.query, e.detail.options) : null}
+          @replace-all=${e => this.isConnected ? this.handleReplaceAll(e.detail.searchQuery, e.detail.replaceQuery, e.detail.filePaths, e.detail.options) : null}
+          @replace-in-file=${e => this.isConnected ? this.handleReplaceInFile(e.detail.searchQuery, e.detail.replaceQuery, e.detail.filePath, e.detail.options) : null}
         ></search-form>
       </div>
       

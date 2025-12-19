@@ -36,7 +36,6 @@ class Repo(BaseWrapper):
         self.repo = None
         self._git_change_callbacks = []
         
-        # Initialize component modules
         self.git_monitor = GitMonitor(self)
         self.git_operations = GitOperations(self)
         self.git_search = GitSearch(self)
@@ -50,10 +49,8 @@ class Repo(BaseWrapper):
     def _configure_safe_directory(self, repo_path):
         """Configure Git safe.directory for the repository path"""
         try:
-            # Get the absolute path
             abs_path = os.path.abspath(repo_path)
             
-            # Check if this directory is already in safe.directory
             try:
                 result = subprocess.run(
                     ['git', 'config', '--global', '--get-all', 'safe.directory'],
@@ -64,7 +61,6 @@ class Repo(BaseWrapper):
                 
                 safe_dirs = result.stdout.strip().split('\n') if result.stdout else []
                 
-                # Check if our path or '*' is already configured
                 if abs_path in safe_dirs or '*' in safe_dirs:
                     self.log(f"Repository path {abs_path} is already in safe.directory")
                     return True
@@ -72,7 +68,6 @@ class Repo(BaseWrapper):
             except Exception as e:
                 self.log(f"Error checking safe.directory: {e}")
             
-            # Add the directory to safe.directory
             self.log(f"Adding {abs_path} to Git safe.directory")
             result = subprocess.run(
                 ['git', 'config', '--global', '--add', 'safe.directory', abs_path],
@@ -94,19 +89,15 @@ class Repo(BaseWrapper):
     def _initialize_repo(self):
         """Initialize the Git repository"""
         try:
-            # First, try to configure safe.directory for this path
             self._configure_safe_directory(self.repo_path)
             
-            # This will search up the directory tree to find a Git repository
             self.repo = git.Repo(self.repo_path, search_parent_directories=True)
             
-            # If we successfully opened the repo, also configure safe.directory for the actual repo root
             if self.repo and self.repo.working_tree_dir:
                 actual_repo_path = self.repo.working_tree_dir
                 if os.path.abspath(actual_repo_path) != os.path.abspath(self.repo_path):
                     self._configure_safe_directory(actual_repo_path)
             
-            # Start the git monitor after initializing the repository
             self.start_git_monitor()
         except git.exc.InvalidGitRepositoryError:
             self.log(f"No Git repository found at: {self.repo_path}")
@@ -120,7 +111,6 @@ class Repo(BaseWrapper):
         if not self.repo:
             raise GitRepositoryError("No Git repository available")
     
-    # Repository information methods - delegate to repo_info
     def get_repo_name(self):
         """Get the name of the repository (top-level directory name)"""
         return self.repo_info.get_repo_name()
@@ -133,7 +123,6 @@ class Repo(BaseWrapper):
         """Get the current status of the repository"""
         return self.repo_info.get_status()
     
-    # History methods - delegate to repo_history
     def get_commit_history(self, max_count=50, branch=None, skip=0):
         """Get commit history with detailed information - optimized for performance with pagination support"""
         return self.repo_history.get_commit_history(max_count, branch, skip)
@@ -150,7 +139,6 @@ class Repo(BaseWrapper):
         """Get list of files changed between two commits"""
         return self.repo_history.get_changed_files(from_commit, to_commit)
     
-    # File management methods - delegate to repo_file_manager
     def create_file(self, file_path, content=""):
         """Create a new file in the repository and stage it"""
         return self.repo_file_manager.create_file(file_path, content)
@@ -164,29 +152,22 @@ class Repo(BaseWrapper):
         try:
             self._ensure_repo()
             
-            # Get the repository root
             repo_root = self.repo.working_tree_dir
             
-            # Construct full paths
             old_full_path = os.path.join(repo_root, old_path)
             new_full_path = os.path.join(repo_root, new_path)
             
-            # Check if the old file exists
             if not os.path.exists(old_full_path):
                 raise FileOperationError(f"File does not exist: {old_path}")
             
-            # Check if the new path already exists
             if os.path.exists(new_full_path):
                 raise FileOperationError(f"Target file already exists: {new_path}")
             
-            # Ensure the parent directory of the new path exists
             new_dir = os.path.dirname(new_full_path)
             if new_dir and not os.path.exists(new_dir):
                 os.makedirs(new_dir, exist_ok=True)
             
-            # Use git mv to rename the file
             try:
-                # Run git mv command
                 result = subprocess.run(
                     ['git', 'mv', old_path, new_path],
                     cwd=repo_root,
@@ -197,7 +178,6 @@ class Repo(BaseWrapper):
                 
                 self.log(f"Successfully renamed file from {old_path} to {new_path}")
                 
-                # Notify about the change
                 self._notify_git_change()
                 
                 return {
@@ -215,7 +195,6 @@ class Repo(BaseWrapper):
             self.log(f"Error renaming file: {e}")
             return create_error_response(e)
     
-    # File analysis methods - delegate to file_analyzer
     def get_file_line_counts(self, file_paths):
         """Get line counts for a list of files"""
         try:
@@ -223,7 +202,6 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
-    # Git operations methods - delegate to git_operations
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
         return self.git_operations.save_file_content(file_path, content)
@@ -260,7 +238,6 @@ class Repo(BaseWrapper):
         """Get the raw git status output as it appears in the terminal"""
         return self.git_operations.get_raw_git_status()
 
-    # Interactive rebase methods - delegate to git_operations
     def start_interactive_rebase(self, from_commit, to_commit):
         """Start an interactive rebase between two commits"""
         return self.git_operations.start_interactive_rebase(from_commit, to_commit)
@@ -301,7 +278,6 @@ class Repo(BaseWrapper):
         """Abort the current rebase"""
         return self.git_operations.abort_rebase()
     
-    # Search methods - delegate to git_search        
     def search_files(self, query, word=False, regex=False, respect_gitignore=True, ignore_case=False):
         """Search for content in repository files"""
         try:
@@ -309,7 +285,13 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
-    # Git monitoring methods - delegate to git_monitor
+    def replace_in_files(self, search_query, replace_query, file_paths, word=False, regex=False, ignore_case=False):
+        """Replace content in specified repository files"""
+        try:
+            return self.git_search.replace_in_files(search_query, replace_query, file_paths, word, regex, ignore_case)
+        except Exception as e:
+            return create_error_response(e)
+    
     def start_git_monitor(self, interval=None):
         """Start monitoring the git repository for changes"""
         try:
@@ -324,11 +306,9 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
-    # Notification methods
     def _notify_git_change(self):
         """Notify RepoTree component about git state changes"""
         try:
-            # Notify RepoTree using _safe_create_task - call loadGitStatus which triggers a refresh
             self._safe_create_task(self.get_call()['RepoTree.loadGitStatus']({}))
             
         except Exception as e: 
@@ -337,17 +317,13 @@ class Repo(BaseWrapper):
     def _notify_file_saved(self, file_path):
         """Notify DiffEditor about file save events"""
         try:
-            # Convert absolute path to relative path if needed
             if os.path.isabs(file_path) and self.repo:
                 repo_root = self.repo.working_tree_dir
                 if file_path.startswith(repo_root):
-                    # Convert to relative path
                     relative_path = os.path.relpath(file_path, repo_root)
-                    # Normalize path separators
                     file_path = relative_path.replace(os.sep, '/')
             
             try:
-                # Notify DiffEditor using _safe_create_task
                 self._safe_create_task(self.get_call()['DiffEditor.reloadIfCurrentFile']({'filePath': file_path}))
             except Exception as e:
                 self.log(f"Error calling DiffEditor.reloadIfCurrentFile: {e}")

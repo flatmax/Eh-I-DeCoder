@@ -1,10 +1,12 @@
 import { html, css, LitElement } from 'lit';
 import { EventHelper } from '../utils/EventHelper.js';
 
-// Import Material Design Web Components
 import '@material/web/button/filled-button.js';
+import '@material/web/button/outlined-button.js';
+import '@material/web/button/text-button.js';
 import '@material/web/checkbox/checkbox.js';
 import '@material/web/textfield/outlined-text-field.js';
+import '@material/web/icon/icon.js';
 
 export class SearchForm extends LitElement {
   static properties = {
@@ -16,12 +18,7 @@ export class SearchForm extends LitElement {
     this.searchState = null;
   }
 
-  /**
-   * Focus the search input field and optionally set the search query
-   * @param {string} [selectedText] - Optional text to set as the search query
-   */
   focusInput(selectedText = '') {
-    // Set the search query first if selected text is provided
     if (selectedText && selectedText.trim()) {
       this.searchState.searchQuery = selectedText.trim();
       this.searchState._notifyUpdate();
@@ -29,18 +26,15 @@ export class SearchForm extends LitElement {
     }
     
     this.updateComplete.then(() => {
-      const textField = this.shadowRoot.querySelector('md-outlined-text-field');
+      const textField = this.shadowRoot.querySelector('#search-input');
       if (textField) {
-        // For Material Design Web Components, we need to focus the internal input
         const input = textField.shadowRoot?.querySelector('input');
         if (input) {
           input.focus();
-          // If we set text, select it all for easy replacement
           if (selectedText && selectedText.trim()) {
             input.select();
           }
         } else {
-          // Fallback: try focusing the text field directly
           textField.focus();
         }
       }
@@ -69,13 +63,75 @@ export class SearchForm extends LitElement {
     this.requestUpdate();
   }
 
+  handleReplaceInputChange(e) {
+    this.searchState.replaceQuery = e.target.value;
+    this.searchState._notifyUpdate();
+    this.requestUpdate();
+  }
+
+  handleToggleReplace() {
+    this.searchState.toggleShowReplace();
+    this.requestUpdate();
+  }
+
+  handleReplaceAll() {
+    const searchQuery = this.searchState.searchQuery?.trim();
+    const replaceQuery = this.searchState.replaceQuery;
+    
+    if (!searchQuery) return;
+    
+    const filePaths = this.searchState.searchResults.map(result => result.file);
+    
+    if (filePaths.length === 0) {
+      console.warn('No files to replace in');
+      return;
+    }
+    
+    const options = {
+      useWordMatch: this.searchState.useWordMatch,
+      useRegex: this.searchState.useRegex,
+      caseSensitive: this.searchState.caseSensitive
+    };
+    
+    EventHelper.dispatch(this, 'replace-all', { 
+      searchQuery, 
+      replaceQuery, 
+      filePaths,
+      options 
+    });
+  }
+
+  handleReplaceInFile(filePath) {
+    const searchQuery = this.searchState.searchQuery?.trim();
+    const replaceQuery = this.searchState.replaceQuery;
+    
+    if (!searchQuery) return;
+    
+    const options = {
+      useWordMatch: this.searchState.useWordMatch,
+      useRegex: this.searchState.useRegex,
+      caseSensitive: this.searchState.caseSensitive
+    };
+    
+    EventHelper.dispatch(this, 'replace-in-file', { 
+      searchQuery, 
+      replaceQuery, 
+      filePath,
+      options 
+    });
+  }
+
   render() {
     if (!this.searchState) return html``;
+
+    const hasSearchResults = this.searchState.searchResults && this.searchState.searchResults.length > 0;
+    const canReplace = this.searchState.searchQuery?.trim() && hasSearchResults && !this.searchState.isReplacing;
 
     return html`
       <form class="search-form" @submit=${this.handleSearch}>
         <div class="input-row">
           <md-outlined-text-field
+            id="search-input"
             label="Search in files..."
             .value=${this.searchState.searchQuery || ''} 
             @input=${this.handleInputChange}
@@ -94,6 +150,57 @@ export class SearchForm extends LitElement {
             }
           </md-filled-button>
         </div>
+        
+        <button 
+          type="button"
+          class="replace-toggle"
+          @click=${this.handleToggleReplace}
+          title="${this.searchState.showReplace ? 'Hide replace options' : 'Show replace options'}"
+        >
+          <span class="mdi ${this.searchState.showReplace ? 'mdi-chevron-down' : 'mdi-chevron-right'} toggle-icon"></span>
+          <span class="toggle-label">Replace</span>
+        </button>
+        
+        ${this.searchState.showReplace ? html`
+          <div class="replace-section">
+            <div class="input-row">
+              <md-outlined-text-field
+                id="replace-input"
+                label="Replace with..."
+                .value=${this.searchState.replaceQuery || ''} 
+                @input=${this.handleReplaceInputChange}
+                ?disabled=${this.searchState.isReplacing}
+                style="flex-grow: 1;"
+              ></md-outlined-text-field>
+              
+              <md-filled-button
+                type="button"
+                @click=${this.handleReplaceAll}
+                ?disabled=${!canReplace}
+              >
+                ${this.searchState.isReplacing ? 
+                  'Replacing...' : 
+                  html`<span class="material-symbols-outlined">find_replace</span>`
+                }
+              </md-filled-button>
+            </div>
+            
+            ${this.searchState.replaceSuccess ? html`
+              <div class="success-message">
+                <span class="mdi mdi-check-circle"></span>
+                ${this.searchState.replaceSuccess}
+              </div>
+            ` : ''}
+            
+            ${this.searchState.replaceError ? html`
+              <div class="error-message">
+                <span class="mdi mdi-alert-circle"></span>
+                ${this.searchState.replaceError}
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+        
         <div class="options-row">
           <div class="checkbox-option" title="Whole words only">
             <md-checkbox
@@ -125,6 +232,7 @@ export class SearchForm extends LitElement {
             <label>.gitignore</label>
           </div>
           <button 
+            type="button"
             class="case-sensitive-button" 
             @click=${() => this.searchState.isSearching ? null : (this.searchState.caseSensitive = !this.searchState.caseSensitive)}
             ?disabled=${this.searchState.isSearching}
@@ -149,6 +257,60 @@ export class SearchForm extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    
+    .replace-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: none;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--md-sys-color-on-surface-variant, #49454f);
+      font-size: 13px;
+      font-family: inherit;
+      transition: background-color 0.2s ease;
+      width: fit-content;
+    }
+    
+    .replace-toggle:hover {
+      background-color: var(--md-sys-color-surface-variant, #e7e0ec);
+    }
+    
+    .replace-toggle:active {
+      background-color: var(--md-sys-color-outline-variant, #cac4d0);
+    }
+    
+    .toggle-icon {
+      font-size: 18px;
+      transition: transform 0.2s ease;
+    }
+    
+    .toggle-label {
+      font-weight: 500;
+    }
+    
+    .replace-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px;
+      background-color: var(--md-sys-color-surface-variant, #e7e0ec);
+      border-radius: 8px;
+      animation: slideDown 0.2s ease;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     
     .options-row {
@@ -214,6 +376,37 @@ export class SearchForm extends LitElement {
     .case-sensitive-button .inactive {
       color: var(--md-sys-color-outline, #79747e);
       opacity: 0.7;
+    }
+    
+    .success-message {
+      color: var(--md-sys-color-on-tertiary-container, #1d4e1d);
+      background-color: var(--md-sys-color-tertiary-container, #d4edda);
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .success-message .mdi {
+      color: #28a745;
+      font-size: 16px;
+    }
+    
+    .error-message {
+      color: var(--md-sys-color-on-error-container, #410e0b);
+      background-color: var(--md-sys-color-error-container, #f9dedc);
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+    
+    .error-message .mdi {
+      font-size: 16px;
     }
   `;
 }

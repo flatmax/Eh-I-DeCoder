@@ -3,13 +3,18 @@ import { extractResponseData } from '../Utils.js';
 export class SearchState {
   static properties = {
     searchQuery: { type: String, state: true },
+    replaceQuery: { type: String, state: true },
     searchResults: { type: Array, state: true },
     isSearching: { type: Boolean, state: true },
+    isReplacing: { type: Boolean, state: true },
     searchError: { type: String, state: true },
+    replaceError: { type: String, state: true },
+    replaceSuccess: { type: String, state: true },
     useWordMatch: { type: Boolean, state: true },
     useRegex: { type: Boolean, state: true },
     respectGitignore: { type: Boolean, state: true },
     caseSensitive: { type: Boolean, state: true },
+    showReplace: { type: Boolean, state: true },
     expandedFiles: { type: Set, state: true },
     allExpanded: { type: Boolean, state: true }
   };
@@ -17,13 +22,18 @@ export class SearchState {
   constructor(updateCallback = null) {
     this.updateCallback = updateCallback;
     this.searchQuery = '';
+    this.replaceQuery = '';
     this.searchResults = [];
     this.isSearching = false;
+    this.isReplacing = false;
     this.searchError = null;
+    this.replaceError = null;
+    this.replaceSuccess = null;
     this.useWordMatch = false;
     this.useRegex = false;
-    this.respectGitignore = true; // Default to respecting .gitignore
-    this.caseSensitive = false; // Default to case-insensitive search
+    this.respectGitignore = true;
+    this.caseSensitive = false;
+    this.showReplace = false;
     this.expandedFiles = new Set();
     this.allExpanded = false;
     this._updateScheduled = false;
@@ -34,7 +44,6 @@ export class SearchState {
     
     this._updateScheduled = true;
     
-    // Use requestAnimationFrame for batching updates
     requestAnimationFrame(() => {
       this._updateScheduled = false;
       if (this.updateCallback) {
@@ -47,6 +56,8 @@ export class SearchState {
     this.isSearching = true;
     this.searchResults = [];
     this.searchError = null;
+    this.replaceError = null;
+    this.replaceSuccess = null;
     this.expandedFiles = new Set();
     this.allExpanded = false;
     this._notifyUpdate();
@@ -59,7 +70,6 @@ export class SearchState {
       this.searchError = response.error;
       console.error('Search error:', response.error);
     } else {
-      // Extract search results using the utility function
       this.searchResults = extractResponseData(response, [], true);
     }
     this._notifyUpdate();
@@ -72,22 +82,55 @@ export class SearchState {
     this._notifyUpdate();
   }
 
+  startReplace() {
+    this.isReplacing = true;
+    this.replaceError = null;
+    this.replaceSuccess = null;
+    this._notifyUpdate();
+  }
+
+  handleReplaceResponse(response) {
+    this.isReplacing = false;
+    
+    if (response.error) {
+      this.replaceError = response.error;
+      console.error('Replace error:', response.error);
+    } else {
+      const result = extractResponseData(response, {});
+      if (result.total_replacements !== undefined) {
+        this.replaceSuccess = `Replaced ${result.total_replacements} occurrence(s) in ${result.files_modified} file(s)`;
+      } else {
+        this.replaceSuccess = 'Replace completed';
+      }
+    }
+    this._notifyUpdate();
+  }
+
+  handleReplaceError(error) {
+    this.isReplacing = false;
+    this.replaceError = `Replace failed: ${error.message || 'Unknown error'}`;
+    console.error('Replace error:', error);
+    this._notifyUpdate();
+  }
+
+  toggleShowReplace() {
+    this.showReplace = !this.showReplace;
+    this._notifyUpdate();
+  }
+
   expandAll() {
     this.allExpanded = true;
-    // Create new Set to trigger change detection
     this.expandedFiles = new Set(this.searchResults.map(result => result.file));
     this._notifyUpdate();
   }
 
   collapseAll() {
     this.allExpanded = false;
-    // Create new Set to trigger change detection
     this.expandedFiles = new Set();
     this._notifyUpdate();
   }
 
   toggleFileExpansion(filePath) {
-    // Create new Set for immutability
     const newExpandedFiles = new Set(this.expandedFiles);
     
     if (newExpandedFiles.has(filePath)) {
@@ -97,8 +140,6 @@ export class SearchState {
     }
     
     this.expandedFiles = newExpandedFiles;
-    
-    // Update allExpanded state based on current expansion
     this.allExpanded = this.expandedFiles.size === this.searchResults.length;
     
     this._notifyUpdate();
