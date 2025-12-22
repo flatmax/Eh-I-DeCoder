@@ -101,12 +101,32 @@ export class RepoTreeStyles {
     }
     
     .git-status-indicator {
-      margin-left: auto;
+      margin-left: 4px;
       font-family: monospace;
       font-size: 12px;
       font-weight: bold;
       padding: 1px 4px;
       border-radius: 2px;
+    }
+    
+    /* Line delta styles */
+    .line-delta {
+      margin-left: auto;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    
+    .line-delta-positive {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .line-delta-negative {
+      background: #ffebee;
+      color: #c62828;
     }
     
     .git-modified {

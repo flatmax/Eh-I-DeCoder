@@ -202,6 +202,35 @@ class Repo(BaseWrapper):
         except Exception as e:
             return create_error_response(e)
     
+    def get_file_line_diff(self, file_path):
+        """Get line counts for HEAD and working versions of a file
+        
+        Returns:
+            dict: {
+                'old': int - line count in HEAD,
+                'new': int - line count in working tree,
+                'delta': int - difference (new - old)
+            }
+        """
+        try:
+            return self.file_analyzer.get_file_line_diff(file_path)
+        except Exception as e:
+            return create_error_response(e)
+    
+    def get_file_line_diffs(self, file_paths):
+        """Get line diffs for multiple files
+        
+        Args:
+            file_paths: List of file paths to analyze
+            
+        Returns:
+            dict: {file_path: {'old': int, 'new': int, 'delta': int}, ...}
+        """
+        try:
+            return self.file_analyzer.get_file_line_diffs(file_paths)
+        except Exception as e:
+            return create_error_response(e)
+    
     def save_file_content(self, file_path, content):
         """Save file content to disk in the working directory"""
         return self.git_operations.save_file_content(file_path, content)

@@ -4,6 +4,7 @@ export class GitStatusManager {
     this.modifiedFiles = [];
     this.stagedFiles = [];
     this.untrackedFiles = [];
+    this.lineDiffs = {};
   }
 
   loadGitStatus(statusResponse) {
@@ -21,6 +22,18 @@ export class GitStatusManager {
     } catch (error) {
       console.error('Error loading Git status:', error);
       throw new Error(`Failed to load Git status: ${error.message}`);
+    }
+  }
+
+  loadLineDiffs(lineDiffsResponse) {
+    try {
+      let diffs = this.extractStatusFromResponse(lineDiffsResponse);
+      this.lineDiffs = diffs || {};
+      return true;
+    } catch (error) {
+      console.error('Error loading line diffs:', error);
+      this.lineDiffs = {};
+      return false;
     }
   }
 
@@ -65,6 +78,29 @@ export class GitStatusManager {
       case 'untracked': return '?';
       default: return '';
     }
+  }
+
+  getLineDiff(filePath) {
+    return this.lineDiffs[filePath] || null;
+  }
+
+  getLineDeltaDisplay(filePath) {
+    const diff = this.lineDiffs[filePath];
+    if (!diff) return null;
+    
+    const delta = diff.delta;
+    if (delta === 0) return null;
+    
+    return {
+      delta: delta,
+      display: delta > 0 ? `+${delta}` : `${delta}`,
+      isPositive: delta > 0
+    };
+  }
+
+  getChangedFilePaths() {
+    // Get all files that have changes (modified, staged, or untracked)
+    return [...new Set([...this.modifiedFiles, ...this.stagedFiles, ...this.untrackedFiles])];
   }
 
   getModifiedFilePaths() {

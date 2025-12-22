@@ -62,6 +62,78 @@ class FileAnalyzer:
                 raise
             raise GitError(f"Error getting file line counts: {e}")
     
+    def get_file_line_diff(self, file_path):
+        """Get line counts for HEAD and working versions of a file
+        
+        Returns:
+            dict: {
+                'old': int - line count in HEAD,
+                'new': int - line count in working tree,
+                'delta': int - difference (new - old)
+            }
+        """
+        try:
+            if not self.repo.repo:
+                raise GitRepositoryError("No Git repository available")
+            
+            repo_root = self.repo.repo.working_tree_dir
+            abs_path = os.path.join(repo_root, file_path)
+            
+            # Working tree line count
+            working_lines = 0
+            if os.path.exists(abs_path) and self.is_text_file(abs_path):
+                working_lines = self._count_file_lines(abs_path)
+            
+            # HEAD version line count
+            head_lines = 0
+            try:
+                blob = self.repo.repo.head.commit.tree[file_path]
+                content = blob.data_stream.read().decode('utf-8', errors='replace')
+                head_lines = content.count('\n')
+                # Add 1 if file doesn't end with newline but has content
+                if content and not content.endswith('\n'):
+                    head_lines += 1
+            except (KeyError, Exception):
+                pass  # File doesn't exist in HEAD (new file)
+            
+            return {
+                'old': head_lines,
+                'new': working_lines,
+                'delta': working_lines - head_lines
+            }
+            
+        except Exception as e:
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting file line diff: {e}")
+    
+    def get_file_line_diffs(self, file_paths):
+        """Get line diffs for multiple files
+        
+        Args:
+            file_paths: List of file paths to analyze
+            
+        Returns:
+            dict: {file_path: {'old': int, 'new': int, 'delta': int}, ...}
+        """
+        try:
+            if not self.repo.repo:
+                raise GitRepositoryError("No Git repository available")
+            
+            results = {}
+            for file_path in file_paths:
+                try:
+                    results[file_path] = self.get_file_line_diff(file_path)
+                except Exception:
+                    results[file_path] = {'old': 0, 'new': 0, 'delta': 0}
+            
+            return results
+            
+        except Exception as e:
+            if isinstance(e, GitRepositoryError):
+                raise
+            raise GitError(f"Error getting file line diffs: {e}")
+    
     def is_text_file(self, file_path):
         """Check if a file is likely to be a text file"""
         try:

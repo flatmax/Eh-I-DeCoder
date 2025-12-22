@@ -22,9 +22,30 @@ export class RepoTreeManagers {
       this.repoTree.stagedFiles = this.gitStatusManager.stagedFiles;
       this.repoTree.untrackedFiles = this.gitStatusManager.untrackedFiles;
       
+      // Fetch line diffs for changed files
+      await this.fetchLineDiffs();
+      
     } catch (error) {
       console.error('Error fetching git status:', error);
       this.repoTree.error = `Failed to load Git status: ${error.message}`;
+    }
+  }
+
+  async fetchLineDiffs() {
+    try {
+      const changedFiles = this.gitStatusManager.getChangedFilePaths();
+      
+      if (changedFiles.length === 0) {
+        this.gitStatusManager.lineDiffs = {};
+        return;
+      }
+      
+      const lineDiffsResponse = await this.repoTree.call['Repo.get_file_line_diffs'](changedFiles);
+      this.gitStatusManager.loadLineDiffs(lineDiffsResponse);
+      
+    } catch (error) {
+      console.warn('Could not fetch line diffs:', error);
+      this.gitStatusManager.lineDiffs = {};
     }
   }
 

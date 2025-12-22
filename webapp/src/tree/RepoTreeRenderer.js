@@ -26,7 +26,14 @@ export class RepoTreeRenderer {
     if (node.isFile) {
       const gitStatus = this.repoTree.repoManagers.gitStatusManager.getFileGitStatus(nodePath);
       if (gitStatus !== 'clean') {
+        const lineDelta = this.repoTree.repoManagers.gitStatusManager.getLineDeltaDisplay(nodePath);
+        
         return html`
+          ${lineDelta ? html`
+            <span class="line-delta ${lineDelta.isPositive ? 'line-delta-positive' : 'line-delta-negative'}">
+              ${lineDelta.display}
+            </span>
+          ` : ''}
           <span class="git-status-indicator">${this.repoTree.repoManagers.gitStatusManager.getGitStatusSymbol(gitStatus)}</span>
         `;
       }
