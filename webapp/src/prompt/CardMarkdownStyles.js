@@ -228,6 +228,59 @@ export class CardMarkdownStyles {
         text-decoration: underline;
       }
 
+      /* Code block wrapper styles */
+      .code-block-wrapper {
+        position: relative;
+        margin: 6px 0;
+      }
+
+      .code-block-wrapper pre {
+        margin: 0;
+      }
+
+      .code-block-copy-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #e1e4e8;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 4px 8px;
+        color: #666;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        z-index: 10;
+      }
+
+      .code-block-wrapper:hover .code-block-copy-button {
+        opacity: 1;
+      }
+
+      .code-block-copy-button:hover {
+        background: #fff;
+        color: #333;
+        border-color: #ccc;
+      }
+
+      .code-block-copy-button:active {
+        transform: scale(0.95);
+      }
+
+      .code-block-copy-button.success {
+        color: #4CAF50;
+        border-color: #4CAF50;
+        opacity: 1;
+      }
+
+      .code-block-copy-button svg {
+        width: 14px;
+        height: 14px;
+      }
+
       /* Prism.js theme - Tomorrow Night */
       code[class*="language-"],
       pre[class*="language-"] {

@@ -20,7 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+uv.lock
 # Virtual environments
 venv/
 env/

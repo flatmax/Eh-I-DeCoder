@@ -64,11 +64,33 @@ export class CardMarkdown extends LitElement {
 
   processMarkdown(content) {
     try {
-      return marked(content);
+      const rawHtml = marked(content);
+      // Wrap code blocks with a container that includes a copy button
+      return this.wrapCodeBlocksWithCopyButton(rawHtml);
     } catch (e) {
       console.error('Markdown parsing error:', e);
       return content;
     }
+  }
+
+  wrapCodeBlocksWithCopyButton(html) {
+    // Use a regex to find <pre><code> blocks and wrap them
+    // This regex matches <pre> tags that contain <code> tags
+    const preCodeRegex = /(<pre[^>]*>)(\s*<code[^>]*>)([\s\S]*?)(<\/code>\s*<\/pre>)/gi;
+    
+    let blockIndex = 0;
+    return html.replace(preCodeRegex, (match, preOpen, codeOpen, codeContent, codeClosePreClose) => {
+      const wrappedBlock = `<div class="code-block-wrapper" data-block-index="${blockIndex}">
+        <button class="code-block-copy-button" data-block-index="${blockIndex}" title="Copy code">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+          </svg>
+        </button>
+        ${preOpen}${codeOpen}${codeContent}${codeClosePreClose}
+      </div>`;
+      blockIndex++;
+      return wrappedBlock;
+    });
   }
 
   static styles = CardMarkdownStyles.styles;
@@ -113,6 +135,83 @@ export class CardMarkdown extends LitElement {
         console.error('Fallback copy failed:', fallbackErr);
       }
     }
+  }
+
+  async copyCodeBlock(button, codeContent) {
+    try {
+      await navigator.clipboard.writeText(codeContent);
+      button.classList.add('success');
+      
+      // Change icon to checkmark
+      button.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      `;
+      
+      // Reset after 2 seconds
+      setTimeout(() => {
+        button.classList.remove('success');
+        button.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+          </svg>
+        `;
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy code block:', err);
+      
+      // Fallback for older browsers
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = codeContent;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+        
+        button.classList.add('success');
+        button.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        `;
+        
+        setTimeout(() => {
+          button.classList.remove('success');
+          button.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+            </svg>
+          `;
+        }, 2000);
+      } catch (fallbackErr) {
+        console.error('Fallback copy failed:', fallbackErr);
+      }
+    }
+  }
+
+  handleCodeBlockCopyClick(event) {
+    const button = event.target.closest('.code-block-copy-button');
+    if (!button) return;
+    
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Find the associated code block
+    const wrapper = button.closest('.code-block-wrapper');
+    if (!wrapper) return;
+    
+    const codeElement = wrapper.querySelector('pre code');
+    if (!codeElement) return;
+    
+    // Get the text content (without HTML tags from syntax highlighting)
+    const codeContent = codeElement.textContent;
+    this.copyCodeBlock(button, codeContent);
   }
 
   copyToPrompt() {
@@ -200,7 +299,7 @@ export class CardMarkdown extends LitElement {
             </button>
           </div>
         </div>
-        <div class="card-content">
+        <div class="card-content" @click=${this.handleCodeBlockCopyClick}>
           ${this.role === 'command' 
             ? html`<pre>${this.content}</pre>`
             : unsafeHTML(processedContent)
