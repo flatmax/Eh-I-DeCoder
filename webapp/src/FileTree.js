@@ -471,7 +471,7 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
         await this.fileTreeManager.addFile(path);
       }
     } catch (error) {
-      console.error(`Error ${isAdded ? 'dropping' : 'adding'} file:`, error);
+      console.error(`Error toggling file:`, error);
     }
   }
   
@@ -491,19 +491,14 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
       console.log(`FileTree: Directory ${node.path} has ${allFiles.length} files, all added: ${allAdded}`);
       
       if (allAdded) {
-        // Remove all files
-        console.log(`FileTree: Removing all files from directory ${node.path}`);
-        for (const filePath of allFiles) {
-          await this.fileTreeManager.removeFile(filePath);
-        }
+        // Remove all files in a single batch call
+        console.log(`FileTree: Removing all ${allFiles.length} files from directory ${node.path}`);
+        await this.fileTreeManager.removeFiles(allFiles);
       } else {
-        // Add all files
-        console.log(`FileTree: Adding all files from directory ${node.path}`);
-        for (const filePath of allFiles) {
-          if (!this.addedFiles.includes(filePath)) {
-            await this.fileTreeManager.addFile(filePath);
-          }
-        }
+        // Add only files that aren't already added, in a single batch call
+        const filesToAdd = allFiles.filter(file => !this.addedFiles.includes(file));
+        console.log(`FileTree: Adding ${filesToAdd.length} files from directory ${node.path}`);
+        await this.fileTreeManager.addFiles(filesToAdd);
       }
     } catch (error) {
       console.error('Error handling directory checkbox:', error);

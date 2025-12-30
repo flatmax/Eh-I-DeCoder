@@ -63,19 +63,26 @@ export class FileTreeManager {
     await this.jrpcClient.call['EditBlockCoder.add_rel_fname'](filePath);
   }
 
+  async addFiles(filePaths) {
+    // Batch add multiple files in a single RPC call
+    if (filePaths.length === 0) return;
+    await this.jrpcClient.call['CoderWrapper.add_files_to_context'](filePaths);
+  }
+
   async removeFile(filePath) {
     await this.jrpcClient.call['EditBlockCoder.drop_rel_fname'](filePath);
   }
 
+  async removeFiles(filePaths) {
+    // Batch remove multiple files in a single RPC call
+    if (filePaths.length === 0) return;
+    await this.jrpcClient.call['CoderWrapper.drop_files_from_context'](filePaths);
+  }
+
   async removeAllFiles(addedFiles) {
-    const filesToRemove = [...addedFiles];
+    if (addedFiles.length === 0) return;
     
-    for (const filePath of filesToRemove) {
-      try {
-        await this.removeFile(filePath);
-      } catch (error) {
-        console.error(`Error removing file ${filePath}:`, error);
-      }
-    }
+    // Use batch remove instead of iterating
+    await this.removeFiles([...addedFiles]);
   }
 }

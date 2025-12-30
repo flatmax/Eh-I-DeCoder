@@ -160,6 +160,90 @@ class CoderWrapper(BaseWrapper):
             self.log(f"Error in drop_rel_fname_wrapper: {e}")
             raise
 
+    def add_files_to_context(self, file_paths):
+        """Add multiple files to the chat context in a single batch operation
+        
+        Args:
+            file_paths: List of relative file paths to add
+            
+        Returns:
+            dict with success status and details
+        """
+        try:
+            if not file_paths:
+                return {"success": True, "added": [], "failed": []}
+            
+            added = []
+            failed = []
+            
+            for file_path in file_paths:
+                try:
+                    # Use the original method to avoid triggering individual notifications
+                    if self.original_add_rel_fname:
+                        self.original_add_rel_fname(file_path)
+                        added.append(file_path)
+                    else:
+                        failed.append({"file": file_path, "error": "add_rel_fname not available"})
+                except Exception as e:
+                    failed.append({"file": file_path, "error": str(e)})
+            
+            # Notify RepoTree once after all files are added
+            self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            
+            return {
+                "success": len(failed) == 0,
+                "added": added,
+                "failed": failed,
+                "total_added": len(added),
+                "total_failed": len(failed)
+            }
+            
+        except Exception as e:
+            self.log(f"Error in add_files_to_context: {e}")
+            return create_error_response(e)
+    
+    def drop_files_from_context(self, file_paths):
+        """Remove multiple files from the chat context in a single batch operation
+        
+        Args:
+            file_paths: List of relative file paths to remove
+            
+        Returns:
+            dict with success status and details
+        """
+        try:
+            if not file_paths:
+                return {"success": True, "dropped": [], "failed": []}
+            
+            dropped = []
+            failed = []
+            
+            for file_path in file_paths:
+                try:
+                    # Use the original method to avoid triggering individual notifications
+                    if self.original_drop_rel_fname:
+                        self.original_drop_rel_fname(file_path)
+                        dropped.append(file_path)
+                    else:
+                        failed.append({"file": file_path, "error": "drop_rel_fname not available"})
+                except Exception as e:
+                    failed.append({"file": file_path, "error": str(e)})
+            
+            # Notify RepoTree once after all files are dropped
+            self._safe_create_task(self.get_call()['RepoTree.loadFileTree']())
+            
+            return {
+                "success": len(failed) == 0,
+                "dropped": dropped,
+                "failed": failed,
+                "total_dropped": len(dropped),
+                "total_failed": len(failed)
+            }
+            
+        except Exception as e:
+            self.log(f"Error in drop_files_from_context: {e}")
+            return create_error_response(e)
+
     def stop(self):
         """Stop the current running operation by raising KeyboardInterrupt"""
         try:
