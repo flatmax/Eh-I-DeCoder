@@ -2,9 +2,10 @@
  * MessageHandler class that manages message history, streaming, and backend communication
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
+import {ReconnectMixin} from './mixins/ReconnectMixin.js';
 import './prompt/ConfirmationDialog.js';
 
-export class MessageHandler extends JRPCClient {
+export class MessageHandler extends ReconnectMixin(JRPCClient) {
   static properties = {
     messageHistory: { type: Array, state: true },
     isProcessing: { type: Boolean, state: true },
@@ -50,6 +51,7 @@ export class MessageHandler extends JRPCClient {
   setupDone() {
     console.log('MessageHandler::setupDone - Ready to interact with Aider');
     this.isConnected = true;
+    this._resetReconnectState();
     this.requestUpdate();
   }
   
@@ -67,6 +69,14 @@ export class MessageHandler extends JRPCClient {
   remoteDisconnected() {
     console.log('MessageHandler::remoteDisconnected');
     this.isConnected = false;
+    
+    // Schedule reconnect first
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('MessageHandler: Error scheduling reconnect:', e);
+    }
+    
     // If we were processing, mark as not processing
     if (this.isProcessing) {
       this.isProcessing = false;

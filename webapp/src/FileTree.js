@@ -7,9 +7,10 @@ import {FileTreeRenderer} from './tree/FileTreeRenderer.js';
 import {fileTreeStyles} from './tree/FileTreeStyles.js';
 import {extractResponseData} from './Utils.js';
 import {KeyboardShortcutsMixin} from './mixins/KeyboardShortcutsMixin.js';
+import {ReconnectMixin} from './mixins/ReconnectMixin.js';
 import {EventHelper} from './utils/EventHelper.js';
 
-export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
+export class FileTree extends ReconnectMixin(KeyboardShortcutsMixin(JRPCClient)) {
   static properties = {
     files: { type: Array, state: true },
     addedFiles: { type: Array, state: true },
@@ -86,6 +87,8 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   setupDone() {
     console.log(`${this.constructor.name}::setupDone - Connection ready`);
     this.isConnected = true;
+    this.error = null; // Clear any previous error
+    this._resetReconnectState(); // Reset reconnect attempts counter
     this.loadFileTree();
   }
   
@@ -103,7 +106,15 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   remoteDisconnected() {
     console.log(`${this.constructor.name}::remoteDisconnected`);
     this.isConnected = false;
-    this.error = 'Connection lost. Waiting for reconnection...';
+    
+    // Schedule reconnect first - this is the most important action
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error(`${this.constructor.name}: Error scheduling reconnect:`, e);
+    }
+    
+    // Then update UI
     this._scheduleBatchUpdate();
   }
   
@@ -379,7 +390,6 @@ export class FileTree extends KeyboardShortcutsMixin(JRPCClient) {
   async loadFileTree(scrollPosition = 0) {
     if (!this.isConnected || !this.call) {
       console.warn('Cannot load file tree - not connected');
-      this.error = 'Waiting for connection...';
       this._scheduleBatchUpdate();
       return;
     }

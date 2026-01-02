@@ -27,6 +27,35 @@ export class RepoTree extends FileTree {
     super.cleanup();
   }
 
+  /**
+   * Called when JRPC connection is established and ready
+   */
+  setupDone() {
+    console.log(`${this.constructor.name}::setupDone - Connection ready`);
+    this.isConnected = true;
+    this.error = null; // Clear any previous error
+    this._resetReconnectState(); // Reset reconnect attempts counter
+    this.loadFileTree();
+  }
+
+  /**
+   * Called when remote disconnects
+   */
+  remoteDisconnected() {
+    console.log(`${this.constructor.name}::remoteDisconnected`);
+    this.isConnected = false;
+    
+    // Schedule reconnect first - this is the most important action
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error(`${this.constructor.name}: Error scheduling reconnect:`, e);
+    }
+    
+    // Then update UI
+    this._scheduleBatchUpdate();
+  }
+
   handleGitActionComplete() {
     setTimeout(() => this.loadFileTree(), 300);
   }

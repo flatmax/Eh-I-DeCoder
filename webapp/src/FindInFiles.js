@@ -5,10 +5,11 @@ import { SearchResults } from './search/SearchResults.js';
 import { SearchState } from './search/SearchState.js';
 import { EventHelper } from './utils/EventHelper.js';
 import { extractResponseData } from './Utils.js';
+import { ReconnectMixin } from './mixins/ReconnectMixin.js';
 
 import '@material/web/progress/circular-progress.js';
 
-export class FindInFiles extends JRPCClient {
+export class FindInFiles extends ReconnectMixin(JRPCClient) {
   static properties = {
     ...SearchState.properties,
     serverURI: { type: String },
@@ -49,6 +50,7 @@ export class FindInFiles extends JRPCClient {
   async setupDone() {
     console.log('FindInFiles::setupDone - Connection ready');
     this.isConnected = true;
+    this._resetReconnectState();
     
     await this.loadInchatFiles();
   }
@@ -60,12 +62,22 @@ export class FindInFiles extends JRPCClient {
   remoteDisconnected() {
     console.log('FindInFiles::remoteDisconnected');
     this.isConnected = false;
+    
+    // Schedule reconnect first
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('FindInFiles: Error scheduling reconnect:', e);
+    }
+    
     if (this.isSearching) {
       this.searchState.handleSearchError(new Error('Connection lost during search'));
     }
     if (this.isReplacing) {
       this.searchState.handleReplaceError(new Error('Connection lost during replace'));
     }
+    
+    this.requestUpdate();
   }
   
   async loadInchatFiles() {

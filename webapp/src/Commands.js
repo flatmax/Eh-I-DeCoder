@@ -3,8 +3,9 @@
  * Command buttons have been moved to CommandsButtons component
  */
 import {JRPCClient} from '@flatmax/jrpc-oo';
+import {ReconnectMixin} from './mixins/ReconnectMixin.js';
 
-export class Commands extends JRPCClient {
+export class Commands extends ReconnectMixin(JRPCClient) {
   static properties = {
     commandOutput: { type: Array, state: true },
     showOutput: { type: Boolean, state: true },
@@ -31,6 +32,7 @@ export class Commands extends JRPCClient {
   setupDone() {
     console.log('Commands::setupDone - Connection ready');
     this.isConnected = true;
+    this._resetReconnectState();
   }
   
   /**
@@ -47,6 +49,15 @@ export class Commands extends JRPCClient {
   remoteDisconnected() {
     console.log('Commands::remoteDisconnected');
     this.isConnected = false;
+    
+    // Schedule reconnect
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('Commands: Error scheduling reconnect:', e);
+    }
+    
+    this.requestUpdate();
   }
 
   /**

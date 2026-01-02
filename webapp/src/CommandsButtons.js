@@ -9,8 +9,9 @@ import '@material/web/chips/chip-set.js';
 import '@material/web/chips/assist-chip.js';
 import '@material/web/icon/icon.js';
 import {extractResponseData} from './Utils.js';
+import {ReconnectMixin} from './mixins/ReconnectMixin.js';
 
-export class CommandsButtons extends JRPCClient {
+export class CommandsButtons extends ReconnectMixin(JRPCClient) {
   static properties = {
     commands: { type: Array, state: true },
     loading: { type: Boolean, state: true },
@@ -80,6 +81,8 @@ export class CommandsButtons extends JRPCClient {
   setupDone() {
     console.log('CommandsButtons::setupDone - Connection ready');
     this.isConnected = true;
+    this.error = null;
+    this._resetReconnectState();
     this.loadCommands();
   }
   
@@ -97,7 +100,14 @@ export class CommandsButtons extends JRPCClient {
   remoteDisconnected() {
     console.log('CommandsButtons::remoteDisconnected');
     this.isConnected = false;
-    this.error = 'Connection lost. Waiting for reconnection...';
+    
+    // Schedule reconnect
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('CommandsButtons: Error scheduling reconnect:', e);
+    }
+    
     this.requestUpdate();
   }
 

@@ -8,11 +8,12 @@ import { ChatHistoryStyles } from './ChatHistoryStyles.js';
 import { MessageParser } from './MessageParser.js';
 import { ChatScrollManager } from './ChatScrollManager.js';
 import { extractResponseData } from '../Utils.js';
+import { ReconnectMixin } from '../mixins/ReconnectMixin.js';
 import './UserCard.js';
 import './AssistantCard.js';
 import './CommandsCard.js';
 
-export class ChatHistoryPanel extends JRPCClient {
+export class ChatHistoryPanel extends ReconnectMixin(JRPCClient) {
   static properties = {
     ...JRPCClient.properties,
     serverURI: { type: String },
@@ -93,6 +94,8 @@ export class ChatHistoryPanel extends JRPCClient {
   setupDone() {
     console.log('ChatHistoryPanel::setupDone - Connection ready')
     this.isConnected = true;
+    this.error = null;
+    this._resetReconnectState();
     this.loadInitialContent();
   }
   
@@ -110,8 +113,16 @@ export class ChatHistoryPanel extends JRPCClient {
   remoteDisconnected() {
     console.log('ChatHistoryPanel::remoteDisconnected');
     this.isConnected = false;
-    this.error = 'Connection lost. Waiting for reconnection...';
     this.loading = false;
+    
+    // Schedule reconnect first
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('ChatHistoryPanel: Error scheduling reconnect:', e);
+    }
+    
+    this.requestUpdate();
   }
 
   async loadInitialContent() {

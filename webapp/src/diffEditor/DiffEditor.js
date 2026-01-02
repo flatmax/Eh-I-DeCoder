@@ -8,10 +8,11 @@ import {FileManager} from './FileManager.js';
 import {LSPManager} from '../lsp/LSPManager.js';
 import {EventHelper} from '../utils/EventHelper.js';
 import {FileContentService} from '../services/FileContentService.js';
+import {ReconnectMixin} from '../mixins/ReconnectMixin.js';
 import './MonacoDiffEditor.js';
 import './NavigationHistoryGraph.js';
 
-export class DiffEditor extends JRPCClient {
+export class DiffEditor extends ReconnectMixin(JRPCClient) {
   static properties = {
     serverURI: { type: String },
     lspPort: { type: Number },
@@ -86,6 +87,7 @@ export class DiffEditor extends JRPCClient {
   setupDone() {
     console.log('DiffEditor::setupDone - Connection ready');
     this.isConnected = true;
+    this._resetReconnectState();
     this.fileLoader = new FileContentLoader(this);
     this.fileManager.setFileLoader(this.fileLoader);
   }
@@ -105,6 +107,15 @@ export class DiffEditor extends JRPCClient {
     console.log('DiffEditor::remoteDisconnected');
     this.isConnected = false;
     this.fileLoader = null;
+    
+    // Schedule reconnect
+    try {
+      this._scheduleReconnect();
+    } catch (e) {
+      console.error('DiffEditor: Error scheduling reconnect:', e);
+    }
+    
+    this.requestUpdate();
   }
 
   render() {
