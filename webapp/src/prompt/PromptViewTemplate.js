@@ -48,7 +48,7 @@ export function renderPromptView(component) {
               <div class="message-history" id="messageHistory" @scroll=${component.scrollManager.handleScroll.bind(component.scrollManager)}>
                 ${repeat(
                   component.messageHistory,
-                  (message, i) => i,
+                  (message) => message.id || `${message.role}-${message.content?.substring(0, 50)}`,
                   message => {
                     if (message.role === 'user') {
                       return html`<user-card .content=${message.content}></user-card>`;

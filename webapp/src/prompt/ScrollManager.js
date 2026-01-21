@@ -6,6 +6,7 @@ export class ScrollManager {
     this.promptView = promptView;
     this.scrollThreshold = 100; // Show button when scrolled up more than 100px from bottom
     this.autoScrollEnabled = true; // Track if auto-scroll should happen
+    this.codeBlockScrollPositions = new Map(); // Track horizontal scroll positions of code blocks
   }
   
   initialize() {
@@ -14,6 +15,7 @@ export class ScrollManager {
   
   cleanup() {
     console.log('ScrollManager cleaned up');
+    this.codeBlockScrollPositions.clear();
   }
   
   /**
@@ -34,6 +36,77 @@ export class ScrollManager {
     // Update auto-scroll state based on user's scroll position
     // If user is near the bottom, enable auto-scroll
     this.autoScrollEnabled = distanceFromBottom <= 50;
+  }
+  
+  /**
+   * Save horizontal scroll positions of all code blocks
+   */
+  saveCodeBlockScrollPositions() {
+    const historyContainer = this.promptView.shadowRoot?.getElementById('messageHistory');
+    if (!historyContainer) return;
+    
+    // Find all code blocks with horizontal scroll
+    const cards = historyContainer.querySelectorAll('assistant-card, user-card, commands-card');
+    
+    cards.forEach((card, cardIndex) => {
+      const shadowRoot = card.shadowRoot;
+      if (!shadowRoot) return;
+      
+      // Find pre elements (code blocks) within the card
+      const preElements = shadowRoot.querySelectorAll('pre');
+      preElements.forEach((pre, preIndex) => {
+        if (pre.scrollLeft > 0) {
+          const key = `${cardIndex}-${preIndex}`;
+          this.codeBlockScrollPositions.set(key, pre.scrollLeft);
+        }
+      });
+      
+      // Also check for code-block-wrapper elements
+      const wrappers = shadowRoot.querySelectorAll('.code-block-wrapper pre');
+      wrappers.forEach((pre, wrapperIndex) => {
+        if (pre.scrollLeft > 0) {
+          const key = `${cardIndex}-wrapper-${wrapperIndex}`;
+          this.codeBlockScrollPositions.set(key, pre.scrollLeft);
+        }
+      });
+    });
+  }
+  
+  /**
+   * Restore horizontal scroll positions of all code blocks
+   */
+  restoreCodeBlockScrollPositions() {
+    if (this.codeBlockScrollPositions.size === 0) return;
+    
+    const historyContainer = this.promptView.shadowRoot?.getElementById('messageHistory');
+    if (!historyContainer) return;
+    
+    const cards = historyContainer.querySelectorAll('assistant-card, user-card, commands-card');
+    
+    cards.forEach((card, cardIndex) => {
+      const shadowRoot = card.shadowRoot;
+      if (!shadowRoot) return;
+      
+      // Restore pre elements
+      const preElements = shadowRoot.querySelectorAll('pre');
+      preElements.forEach((pre, preIndex) => {
+        const key = `${cardIndex}-${preIndex}`;
+        const savedScrollLeft = this.codeBlockScrollPositions.get(key);
+        if (savedScrollLeft !== undefined) {
+          pre.scrollLeft = savedScrollLeft;
+        }
+      });
+      
+      // Restore code-block-wrapper elements
+      const wrappers = shadowRoot.querySelectorAll('.code-block-wrapper pre');
+      wrappers.forEach((pre, wrapperIndex) => {
+        const key = `${cardIndex}-wrapper-${wrapperIndex}`;
+        const savedScrollLeft = this.codeBlockScrollPositions.get(key);
+        if (savedScrollLeft !== undefined) {
+          pre.scrollLeft = savedScrollLeft;
+        }
+      });
+    });
   }
   
   /**
@@ -90,13 +163,20 @@ export class ScrollManager {
    * Hook called when a message is added
    */
   onMessageAdded(role, content) {
+    // Save code block scroll positions before update
+    this.saveCodeBlockScrollPositions();
+    
     // Always scroll to bottom when a new message is added
     // This ensures we see new messages immediately
     this.autoScrollEnabled = true;
     
-    // Wait for the component to update, then scroll
+    // Wait for the component to update, then scroll and restore
     this.promptView.updateComplete.then(() => {
       this._forceScrollToBottom();
+      // Restore code block positions after a short delay to ensure DOM is ready
+      requestAnimationFrame(() => {
+        this.restoreCodeBlockScrollPositions();
+      });
     });
   }
   
@@ -104,22 +184,40 @@ export class ScrollManager {
    * Hook called when a stream chunk is received
    */
   async onStreamChunk(chunk, final, role) {
+    // Save code block scroll positions before update
+    this.saveCodeBlockScrollPositions();
+    
     // Only auto-scroll during streaming if we were already at the bottom
     if (this.autoScrollEnabled || this._isScrolledToBottom()) {
       await this.promptView.updateComplete;
       this._forceScrollToBottom();
+    } else {
+      await this.promptView.updateComplete;
     }
+    
+    // Restore code block positions after update
+    requestAnimationFrame(() => {
+      this.restoreCodeBlockScrollPositions();
+    });
   }
   
   /**
    * Hook called when streaming is complete
    */
   async onStreamComplete() {
+    // Save code block scroll positions before final update
+    this.saveCodeBlockScrollPositions();
+    
     // Ensure we're at the bottom when streaming completes
     await this.promptView.updateComplete;
     if (this.autoScrollEnabled) {
       this._forceScrollToBottom();
     }
+    
+    // Restore code block positions
+    requestAnimationFrame(() => {
+      this.restoreCodeBlockScrollPositions();
+    });
   }
   
   /**

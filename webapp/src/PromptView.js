@@ -35,7 +35,9 @@ export class PromptView extends MessageHandler {
     hasBeenDragged: { type: Boolean, state: true },
     // Resize properties
     dialogWidth: { type: Number, state: true },
-    hasBeenResized: { type: Boolean, state: true }
+    hasBeenResized: { type: Boolean, state: true },
+    // Message ID counter for stable keys
+    _messageIdCounter: { type: Number, state: true }
   };
   
   constructor() {
@@ -47,6 +49,7 @@ export class PromptView extends MessageHandler {
     this.showScrollToBottom = false;
     this.gitHistoryMode = false;
     this.activeTab = 'assistant'; // Default to AI Assistant tab
+    this._messageIdCounter = 0;
     
     // Initialize managers
     this.dragHandler = new DragHandler(this);
@@ -112,6 +115,40 @@ export class PromptView extends MessageHandler {
   }
 
   /**
+   * Generate a unique ID for a message
+   */
+  _generateMessageId() {
+    return `msg-${++this._messageIdCounter}-${Date.now()}`;
+  }
+
+  /**
+   * Override addMessageToHistory to add stable IDs
+   */
+  addMessageToHistory(role, content) {
+    // Save scroll positions before adding message
+    this.scrollManager.saveCodeBlockScrollPositions();
+    
+    // Check if the message already has an ID (for updates)
+    const existingMessage = this.messageHistory.find(
+      m => m.role === role && m.content === content
+    );
+    
+    if (!existingMessage) {
+      const messageWithId = {
+        id: this._generateMessageId(),
+        role,
+        content
+      };
+      this.messageHistory = [...this.messageHistory, messageWithId];
+    }
+    
+    // Call parent's onMessageAdded hook if it exists
+    if (this.onMessageAdded) {
+      this.onMessageAdded(role, content);
+    }
+  }
+
+  /**
    * Handle copy-to-prompt events from cards
    * @param {CustomEvent} event - The copy-to-prompt event
    */
@@ -160,6 +197,9 @@ export class PromptView extends MessageHandler {
       
       // Use requestAnimationFrame for optimal timing
       requestAnimationFrame(() => {
+        // Save scroll positions before update
+        this.scrollManager.saveCodeBlockScrollPositions();
+        
         // Apply all pending updates at once
         this._pendingUpdates.forEach((value, key) => {
           this[key] = value;
@@ -171,6 +211,13 @@ export class PromptView extends MessageHandler {
         
         // Request a single update
         this.requestUpdate();
+        
+        // Restore scroll positions after update
+        this.updateComplete.then(() => {
+          requestAnimationFrame(() => {
+            this.scrollManager.restoreCodeBlockScrollPositions();
+          });
+        });
       });
     }
   }
